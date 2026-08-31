@@ -1,7 +1,4 @@
-from pathlib import Path
-
 from pydantic_settings import BaseSettings, SettingsConfigDict
-import zoneinfo
 
 
 
@@ -64,10 +61,8 @@ class Settings(BaseSettings):
             return f"redis://:{self.REDIS_PASSWORD}@{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
         return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
     
-    # ==================== Celety ====================
+    # ==================== Celery ====================
     
-    CELERY_BROKER_URL: str = ""  # Заполняется автоматически
-    CELERY_RESULT_BACKEND: str = ""  # Заполняется автоматически
     CELERY_TASK_DEFAULT_QUEUE: str = "default"
     CELERY_TASK_SOFT_TIME_LIMIT: int = 300  # 5 минут
     CELERY_TASK_TIME_LIMIT: int = 600  # 10 минут
@@ -77,13 +72,5 @@ class Settings(BaseSettings):
     
     LOG_LEVEL: str = "INFO"
     LOG_FORMAT: str = "json"
-    
-    # ==================== Cache ====================
-    
-    CACHE_DEFAULT_TTL: int = 300
-    
-    # ==================== TIME ====================
-    
-    APP_TIMEZONE: str = "UTC"
     
 settings = Settings()

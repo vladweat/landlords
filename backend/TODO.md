@@ -4,7 +4,7 @@
 
 Справочник по архитектуре: [ARCHITECTURE.md](./ARCHITECTURE.md)
 
-**Статус:** 31 / 38 выполнено
+**Статус:** 37 / 38 выполнено
 
 ---
 
@@ -74,12 +74,12 @@
 
 ## P5 — мелочи
 
-- [ ] Убрать дублированный import — `auth.py:65-66`
-- [ ] Заменить `datetime.utcnow()` на timezone-aware — `entities.py`, `pdf_service.py`
-- [ ] Убрать `float()` для денег в dashboard/ROI (оставить Decimal/str)
-- [ ] Вернуть rate-limit напоминаний — `reminder_service.py`
-- [ ] Удалить комментарий-артеfact «В app/api/v1/routes/contracts.py добавить»
-- [ ] Почистить неиспользуемые настройки: `CACHE_DEFAULT_TTL`, `APP_TIMEZONE`, `CELERY_BROKER_URL`
+- [x] Убрать дублированный import — `auth.py:65-66`
+- [x] Заменить `datetime.utcnow()` на timezone-aware — `entities.py`, `pdf_service.py`
+- [x] Убрать `float()` для денег в dashboard/ROI (оставить Decimal/str)
+- [x] Вернуть rate-limit напоминаний — `reminder_service.py`
+- [x] Удалить комментарий-артеfact «В app/api/v1/routes/contracts.py добавить»
+- [x] Почистить неиспользуемые настройки: `CACHE_DEFAULT_TTL`, `APP_TIMEZONE`, `CELERY_BROKER_URL`
 
 ---
 

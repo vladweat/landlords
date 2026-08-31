@@ -1,6 +1,6 @@
 """Unit-тесты сервиса напоминаний."""
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from unittest.mock import Mock
 from uuid import uuid4
@@ -12,7 +12,11 @@ from app.domain.entities import ContractEntity, RentChargeEntity, TenantEntity
 from app.services.dto.reminder_dto import ReminderCreateDTO
 from app.services.reminder_service import ReminderService
 from app.domain.entities import ReminderEntity
-from datetime import datetime
+
+
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
 
 @pytest.fixture
 def mock_reminder_repo():
@@ -23,7 +27,7 @@ def mock_reminder_repo():
         id=uuid4(), account_id=uuid4(), contract_id=uuid4(),
         charge_id=uuid4(), reminder_type="first",
         message_text="Иван, добрый день! Напоминаю...",
-        created_at=datetime.utcnow(),
+        created_at=_utc_now(),
     )
     return repo
 
@@ -97,17 +101,11 @@ class TestCreateReminder:
         with pytest.raises(ValidationError, match="overdue"):
             service.create_reminder(uuid4(), dto)
 
-    def test_max_reminders_removed(self, service, mock_reminder_repo):
-        mock_reminder_repo.count_by_charge.return_value = 10
-        mock_reminder_repo.create.return_value = ReminderEntity(
-            id=uuid4(), account_id=uuid4(), contract_id=uuid4(),
-            charge_id=uuid4(), reminder_type="third",
-            message_text="текст",
-            created_at=datetime.utcnow(),
-        )
+    def test_max_reminders_rejected(self, service, mock_reminder_repo):
+        mock_reminder_repo.count_by_charge.return_value = 3
         dto = ReminderCreateDTO(charge_id=uuid4(), reminder_type="third")
-        result = service.create_reminder(uuid4(), dto)
-        assert result.reminder_type == "third"
+        with pytest.raises(ValidationError, match="Maximum 3"):
+            service.create_reminder(uuid4(), dto)
 
 
 class TestShouldShowReminder:

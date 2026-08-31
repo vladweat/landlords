@@ -77,9 +77,9 @@ class ReminderService:
         if charge.status != "overdue":
             raise ValidationError("Reminder can only be sent for overdue charges")
 
-        # count = self.reminder_repo.count_by_charge(dto.charge_id, account_id)
-        # if count >= 3:
-        #     raise ValidationError("Maximum 3 reminders per charge")
+        count = self.reminder_repo.count_by_charge(dto.charge_id, account_id)
+        if count >= 3:
+            raise ValidationError("Maximum 3 reminders per charge")
 
         message = self.generate_message(dto.charge_id, account_id, dto.reminder_type)
         entity = ReminderEntity(
