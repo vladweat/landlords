@@ -1,14 +1,13 @@
 """Маршруты для обратной связи."""
 
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_account_id, get_current_user_id
+from app.api.deps import get_current_account_id, get_current_user_id, get_feedback_service
 from app.api.v1.schemas.feedback_schema import FeedbackCreateRequest
-from app.db.models.feedback_model import FeedbackModel
-from app.db.session import get_db_session
+from app.services.dto.feedback_dto import FeedbackCreateDTO
+from app.services.feedback_service import FeedbackService
 
 router = APIRouter(prefix="/v1/feedback", tags=["Feedback"])
 
@@ -18,22 +17,9 @@ def create_feedback(
     body: FeedbackCreateRequest,
     account_id: UUID = Depends(get_current_account_id),
     user_id: UUID = Depends(get_current_user_id),
-    session: Session = Depends(get_db_session),
+    service: FeedbackService = Depends(get_feedback_service),
 ) -> dict:
     """Отправить сообщение обратной связи."""
-    fb = FeedbackModel(
-        id=uuid4(),
-        account_id=account_id,
-        user_id=user_id,
-        category=body.category,
-        message=body.message,
-    )
-    session.add(fb)
-    session.flush()
-    return {
-        "status": "success",
-        "data": {
-            "id": str(fb.id),
-            "message": "Спасибо! Мы получили ваше сообщение.",
-        },
-    }
+    dto = FeedbackCreateDTO.model_validate(body.model_dump())
+    result = service.create_feedback(account_id, user_id, dto)
+    return {"status": "success", "data": result.model_dump()}

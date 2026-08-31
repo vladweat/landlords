@@ -26,9 +26,9 @@ class ForecastService:
         today = date.today()
         year_end = date(today.year, 12, 31)
 
-        contracts = self.contract_repo.list_by_account(account_id)
+        contracts = self.contract_repo.list_all_by_account(account_id)
         active_contracts = [
-            c for c in contracts.items
+            c for c in contracts
             if c.status in ("active", "overdue") and c.end_date >= today
         ]
 

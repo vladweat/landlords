@@ -2,14 +2,19 @@
 
 from datetime import date, timedelta
 from uuid import UUID, uuid4
-from sqlalchemy.orm import Session
 
 from app.core.exceptions import NotFoundError, ValidationError
 from app.domain.entities import ReminderEntity
-from app.domain.interfaces import IContractRepository, IRentChargeRepository, IReminderRepository, ITenantRepository
+from app.domain.interfaces import (
+    IContractEventRepository,
+    IContractRepository,
+    IRentChargeRepository,
+    IReminderRepository,
+    ITenantRepository,
+)
 from app.services.dto.reminder_dto import ReminderDTO, ReminderCreateDTO
-from app.db.repositories.contract_event_repo import ContractEventRepository
 from app.domain.entities import ContractEventEntity
+
 
 class ReminderService:
     TEMPLATES = {
@@ -33,13 +38,13 @@ class ReminderService:
     def __init__(
         self, reminder_repo: IReminderRepository, charge_repo: IRentChargeRepository,
         contract_repo: IContractRepository, tenant_repo: ITenantRepository,
-        session: Session | None = None,
+        event_repo: IContractEventRepository | None = None,
     ) -> None:
         self.reminder_repo = reminder_repo
         self.charge_repo = charge_repo
         self.contract_repo = contract_repo
         self.tenant_repo = tenant_repo
-        self.session = session
+        self.event_repo = event_repo
 
     def generate_message(self, charge_id: UUID, account_id: UUID, reminder_type: str) -> str:
         charge = self.charge_repo.get_by_id(charge_id, account_id)
@@ -83,9 +88,8 @@ class ReminderService:
         )
         created = self.reminder_repo.create(entity)
         
-        event_repo = ContractEventRepository(self.session) if hasattr(self, 'session') else None
-        if event_repo:
-            event_repo.create(ContractEventEntity(
+        if self.event_repo:
+            self.event_repo.create(ContractEventEntity(
                 id=uuid4(), account_id=account_id, contract_id=entity.contract_id,
                 event_type="reminder",
                 title=f"Напоминание о просрочке: {entity.reminder_type}",

@@ -7,7 +7,8 @@ from sqlalchemy.orm import Session
 from app.db.models.tenant_model import TenantModel
 from app.domain.entities import TenantEntity
 from app.domain.interfaces import ITenantRepository
-from app.api.pagination import PaginatedResult, paginate
+from app.api.pagination import paginate
+from app.domain.pagination import PaginatedResult
 
 class TenantRepository(ITenantRepository):
     """Реализация репозитория арендаторов на SQLAlchemy."""

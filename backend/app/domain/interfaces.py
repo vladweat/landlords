@@ -8,11 +8,11 @@ from datetime import date
 
 from app.domain.entities import (
     AccountEntity, ContractEntity, ContractEventEntity, DocumentEntity,
-    PaymentEntity, PropertyEntity, ReminderEntity, RentChargeEntity,
-    TenantEntity, UserEntity,
+    FeedbackEntity, PaymentEntity, PropertyEntity, ReminderEntity,
+    RentChargeEntity, TenantEntity, UserEntity,
 )
 
-from app.api.pagination import PaginatedResult
+from app.domain.pagination import PaginatedResult
 
 
 class IUserRepository(ABC):
@@ -31,6 +31,16 @@ class IUserRepository(ABC):
     @abstractmethod
     def create(self, entity: UserEntity) -> UserEntity:
         """Создать пользователя."""
+        ...
+
+    @abstractmethod
+    def update(self, entity: UserEntity) -> UserEntity:
+        """Обновить пользователя."""
+        ...
+
+    @abstractmethod
+    def delete(self, user_id: UUID) -> None:
+        """Удалить пользователя."""
         ...
 
 
@@ -130,11 +140,21 @@ class IContractRepository(ABC):
         """Получить контракт по ID с проверкой account_id."""
         ...
 
+    @abstractmethod
     def list_by_account(
         self, account_id: UUID, page: int = 1, per_page: int = 20,
         overdue_only: bool = False, search: str | None = None,
         status: str | None = None,
-    ) -> PaginatedResult: ...
+    ) -> PaginatedResult:
+        """Список контрактов аккаунта с пагинацией."""
+        ...
+
+    @abstractmethod
+    def list_all_by_account(
+        self, account_id: UUID, overdue_only: bool = False,
+    ) -> Sequence[ContractEntity]:
+        """Все контракты аккаунта без пагинации."""
+        ...
 
     @abstractmethod
     def get_active_by_property(
@@ -162,16 +182,7 @@ class IContractRepository(ABC):
     def count_active(self, account_id: UUID) -> int:
         """Количество активных контрактов."""
         ...
-        
-    @abstractmethod
-    def list_by_account(
-        self,
-        account_id: UUID,
-        overdue_only: bool = False,
-    ) -> Sequence[ContractEntity]:
-        """Список контрактов аккаунта."""
-        ...
-        
+
     @abstractmethod
     def get_active_for_property(
         self, property_id: UUID, account_id: UUID
@@ -335,9 +346,20 @@ class IDocumentRepository(ABC):
     def get_by_id(self, doc_id: UUID, account_id: UUID) -> DocumentEntity | None: ...
     
 class IContractEventRepository(ABC):
-    
+
     @abstractmethod
     def create(self, entity: ContractEventEntity) -> ContractEventEntity: ...
-    
+
     @abstractmethod
-    def list_by_contract(self, contract_id: UUID, account_id: UUID, page: int = 1, per_page: int = 20) -> PaginatedResult: ...
+    def list_by_contract(
+        self, contract_id: UUID, account_id: UUID, page: int = 1, per_page: int = 20,
+    ) -> PaginatedResult: ...
+
+
+class IFeedbackRepository(ABC):
+    """Интерфейс репозитория обратной связи."""
+
+    @abstractmethod
+    def create(self, entity: FeedbackEntity) -> FeedbackEntity:
+        """Создать запись обратной связи."""
+        ...

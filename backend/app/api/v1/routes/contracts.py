@@ -1,33 +1,33 @@
 """Маршруты для контрактов."""
 
-from uuid import UUID, uuid4
-from decimal import Decimal
+from uuid import UUID
 
 from fastapi import APIRouter, Depends
+from fastapi.responses import Response
 
-from app.api.deps import get_current_account_id, get_current_user_id, get_contract_service, get_contract_repo, get_ledger_service, get_pdf_service, get_contract_event_repo
-from app.core.exceptions import NotFoundError
+from app.api.deps import (
+    get_contract_event_service,
+    get_contract_service,
+    get_current_account_id,
+    get_current_user_id,
+    get_ledger_service,
+    get_pdf_service,
+)
+from app.api.pagination import PaginationParams
+from app.api.v1.schemas.contract_event_schema import ContractEventResponse, CreateNoteRequest
 from app.api.v1.schemas.contract_schema import (
     ContractCreateRequest,
-    ContractListResponse,
     ContractResponse,
     ContractSingleResponse,
     ContractUpdateRequest,
     ContractLedgerResponse,
     LedgerResponse,
 )
+from app.services.contract_event_service import ContractEventService
 from app.services.contract_service import ContractService
-from app.api.responses import success_response, success_list_response
-
-from app.api.deps import get_current_account_id, get_ledger_service
-from app.services.ledger_service import LedgerService
-from app.api.pagination import PaginationParams
-from app.api.deps import get_contract_event_repo
-from app.api.v1.schemas.contract_event_schema import ContractEventResponse, CreateNoteRequest
 from app.services.dto.contract_event_dto import CreateNoteDTO
-from app.db.repositories.contract_event_repo import ContractEventRepository
-from app.db.repositories.contract_repo import ContractRepository
-from app.domain.entities import ContractEventEntity
+from app.services.ledger_service import LedgerService
+from app.services.pdf_service import PdfService
 
 router = APIRouter(prefix="/v1/contracts", tags=["Contracts"])
 
@@ -110,7 +110,8 @@ def delete_contract(
 ) -> None:
     """Удалить контракт."""
     service.delete_contract(contract_id, account_id)
-    
+
+
 @router.get("/{contract_id}/ledger", response_model=ContractLedgerResponse)
 def get_contract_ledger(
     contract_id: UUID,
@@ -123,25 +124,21 @@ def get_contract_ledger(
         "status": "success",
         "data": LedgerResponse.model_validate(ledger.model_dump()),
     }
-    
+
+
 @router.post("/{contract_id}/generate-charges")
 def generate_charges(
     contract_id: UUID,
     account_id: UUID = Depends(get_current_account_id),
 ) -> dict:
     """Сгенерировать начисления для контракта."""
-    from worker import celery_app
+    from app.celery_app import celery_app
 
     result = celery_app.send_task(
         "app.tasks.charge_tasks.generate_charges_for_contract",
         args=[str(account_id), str(contract_id)],
     )
     return {"status": "success", "data": {"task_id": result.id}}
-
-from fastapi.responses import Response
-
-from app.api.deps import get_pdf_service
-from app.services.pdf_service import PdfService
 
 
 @router.get("/{contract_id}/document")
@@ -188,18 +185,30 @@ def get_document(
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename={doc.filename}"},
     )
-    
+
+
 @router.get("/{contract_id}/events")
 def list_contract_events(
     contract_id: UUID,
     account_id: UUID = Depends(get_current_account_id),
     pagination: PaginationParams = Depends(),
-    event_repo: ContractEventRepository = Depends(get_contract_event_repo),
+    service: ContractEventService = Depends(get_contract_event_service),
 ) -> dict:
     """Список событий контракта."""
-    result = event_repo.list_by_contract(contract_id, account_id, pagination.page, pagination.per_page)
+    result = service.list_events(
+        contract_id, account_id, pagination.page, pagination.per_page,
+    )
     items = [ContractEventResponse.model_validate(e) for e in result.items]
-    return {"status": "success", "data": {"items": items, "total": result.total, "page": result.page, "per_page": result.per_page, "pages": result.pages}}
+    return {
+        "status": "success",
+        "data": {
+            "items": items,
+            "total": result.total,
+            "page": result.page,
+            "per_page": result.per_page,
+            "pages": result.pages,
+        },
+    }
 
 
 @router.post("/{contract_id}/events")
@@ -208,54 +217,22 @@ def create_contract_note(
     body: CreateNoteRequest,
     account_id: UUID = Depends(get_current_account_id),
     user_id: UUID = Depends(get_current_user_id),
-    contract_repo: ContractRepository = Depends(get_contract_repo),
-    event_repo: ContractEventRepository = Depends(get_contract_event_repo),
+    service: ContractEventService = Depends(get_contract_event_service),
 ) -> dict:
     """Добавить заметку."""
-    if not contract_repo.get_by_id(contract_id, account_id):
-        raise NotFoundError(f"Contract with id={contract_id} not found")
-    entity = ContractEventEntity(
-        id=uuid4(), account_id=account_id, contract_id=contract_id,
-        event_type="note", title=body.title, description=body.description,
-        created_by=user_id,
-    )
-    created = event_repo.create(entity)
+    dto = CreateNoteDTO.model_validate(body.model_dump())
+    created = service.create_note(contract_id, account_id, user_id, dto)
     return {"status": "success", "data": ContractEventResponse.model_validate(created).model_dump()}
-
-# В app/api/v1/routes/contracts.py добавить:
-
-from sqlalchemy.orm import Session
-from app.db.session import get_db_session
 
 
 @router.post("/{contract_id}/refresh-status")
 def refresh_contract_status(
     contract_id: UUID,
     account_id: UUID = Depends(get_current_account_id),
-    session: Session = Depends(get_db_session),
+    service: ContractService = Depends(get_contract_service),
 ) -> dict:
     """Принудительно пересчитать статус контракта."""
-    from app.services.payment_service import _check_and_update_contract_status
-    from app.db.repositories.contract_repo import ContractRepository
-    from app.db.repositories.payment_repo import PaymentRepository
-    from app.db.repositories.rent_charge_repo import RentChargeRepository
-    from app.core.exceptions import NotFoundError
-
-    contract_repo = ContractRepository(session)
-    charge_repo = RentChargeRepository(session)
-    payment_repo = PaymentRepository(session)
-
-    contract = contract_repo.get_by_id(contract_id, account_id)
-    if not contract:
-        raise NotFoundError(f"Contract {contract_id} not found")
-
-    _check_and_update_contract_status(
-        charge_repo, payment_repo, contract_repo,
-        contract_id, account_id,
-    )
-    session.commit()
-
-    contract = contract_repo.get_by_id(contract_id, account_id)
+    contract = service.refresh_contract_status(contract_id, account_id)
     return {
         "status": "success",
         "data": {

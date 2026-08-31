@@ -9,7 +9,7 @@ import pytest
 
 from app.domain.entities import PropertyEntity
 from app.services.roi_service import RoiService
-from app.api.pagination import PaginatedResult
+from app.domain.pagination import PaginatedResult
 
 @pytest.fixture
 def mock_property_repo():
@@ -18,14 +18,14 @@ def mock_property_repo():
         id=uuid4(), account_id=uuid4(), address="ул. Тестовая",
         type="apartment", size_m2=50.0, purchase_price=Decimal("5000000"), status="active",
     )
-    repo.list_by_account.return_value = Mock(items=[], total=0, page=1, per_page=20, pages=0)
+    repo.list_all_by_account.return_value = []
     return repo
 
 
 @pytest.fixture
 def mock_contract_repo():
     repo = Mock()
-    repo.list_by_account.return_value = Mock(items=[], total=0, page=1, per_page=20, pages=0)
+    repo.list_all_by_account.return_value = []
     repo.get_active_for_property.return_value = None
     return repo
 
@@ -61,7 +61,7 @@ class TestCalculatePortfolioRoi:
         
 class TestCalculatePortfolioRoiMore:
     def test_portfolio_with_prices(self, service, mock_property_repo, mock_contract_repo, mock_payment_repo):
-        from app.api.pagination import PaginatedResult
+        from app.domain.pagination import PaginatedResult
         prop1 = PropertyEntity(
             id=uuid4(), account_id=uuid4(), address="А", type="apartment",
             size_m2=50.0, purchase_price=Decimal("5000000"), status="active",

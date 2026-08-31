@@ -4,7 +4,7 @@
 
 Справочник по архитектуре: [ARCHITECTURE.md](./ARCHITECTURE.md)
 
-**Статус:** 13 / 38 выполнено
+**Статус:** 23 / 38 выполнено
 
 ---
 
@@ -44,16 +44,16 @@
 
 ## P3 — архитектура
 
-- [ ] Feedback: route → service → repo (не писать ORM в route) — `feedback.py`
-- [ ] Dashboard `/last-payments`: перенести в `DashboardService` — `dashboard.py`
-- [ ] `/refresh-status`: перенести в service, убрать `session.commit()` из route — `contracts.py`
-- [ ] Contract events: service layer вместо route → repo — `contracts.py`
-- [ ] Инжектить `ContractEventRepository` / `AuditService` через DI, не создавать внутри сервисов
-- [ ] Вынести Celery app в `app/celery_app.py`; убрать `from worker import celery_app`
-- [ ] Убрать дубли `list_by_account` в `IContractRepository` — `domain/interfaces.py`
-- [ ] Добавить `update`/`delete` в `IUserRepository`
-- [ ] Перенести `PaginatedResult` из `app.api` в domain/shared (убрать domain → API)
-- [ ] Убрать `Session` из сервисов или явно оформить unit-of-work
+- [x] Feedback: route → service → repo (не писать ORM в route) — `feedback.py`
+- [x] Dashboard `/last-payments`: перенести в `DashboardService` — `dashboard.py`
+- [x] `/refresh-status`: перенести в service, убрать `session.commit()` из route — `contracts.py`
+- [x] Contract events: service layer вместо route → repo — `contracts.py`
+- [x] Инжектить `ContractEventRepository` / `AuditService` через DI, не создавать внутри сервисов
+- [x] Вынести Celery app в `app/celery_app.py`; убрать `from worker import celery_app`
+- [x] Убрать дубли `list_by_account` в `IContractRepository` — `domain/interfaces.py`
+- [x] Добавить `update`/`delete` в `IUserRepository`
+- [x] Перенести `PaginatedResult` из `app.api` в domain/shared (убрать domain → API)
+- [x] Убрать `Session` из сервисов или явно оформить unit-of-work
 
 ---
 

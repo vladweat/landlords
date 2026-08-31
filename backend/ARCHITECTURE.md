@@ -11,12 +11,13 @@
 
 ```
 backend/
-├── worker.py                    # Celery app (broker, beat schedule)
+├── worker.py                    # re-export celery_app из app/celery_app.py
 ├── alembic/ + alembic.ini       # миграции БД
 ├── Dockerfile
 ├── requirements.txt
 └── app/
     ├── main.py                  # FastAPI factory, exception handlers, router wiring
+    ├── celery_app.py            # Celery app (broker, beat schedule)
     ├── api/
     │   ├── deps.py              # DI (repos, services, auth)
     │   ├── pagination.py, responses.py, mappers.py
@@ -103,26 +104,28 @@ entity → interface → repo → service → schema → route → deps → те
 
 ## Нарушения слоёв (архитектурный долг)
 
+> **P3 (август 2026):** исправлено — feedback/events/refresh-status через сервисы; `PaginatedResult` в `domain/pagination.py`; Celery в `app/celery_app.py`; DI для `ContractEventRepository`/`AuditService`; `Session` убран из сервисов; `IContractRepository.list_all_by_account` вместо дубля `list_by_account`.
+
 | Место | Проблема |
 |-------|----------|
-| `api/v1/routes/feedback.py` | Route пишет `FeedbackModel` напрямую через `Session`, без service/repo |
-| `api/v1/routes/dashboard.py` `/last-payments` | 4 repos в route, не в `DashboardService` |
-| `api/v1/routes/contracts.py` `/refresh-status` | Route собирает repos, вызывает `_check_and_update_contract_status`, делает `session.commit()` |
-| `api/v1/routes/contracts.py` events | Route → `ContractEventRepository` напрямую |
-| `ContractService`, `PaymentService`, `ReminderService` | Создают `ContractEventRepository` / `AuditService` внутри методов |
-| `ContractService`, routes | `from worker import celery_app` — coupling на путь модуля |
-| `domain/interfaces.py` | Импортирует `PaginatedResult` из `app.api.pagination` (domain → API) |
+| ~~`api/v1/routes/feedback.py`~~ | ~~Route пишет `FeedbackModel` напрямую~~ → `FeedbackService` |
+| ~~`api/v1/routes/dashboard.py` `/last-payments`~~ | ~~4 repos в route~~ → `DashboardService.get_last_payments` |
+| ~~`api/v1/routes/contracts.py` `/refresh-status`~~ | ~~Route + `session.commit()`~~ → `ContractService.refresh_contract_status` |
+| ~~`api/v1/routes/contracts.py` events~~ | ~~Route → repo~~ → `ContractEventService` |
+| ~~`ContractService`, `PaymentService`, `ReminderService`~~ | ~~Создают repos внутри~~ → DI через `deps.py` |
+| ~~`from worker import celery_app`~~ | → `app.celery_app` |
+| ~~`domain/interfaces.py` → `app.api.pagination`~~ | → `domain/pagination.py` |
 
 ### Несогласованные абстракции
 
-- **`IContractRepository.list_by_account`** объявлен дважды с разными сигнатурами (строки ~133 и ~166) — второй перекрывает первый.
+- ~~**`IContractRepository.list_by_account`** объявлен дважды~~ → `list_by_account` (paginated) + `list_all_by_account`.
 - **`get_active_by_property`** (только `active`) vs **`get_active_for_property`** (`active` + `overdue`) — разная семантика, используются в разных сервисах.
-- **`IUserRepository`** не декларирует `update`/`delete`, хотя `UserRepository` и `UserService` их используют.
+- ~~**`IUserRepository`** не декларирует `update`/`delete`~~ → добавлены в интерфейс.
 
 ### Session в сервисах
 
-`ContractService`, `PaymentService`, `ReminderService` принимают `Session` для side effects (events, audit).
-Размывает границы транзакций, провоцирует создание repos внутри методов.
+~~`ContractService`, `PaymentService`, `ReminderService` принимают `Session` для side effects.~~
+Зависимости инжектятся через DI (`event_repo`, `audit_service`); пересчёт статуса — `app/services/contract_status.py`.
 
 ### Мёртвая конфигурация
 
