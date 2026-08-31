@@ -140,7 +140,7 @@ class IContractRepository(ABC):
     def get_active_by_property(
         self, property_id: UUID, account_id: UUID
     ) -> ContractEntity | None:
-        """Получить активный контракт по объекту недвижимости."""
+        """Получить активный контракт по объекту (active или overdue)."""
         ...
 
     @abstractmethod
