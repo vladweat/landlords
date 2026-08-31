@@ -1,0 +1,51 @@
+---
+description: Архитектура и конвенции Python/FastAPI backend
+globs: backend/**/*.py
+alwaysApply: false
+---
+
+# Backend — слоистая архитектура
+
+```
+routes (api/v1/routes/)  →  services  →  repositories  →  models (db/models/)
+                              ↓
+                         domain/ (entities, interfaces, rules)
+```
+
+## Слои и ответственность
+
+- **routes** — HTTP, валидация входа (Pydantic schemas), DI через `Depends`, формирование ответа. Без бизнес-логики.
+- **services** — бизнес-логика, оркестрация, вызов `domain/rules`. Работают с DTO (`services/dto/`), не с ORM-моделями напрямую.
+- **repositories** — CRUD, SQL-запросы. Реализуют ABC-интерфейсы из `domain/interfaces.py`.
+- **domain/entities** — dataclass'ы, чистые объекты домена.
+- **domain/rules** — чистые функции валидации и расчётов (без БД).
+- **db/models** — SQLAlchemy ORM. Наследуют `Base` + `TimestampMixin`.
+
+## Паттерны
+
+```python
+# Сервис получает интерфейс репозитория, не конкретный класс
+def __init__(self, repo: IContractRepository) -> None:
+    self.repo = repo
+
+# Ошибки — через иерархию AppException
+raise NotFoundError(f"Contract with id={contract_id} not found")
+
+# DI регистрируется в app/api/deps.py
+def get_contract_service(repo=Depends(get_contract_repo)) -> ContractService:
+    return ContractService(repo)
+```
+
+## API
+
+- Префикс роутеров: `/v1/{resource}` (nginx проксирует `/api/v1/...`).
+- Авторизация: `Depends(get_current_account_id)` — JWT Bearer token.
+- Пагинация: `PaginationParams` → `{ items, total, page, per_page, pages }`.
+- Celery-задачи: `app/tasks/`, воркер — `backend/worker.py`.
+
+## Стиль кода
+
+- Type hints везде, `from __future__` не используется.
+- Docstring'и на русском для публичных методов.
+- Линтеры: black + ruff.
+- Новый ресурс: entity → interface → repo → service → schema → route → deps → тесты.

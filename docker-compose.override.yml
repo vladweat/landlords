@@ -1,0 +1,28 @@
+services:
+  api:
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/app:/app/app:ro
+      - ./backend/worker.py:/app/worker.py:ro
+      - ./backend/alembic:/app/alembic
+      - ./backend/tests:/app/tests:ro
+      - ./storage/documents:/app/storage/documents
+      - ./backend/fonts:/app/fonts:ro
+    command: python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    environment:
+      - DEBUG=true
+      - LOG_LEVEL=DEBUG
+
+  celery-worker:
+    volumes:
+      - ./backend/app:/app/app:ro
+      - ./backend/worker.py:/app/worker.py:ro
+    command: python -m celery -A worker.celery_app worker --loglevel=debug --concurrency=2
+    environment:
+      - DEBUG=true
+      - LOG_LEVEL=DEBUG
+
+  frontend:
+    profiles:
+      - production
