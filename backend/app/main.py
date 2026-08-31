@@ -11,6 +11,29 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 
 
+def _init_sentry() -> None:
+    """Инициализировать Sentry, если задан SENTRY_DSN."""
+    if not settings.SENTRY_DSN:
+        return
+
+    import sentry_sdk
+    from sentry_sdk.integrations.celery import CeleryIntegration
+    from sentry_sdk.integrations.fastapi import FastApiIntegration
+    from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
+
+    sentry_sdk.init(
+        dsn=settings.SENTRY_DSN,
+        environment=settings.APP_ENV,
+        release=settings.APP_VERSION,
+        integrations=[
+            FastApiIntegration(),
+            CeleryIntegration(),
+            SqlalchemyIntegration(),
+        ],
+        traces_sample_rate=0.1 if settings.APP_ENV == "production" else 0.0,
+    )
+
+
 def create_app() -> FastAPI:
     """
     Создать и сконфигурировать экземпляр FastAPI.
@@ -18,6 +41,8 @@ def create_app() -> FastAPI:
     Returns:
         Сконфигурированное приложение FastAPI.
     """
+    _init_sentry()
+
     app = FastAPI(
         title=settings.APP_NAME,
         version=settings.APP_VERSION,

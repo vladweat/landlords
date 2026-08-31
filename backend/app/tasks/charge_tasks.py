@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 
 from celery import shared_task
 from celery.utils.log import get_task_logger
+from sqlalchemy.exc import DBAPIError, OperationalError
 
 from app.db.repositories.contract_repo import ContractRepository
 from app.db.repositories.payment_repo import PaymentRepository
@@ -21,7 +22,7 @@ logger = get_task_logger(__name__)
     retry_kwargs={"max_retries": 3},
     soft_time_limit=120,
     time_limit=180,
-    autoretry_for=(Exception,),
+    autoretry_for=(OperationalError, DBAPIError),
 )
 def generate_charges_for_contract(
     account_id: str,

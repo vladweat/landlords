@@ -1,5 +1,4 @@
 """Интеграционные тесты дашборда."""
-from datetime import datetime
 
 from fastapi.testclient import TestClient
 
@@ -7,7 +6,7 @@ from fastapi.testclient import TestClient
 class TestDashboard:
     def test_summary(self, client: TestClient, auth_headers):
         """Получить сводку дашборда."""
-        resp = client.get("/dashboard/summary", headers=auth_headers)
+        resp = client.get("/v1/dashboard/summary", headers=auth_headers)
         assert resp.status_code == 200
         data = resp.json()
         assert data["status"] == "success"
@@ -17,5 +16,5 @@ class TestDashboard:
 
     def test_no_token(self, client: TestClient):
         """Без токена — 422."""
-        resp = client.get("/dashboard/summary")
+        resp = client.get("/v1/dashboard/summary")
         assert resp.status_code in (401, 403, 422)
