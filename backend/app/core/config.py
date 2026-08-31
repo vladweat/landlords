@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     # ==================== Security ====================
     
     SECRET_KEY: str = "change-me-in-production-change-me"
+    SENTRY_DSN: str | None = None
     
     # ==================== База данных ====================
     

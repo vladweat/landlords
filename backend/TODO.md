@@ -4,7 +4,7 @@
 
 Справочник по архитектуре: [ARCHITECTURE.md](./ARCHITECTURE.md)
 
-**Статус:** 23 / 38 выполнено
+**Статус:** 31 / 38 выполнено
 
 ---
 
@@ -59,15 +59,15 @@
 
 ## P4 — инфраструктура и тесты
 
-- [ ] Дополнить `requirements.txt`: `python-jose`, `passlib[bcrypt]`, `reportlab`, `python-dateutil`
+- [x] Дополнить `requirements.txt`: `python-jose`, `passlib[bcrypt]`, `reportlab`, `python-dateutil`
 - [ ] Reproducible Docker build из requirements (не копировать `.venv/site-packages`)
-- [ ] Volume `storage/documents` для celery-worker — `docker-compose.yml`
-- [ ] Переименовать `tests/confest.py` → `conftest.py`
-- [ ] Integration tests: URL `/v1/...` вместо `/auth/`, `/properties/` …
-- [ ] Integration tests: актуальная схема property (`city`, `street`, `house`)
-- [ ] Integration tests: миграции Alembic вместо `create_all`
-- [ ] Celery: сузить `autoretry_for` до transient-исключений — `charge_tasks.py`
-- [ ] Подключить Sentry в `main.py` или убрать из deps
+- [x] Volume `storage/documents` для celery-worker — `docker-compose.yml`
+- [x] Переименовать `tests/confest.py` → `conftest.py`
+- [x] Integration tests: URL `/v1/...` вместо `/auth/`, `/properties/` …
+- [x] Integration tests: актуальная схема property (`city`, `street`, `house`)
+- [x] Integration tests: миграции Alembic вместо `create_all`
+- [x] Celery: сузить `autoretry_for` до transient-исключений — `charge_tasks.py`
+- [x] Подключить Sentry в `main.py` или убрать из deps
 - [ ] Удалить неиспользуемый `testcontainers` из requirements (или начать использовать)
 
 ---
