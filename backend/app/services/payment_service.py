@@ -5,11 +5,17 @@ from datetime import date
 
 from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.domain.entities import PaymentEntity
-from app.domain.interfaces import IContractRepository, IPaymentRepository, IRentChargeRepository
+from app.domain.interfaces import (
+    IContractEventRepository,
+    IContractRepository,
+    IPaymentRepository,
+    IRentChargeRepository,
+)
 from app.services.dto.payment_dto import PaymentCreateDTO, PaymentDTO, PaymentUpdateDTO
 from app.domain.rules import compute_charge_status
-from app.db.repositories.contract_event_repo import ContractEventRepository
 from app.domain.entities import ContractEventEntity
+from app.services.contract_status import check_and_update_contract_status
+
 
 class PaymentService:
     """Сервис управления платежами."""
@@ -19,12 +25,12 @@ class PaymentService:
         payment_repo: IPaymentRepository,
         contract_repo: IContractRepository,
         charge_repo: IRentChargeRepository,
-        session=None,
+        event_repo: IContractEventRepository | None = None,
     ) -> None:
         self.payment_repo = payment_repo
         self.contract_repo = contract_repo
         self.charge_repo = charge_repo
-        self.session = session
+        self.event_repo = event_repo
 
     def list_payments(
         self,
@@ -87,11 +93,8 @@ class PaymentService:
         created = self.payment_repo.create(entity)
 
         # Логирование события
-        from app.db.repositories.contract_event_repo import ContractEventRepository
-        from app.domain.entities import ContractEventEntity
-        event_repo = ContractEventRepository(self.session) if self.session else None
-        if event_repo:
-            event_repo.create(ContractEventEntity(
+        if self.event_repo:
+            self.event_repo.create(ContractEventEntity(
                 id=uuid4(), account_id=account_id, contract_id=dto.contract_id,
                 event_type="payment",
                 title=f"Платёж: {dto.amount} {contract.currency}",
@@ -102,7 +105,7 @@ class PaymentService:
         new_status = compute_charge_status(charge.amount, total_paid, charge.due_date)
         self.charge_repo.update_status(dto.rent_charge_id, account_id, new_status)
 
-        _check_and_update_contract_status(
+        check_and_update_contract_status(
             self.charge_repo, self.payment_repo, self.contract_repo,
             dto.contract_id, account_id,
         )
@@ -171,7 +174,7 @@ class PaymentService:
         if not created_payments:
             raise ValidationError("No payment created")
 
-        _check_and_update_contract_status(
+        check_and_update_contract_status(
             self.charge_repo, self.payment_repo, self.contract_repo,
             dto.contract_id, account_id,
         )
@@ -210,7 +213,7 @@ class PaymentService:
                 new_status = compute_charge_status(charge.amount, total_paid, charge.due_date)
                 self.charge_repo.update_status(updated.rent_charge_id, account_id, new_status)
 
-        _check_and_update_contract_status(
+        check_and_update_contract_status(
             self.charge_repo, self.payment_repo, self.contract_repo,
             updated.contract_id, account_id,
         )
@@ -234,38 +237,7 @@ class PaymentService:
                 new_status = compute_charge_status(charge.amount, total_paid, charge.due_date)
                 self.charge_repo.update_status(charge_id, account_id, new_status)
 
-        _check_and_update_contract_status(
+        check_and_update_contract_status(
             self.charge_repo, self.payment_repo, self.contract_repo,
             contract_id, account_id,
         )
-
-def _check_and_update_contract_status(charge_repo, payment_repo, contract_repo, contract_id, account_id):
-    from datetime import date as dt_date
-
-    charges = charge_repo.list_by_contract(contract_id, account_id)
-    contract = contract_repo.get_by_id(contract_id, account_id)
-    if not contract:
-        return
-
-    today = dt_date.today()
-
-    # Только прошедшие и текущие charges
-    past_charges = [c for c in charges if c.due_date <= today]
-
-    all_past_paid = all(
-        payment_repo.get_total_paid_for_charge(c.id, account_id) >= c.amount
-        for c in past_charges
-    ) if past_charges else True
-
-    has_overdue_unpaid = any(
-        payment_repo.get_total_paid_for_charge(c.id, account_id) < c.amount
-        and c.due_date < today
-        for c in past_charges
-    )
-
-    if all_past_paid and contract.status == "overdue":
-        contract.status = "active"
-        contract_repo.update(contract)
-    elif has_overdue_unpaid and contract.status == "active":
-        contract.status = "overdue"
-        contract_repo.update(contract)

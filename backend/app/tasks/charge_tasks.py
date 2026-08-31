@@ -81,7 +81,7 @@ def update_overdue_charges() -> dict:
 
     from app.db.models.contract_model import ContractModel
     from app.db.models.rent_charge_model import RentChargeModel
-    from app.services.payment_service import _check_and_update_contract_status
+    from app.services.contract_status import check_and_update_contract_status
 
     logger.info("Updating overdue charges and contracts")
 
@@ -131,7 +131,7 @@ def update_overdue_charges() -> dict:
         contracts_to_active = 0
         for contract in overdue_contracts:
             old_status = contract.status
-            _check_and_update_contract_status(
+            check_and_update_contract_status(
                 charge_repo, payment_repo, contract_repo,
                 contract.id, contract.account_id,
             )

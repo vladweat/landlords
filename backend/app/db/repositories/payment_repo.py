@@ -6,7 +6,8 @@ from datetime import date
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
-from app.api.pagination import PaginatedResult, paginate
+from app.api.pagination import paginate
+from app.domain.pagination import PaginatedResult
 
 from app.db.models.payment_model import PaymentModel
 from app.domain.entities import PaymentEntity

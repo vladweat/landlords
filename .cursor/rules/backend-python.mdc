@@ -6,6 +6,9 @@ alwaysApply: false
 
 # Backend — слоистая архитектура
 
+> Полный обзор структуры, паттернов и известных проблем: **`backend/ARCHITECTURE.md`**  
+> Чеклист исправлений: **`backend/TODO.md`**
+
 ```
 routes (api/v1/routes/)  →  services  →  repositories  →  models (db/models/)
                               ↓

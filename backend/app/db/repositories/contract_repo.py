@@ -7,7 +7,8 @@ from sqlalchemy.orm import Session
 from app.db.models.contract_model import ContractModel
 from app.domain.entities import ContractEntity
 from app.domain.interfaces import IContractRepository
-from app.api.pagination import PaginatedResult, paginate
+from app.api.pagination import paginate
+from app.domain.pagination import PaginatedResult
 
 class ContractRepository(IContractRepository):
     """Реализация репозитория контрактов на SQLAlchemy."""
@@ -54,6 +55,18 @@ class ContractRepository(IContractRepository):
                         )
 
         return paginate(query, page, per_page)
+
+    def list_all_by_account(
+        self, account_id: UUID, overdue_only: bool = False,
+    ) -> list[ContractEntity]:
+        query = (
+            self.session.query(ContractModel)
+            .filter_by(account_id=account_id)
+            .order_by(ContractModel.created_at.desc())
+        )
+        if overdue_only:
+            query = query.filter_by(status="overdue")
+        return [m.to_entity() for m in query.all()]
 
     def get_active_by_property(
         self, property_id: UUID, account_id: UUID

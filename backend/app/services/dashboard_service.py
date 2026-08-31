@@ -113,3 +113,30 @@ class DashboardService:
             overdue_total_amount=overdue_total,
             properties_overview=properties_overview,
         )
+
+    def get_last_payments(self, account_id: UUID, limit: int = 5) -> list[dict]:
+        """Последние платежи для дашборда с адресом и арендатором."""
+        payments = self.payment_repo.list_by_account(account_id)[:limit]
+        data = []
+        for p in payments:
+            contract = self.contract_repo.get_by_id(p.contract_id, account_id)
+            address = ""
+            tenant_name = ""
+            if contract:
+                prop = self.property_repo.get_by_id(contract.property_id, account_id)
+                if prop:
+                    address = prop.get_address()
+                if self.tenant_repo:
+                    tenant = self.tenant_repo.get_by_id(contract.tenant_id, account_id)
+                    if tenant:
+                        tenant_name = tenant.full_name
+            data.append({
+                "id": str(p.id),
+                "contract_id": str(p.contract_id),
+                "amount": float(p.amount),
+                "date_paid": p.date_paid.isoformat(),
+                "method": p.method,
+                "property_address": address,
+                "tenant_name": tenant_name,
+            })
+        return data

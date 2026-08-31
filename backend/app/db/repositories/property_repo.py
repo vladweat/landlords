@@ -7,7 +7,8 @@ from sqlalchemy.orm import Session
 from app.db.models.property_model import PropertyModel
 from app.domain.entities import PropertyEntity
 from app.domain.interfaces import IPropertyRepository
-from app.api.pagination import PaginatedResult, paginate
+from app.api.pagination import paginate
+from app.domain.pagination import PaginatedResult
 from sqlalchemy import func
 
 class PropertyRepository(IPropertyRepository):

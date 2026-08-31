@@ -30,8 +30,8 @@ class RoiService:
         total = Decimal("0")
 
         # Получаем все контракты по этому объекту
-        all_contracts = self.contract_repo.list_by_account(account_id)
-        for contract in all_contracts.items:
+        all_contracts = self.contract_repo.list_all_by_account(account_id)
+        for contract in all_contracts:
             if contract.property_id == property_id:
                 payments = self.payment_repo.list_by_contract(contract.id, account_id)
                 for p in payments:
@@ -102,9 +102,9 @@ class RoiService:
         prop_map = {p.id: p for p in properties.items if p.purchase_price and p.purchase_price > 0}
 
         # Все контракты аккаунта
-        contracts = self.contract_repo.list_by_account(account_id)
+        contracts = self.contract_repo.list_all_by_account(account_id)
         contract_map = {}
-        for c in contracts.items:
+        for c in contracts:
             if c.property_id not in contract_map:
                 contract_map[c.property_id] = []
             contract_map[c.property_id].append(c.id)

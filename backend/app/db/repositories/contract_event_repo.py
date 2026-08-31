@@ -4,7 +4,8 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-from app.api.pagination import PaginatedResult, paginate
+from app.api.pagination import paginate
+from app.domain.pagination import PaginatedResult
 from app.db.models.contract_event_model import ContractEventModel
 from app.domain.entities import ContractEventEntity
 from app.domain.interfaces import IContractEventRepository
