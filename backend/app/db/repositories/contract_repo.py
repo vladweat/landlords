@@ -58,17 +58,8 @@ class ContractRepository(IContractRepository):
     def get_active_by_property(
         self, property_id: UUID, account_id: UUID
     ) -> ContractEntity | None:
-        """Получить активный контракт по объекту недвижимости."""
-        model = (
-            self.session.query(ContractModel)
-            .filter_by(
-                property_id=property_id,
-                account_id=account_id,
-                status="active",
-            )
-            .first()
-        )
-        return model.to_entity() if model else None
+        """Получить активный контракт по объекту (active или overdue)."""
+        return self.get_active_for_property(property_id, account_id)
 
     def create(self, entity: ContractEntity) -> ContractEntity:
         """Создать контракт."""

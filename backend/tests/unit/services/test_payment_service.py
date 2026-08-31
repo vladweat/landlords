@@ -39,7 +39,7 @@ def mock_contract_repo():
 @pytest.fixture
 def mock_charge_repo():
     repo = Mock()
-    repo.get_by_id.return_value = RentChargeEntity(
+    repo.get_by_id_for_update.return_value = RentChargeEntity(
         id=uuid4(), account_id=uuid4(), contract_id=uuid4(),
         due_date=date.today(), period_start=date.today(), period_end=date.today(),
         amount=Decimal("1000"), currency="RUB", status="pending",
@@ -88,7 +88,7 @@ class TestCreatePayment:
     def test_success_with_charge(self, payment_service, mock_payment_repo, mock_charge_repo):
         """Успешное создание платежа с привязкой к charge."""
         charge_id = uuid4()
-        mock_charge_repo.get_by_id.return_value = RentChargeEntity(
+        mock_charge_repo.get_by_id_for_update.return_value = RentChargeEntity(
             id=charge_id, account_id=uuid4(), contract_id=uuid4(),
             due_date=date.today(), period_start=date.today(), period_end=date.today(),
             amount=Decimal("1000"), currency="RUB", status="pending",
@@ -117,7 +117,7 @@ class TestCreatePayment:
 
     def test_charge_not_found(self, payment_service, mock_charge_repo):
         """Charge не найден."""
-        mock_charge_repo.get_by_id.return_value = None
+        mock_charge_repo.get_by_id_for_update.return_value = None
         dto = PaymentCreateDTO(
             contract_id=uuid4(), date_paid=date.today(),
             amount=Decimal("1000"), method="bank", rent_charge_id=uuid4(),

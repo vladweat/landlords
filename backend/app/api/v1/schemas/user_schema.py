@@ -54,7 +54,6 @@ class ResetPasswordRequest(BaseModel):
 
 class UpdateProfileRequest(BaseModel):
     full_name: str | None = None
-    phone: str | None = None
 
 
 class ChangePasswordRequest(BaseModel):

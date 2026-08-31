@@ -13,6 +13,7 @@ from app.api.v1.schemas.user_schema import (
     UserResponse,
     MeResponse,
 )
+from app.core.exceptions import ValidationError
 from app.services.user_service import UserService
 from app.api.responses import success_response, success_list_response
 
@@ -99,7 +100,7 @@ def update_profile(
     service: UserService = Depends(get_user_service),
 ) -> dict:
     """Обновить профиль."""
-    dto = service.update_profile(user_id, body.full_name, body.phone)
+    dto = service.update_profile(user_id, body.full_name)
     return {"status": "success", "data": UserResponse.model_validate(dto).model_dump()}
 
 

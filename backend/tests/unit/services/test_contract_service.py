@@ -7,7 +7,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from app.core.exceptions import ConflictError, NotFoundError
+from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.domain.entities import ContractEntity
 from app.services.contract_service import ContractService
 from app.services.dto.contract_dto import ContractCreateDTO, ContractUpdateDTO
@@ -71,17 +71,17 @@ class TestCreateContract:
             contract_service.create_contract(account_id, dto)
 
     def test_create_invalid_dates(self, contract_service, mock_contract_repo):
-        """Ошибка: start_date в прошлом."""
+        """Ошибка: start_date не раньше end_date."""
         account_id = uuid4()
         mock_contract_repo.get_active_by_property.return_value = None
 
         dto = ContractCreateDTO(
             property_id=uuid4(), tenant_id=uuid4(),
-            start_date=date(2020, 1, 1), end_date=date(2027, 8, 31),
+            start_date=date(2027, 8, 31), end_date=date(2020, 1, 1),
             rent_amount=Decimal("50000"), payment_day=5,
         )
 
-        with pytest.raises(ValueError):
+        with pytest.raises(ValidationError):
             contract_service.create_contract(account_id, dto)
 
 

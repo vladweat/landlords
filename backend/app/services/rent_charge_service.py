@@ -133,13 +133,3 @@ class RentChargeService:
             charges.append(charge)
 
         return charges
-    
-    def get_by_id_for_update(self, charge_id: UUID, account_id: UUID) -> RentChargeEntity | None:
-        """Получить charge с блокировкой строки."""
-        model = (
-            self.session.query(RentChargeModel)
-            .filter_by(id=charge_id, account_id=account_id)
-            .with_for_update()
-            .first()
-        )
-        return model.to_entity() if model else None

@@ -4,7 +4,7 @@ from uuid import UUID, uuid4
 
 from decimal import Decimal
 
-from app.core.exceptions import ConflictError, NotFoundError
+from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.domain.entities import ContractEntity
 from app.domain.interfaces import IContractRepository, IPaymentRepository, IRentChargeRepository
 from app.domain.rules import validate_contract_dates, compute_ledger, validate_status_transition,validate_payment_day
@@ -16,6 +16,15 @@ from app.services.dto.contract_dto import (
 from app.services.dto.dashboard_dto import LedgerDTO
 from sqlalchemy.orm import Session
 from app.services.audit_log_service import AuditService
+
+
+def _run_rule(rule, *args, **kwargs) -> None:
+    """Выполнить доменное правило, обернув ValueError в ValidationError."""
+    try:
+        rule(*args, **kwargs)
+    except ValueError as exc:
+        raise ValidationError(str(exc)) from exc
+
 
 class ContractService:
     def __init__(
@@ -52,9 +61,8 @@ class ContractService:
     ) -> ContractDTO:
         """Создать контракт."""
         # Валидация дат
-        validate_contract_dates(dto.start_date, dto.end_date)
-        
-        validate_payment_day(dto.payment_day)
+        _run_rule(validate_contract_dates, dto.start_date, dto.end_date)
+        _run_rule(validate_payment_day, dto.payment_day)
 
         # Проверка: нет ли активного контракта на этот объект
         existing = self.repo.get_active_by_property(dto.property_id, account_id)
@@ -82,7 +90,11 @@ class ContractService:
         return ContractDTO.model_validate(created)
 
     def update_contract(
-        self, contract_id: UUID, account_id: UUID, dto: ContractUpdateDTO
+        self,
+        contract_id: UUID,
+        account_id: UUID,
+        dto: ContractUpdateDTO,
+        user_id: UUID | None = None,
     ) -> ContractDTO:
         """Обновить контракт."""
         entity = self.repo.get_by_id(contract_id, account_id)
@@ -93,10 +105,9 @@ class ContractService:
 
         # Проверка перехода статуса
         if dto.status and dto.status != entity.status:
-            validate_status_transition(entity.status, dto.status)
-            
-        # Логирование события
-        if self.session:
+            _run_rule(validate_status_transition, entity.status, dto.status)
+
+        if dto.status and dto.status != old_status and self.session:
             from app.db.repositories.contract_event_repo import ContractEventRepository
             from app.domain.entities import ContractEventEntity
             event_repo = ContractEventRepository(self.session)
@@ -123,17 +134,17 @@ class ContractService:
 
         # Валидация
         if dto.start_date or dto.end_date:
-            validate_contract_dates(entity.start_date, entity.end_date)
+            _run_rule(validate_contract_dates, entity.start_date, entity.end_date)
         if dto.payment_day is not None:
-            validate_payment_day(entity.payment_day)
+            _run_rule(validate_payment_day, entity.payment_day)
 
         updated = self.repo.update(entity)
 
         # Аудит смены статуса
-        if dto.status and dto.status != old_status and self.session:
+        if dto.status and dto.status != old_status and self.session and user_id:
             audit = AuditService(self.session)
             audit.log(
-                user_id=account_id,
+                user_id=user_id,
                 action="status_change",
                 entity_type="contract",
                 entity_id=contract_id,

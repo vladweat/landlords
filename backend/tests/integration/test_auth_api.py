@@ -72,7 +72,7 @@ class TestAuthLogin:
                 "password": "wrongpassword",
             },
         )
-        assert resp.status_code == 404
+        assert resp.status_code == 401
 
     def test_login_nonexistent_user(self, client: TestClient):
         """Пользователь не существует."""
@@ -83,7 +83,7 @@ class TestAuthLogin:
                 "password": "secret123",
             },
         )
-        assert resp.status_code == 404
+        assert resp.status_code == 401
 
 
 class TestAuthMe:

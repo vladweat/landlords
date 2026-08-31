@@ -2,7 +2,7 @@
 
 from uuid import UUID, uuid4
 
-from app.core.exceptions import ConflictError, NotFoundError
+from app.core.exceptions import ConflictError, NotFoundError, UnauthorizedError, ValidationError
 from app.core.security import create_access_token, hash_password, verify_password
 from app.db.repositories.account_repo import AccountRepository
 from app.domain.entities import AccountEntity, UserEntity
@@ -61,10 +61,10 @@ class UserService:
         """Аутентифицировать пользователя."""
         user = self.user_repo.get_by_email(email)
         if not user:
-            raise NotFoundError("Invalid email or password")
+            raise UnauthorizedError("Invalid email or password")
 
         if not verify_password(password, user.password_hash):
-            raise NotFoundError("Invalid email or password")
+            raise UnauthorizedError("Invalid email or password")
 
         account_entity = self.account_repo.get_by_owner_id(user.id)
         if not account_entity:
@@ -112,7 +112,7 @@ class UserService:
         user.password_hash = hash_password(new_password)
         self.user_repo.update(user)
         
-    def update_profile(self, user_id: UUID, full_name: str | None = None, phone: str | None = None) -> UserDTO:
+    def update_profile(self, user_id: UUID, full_name: str | None = None) -> UserDTO:
         """Обновить профиль пользователя."""
         user = self.user_repo.get_by_id(user_id)
         if not user:

@@ -1,7 +1,7 @@
 """Сервис управления платежами."""
 
 from uuid import UUID, uuid4
-from datetime import date, datetime, timezone
+from datetime import date
 
 from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.domain.entities import PaymentEntity
@@ -191,8 +191,8 @@ class PaymentService:
         if dto.date_paid is not None:
             entity.date_paid = dto.date_paid
         if dto.amount is not None:
-            # if dto.amount <= 0:
-            #     raise ValidationError("Payment amount must be greater than 0")
+            if dto.amount <= 0:
+                raise ValidationError("Payment amount must be greater than 0")
             entity.amount = dto.amount
         if dto.method is not None:
             entity.method = dto.method
@@ -200,6 +200,21 @@ class PaymentService:
             entity.note = dto.note
 
         updated = self.payment_repo.update(entity)
+
+        if updated.rent_charge_id:
+            charge = self.charge_repo.get_by_id(updated.rent_charge_id, account_id)
+            if charge:
+                total_paid = self.payment_repo.get_total_paid_for_charge(
+                    updated.rent_charge_id, account_id
+                )
+                new_status = compute_charge_status(charge.amount, total_paid, charge.due_date)
+                self.charge_repo.update_status(updated.rent_charge_id, account_id, new_status)
+
+        _check_and_update_contract_status(
+            self.charge_repo, self.payment_repo, self.contract_repo,
+            updated.contract_id, account_id,
+        )
+
         return PaymentDTO.model_validate(updated)
 
     def delete_payment(self, payment_id: UUID, account_id: UUID) -> None:
@@ -209,32 +224,20 @@ class PaymentService:
             raise NotFoundError(f"Payment with id={payment_id} not found")
 
         charge_id = entity.rent_charge_id
+        contract_id = entity.contract_id
         self.payment_repo.delete(payment_id, account_id)
 
-        # Обновляем статус связанного начисления
-        # После удаления платежа — проверить, не стал ли контракт снова overdue
         if charge_id:
-            charges = self.charge_repo.list_by_contract(entity.contract_id, account_id)
-            all_paid = True
-            for c in charges:
-                total = self.payment_repo.get_total_paid_for_charge(c.id, account_id)
-                if total < c.amount:
-                    all_paid = False
-                    break
+            charge = self.charge_repo.get_by_id(charge_id, account_id)
+            if charge:
+                total_paid = self.payment_repo.get_total_paid_for_charge(charge_id, account_id)
+                new_status = compute_charge_status(charge.amount, total_paid, charge.due_date)
+                self.charge_repo.update_status(charge_id, account_id, new_status)
 
-            if not all_paid:
-                contract = self.contract_repo.get_by_id(entity.contract_id, account_id)
-                if contract and contract.status == "active":
-                    # Проверяем: есть ли просроченные?
-                    today = datetime.now(timezone.utc).date()
-                    has_overdue = any(
-                        c.status != "paid" and c.due_date < today
-                        for c in charges
-                    )
-                    if has_overdue:
-                        contract.status = "overdue"
-                        self.contract_repo.update(contract)
-                        
+        _check_and_update_contract_status(
+            self.charge_repo, self.payment_repo, self.contract_repo,
+            contract_id, account_id,
+        )
 
 def _check_and_update_contract_status(charge_repo, payment_repo, contract_repo, contract_id, account_id):
     from datetime import date as dt_date

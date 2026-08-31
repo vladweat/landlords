@@ -5,7 +5,8 @@ from decimal import Decimal
 
 from fastapi import APIRouter, Depends
 
-from app.api.deps import get_current_account_id, get_current_user_id, get_contract_service, get_ledger_service, get_pdf_service, get_contract_event_repo
+from app.api.deps import get_current_account_id, get_current_user_id, get_contract_service, get_contract_repo, get_ledger_service, get_pdf_service, get_contract_event_repo
+from app.core.exceptions import NotFoundError
 from app.api.v1.schemas.contract_schema import (
     ContractCreateRequest,
     ContractListResponse,
@@ -25,6 +26,7 @@ from app.api.deps import get_contract_event_repo
 from app.api.v1.schemas.contract_event_schema import ContractEventResponse, CreateNoteRequest
 from app.services.dto.contract_event_dto import CreateNoteDTO
 from app.db.repositories.contract_event_repo import ContractEventRepository
+from app.db.repositories.contract_repo import ContractRepository
 from app.domain.entities import ContractEventEntity
 
 router = APIRouter(prefix="/v1/contracts", tags=["Contracts"])
@@ -89,10 +91,11 @@ def update_contract(
     contract_id: UUID,
     body: ContractUpdateRequest,
     account_id: UUID = Depends(get_current_account_id),
+    user_id: UUID = Depends(get_current_user_id),
     service: ContractService = Depends(get_contract_service),
 ) -> dict:
     """Обновить контракт."""
-    dto = service.update_contract(contract_id, account_id, body)
+    dto = service.update_contract(contract_id, account_id, body, user_id=user_id)
     return {
         "status": "success",
         "data": ContractResponse.model_validate(dto),
@@ -178,8 +181,10 @@ def get_document(
 ) -> Response:
     """Скачать сохранённый документ по ID."""
     doc = service.get_document(doc_id, account_id)
+    with open(doc.file_path, "rb") as f:
+        content = f.read()
     return Response(
-        content=doc.file_data,
+        content=content,
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename={doc.filename}"},
     )
@@ -203,9 +208,12 @@ def create_contract_note(
     body: CreateNoteRequest,
     account_id: UUID = Depends(get_current_account_id),
     user_id: UUID = Depends(get_current_user_id),
+    contract_repo: ContractRepository = Depends(get_contract_repo),
     event_repo: ContractEventRepository = Depends(get_contract_event_repo),
 ) -> dict:
     """Добавить заметку."""
+    if not contract_repo.get_by_id(contract_id, account_id):
+        raise NotFoundError(f"Contract with id={contract_id} not found")
     entity = ContractEventEntity(
         id=uuid4(), account_id=account_id, contract_id=contract_id,
         event_type="note", title=body.title, description=body.description,
