@@ -1,0 +1,123 @@
+"""Unit-тесты сервиса напоминаний."""
+
+from datetime import date, timedelta
+from decimal import Decimal
+from unittest.mock import Mock
+from uuid import uuid4
+
+import pytest
+
+from app.core.exceptions import NotFoundError, ValidationError
+from app.domain.entities import ContractEntity, RentChargeEntity, TenantEntity
+from app.services.dto.reminder_dto import ReminderCreateDTO
+from app.services.reminder_service import ReminderService
+from app.domain.entities import ReminderEntity
+from datetime import datetime
+
+@pytest.fixture
+def mock_reminder_repo():
+    repo = Mock()
+    repo.count_by_charge.return_value = 0
+    repo.get_by_charge.return_value = []
+    repo.create.return_value = ReminderEntity(
+        id=uuid4(), account_id=uuid4(), contract_id=uuid4(),
+        charge_id=uuid4(), reminder_type="first",
+        message_text="Иван, добрый день! Напоминаю...",
+        created_at=datetime.utcnow(),
+    )
+    return repo
+
+@pytest.fixture
+def mock_charge_repo():
+    repo = Mock()
+    repo.get_by_id.return_value = RentChargeEntity(
+        id=uuid4(), account_id=uuid4(), contract_id=uuid4(),
+        due_date=date.today() - timedelta(days=5),
+        period_start=date.today() - timedelta(days=35),
+        period_end=date.today() - timedelta(days=5),
+        amount=Decimal("50000"), currency="RUB", status="overdue",
+    )
+    return repo
+
+
+@pytest.fixture
+def mock_contract_repo():
+    repo = Mock()
+    repo.get_by_id.return_value = ContractEntity(
+        id=uuid4(), account_id=uuid4(), property_id=uuid4(), tenant_id=uuid4(),
+        start_date=date.today() - timedelta(days=365),
+        end_date=date.today() + timedelta(days=365),
+        rent_amount=Decimal("50000"), currency="RUB", payment_day=5, status="active",
+    )
+    return repo
+
+
+@pytest.fixture
+def mock_tenant_repo():
+    repo = Mock()
+    repo.get_by_id.return_value = TenantEntity(
+        id=uuid4(), account_id=uuid4(), full_name="Иван Петров",
+    )
+    return repo
+
+
+@pytest.fixture
+def service(mock_reminder_repo, mock_charge_repo, mock_contract_repo, mock_tenant_repo):
+    return ReminderService(mock_reminder_repo, mock_charge_repo, mock_contract_repo, mock_tenant_repo)
+
+
+class TestGenerateMessage:
+    def test_first_reminder(self, service):
+        charge_id = uuid4()
+        msg = service.generate_message(charge_id, uuid4(), "first")
+        assert "добрый день" in msg.lower()
+        assert "50000" in msg
+
+    def test_second_reminder(self, service):
+        charge_id = uuid4()
+        msg = service.generate_message(charge_id, uuid4(), "second")
+        assert "до сих пор не поступила" in msg.lower()
+
+    def test_third_reminder(self, service):
+        charge_id = uuid4()
+        msg = service.generate_message(charge_id, uuid4(), "third")
+        assert "третье уведомление" in msg.lower()
+
+
+class TestCreateReminder:
+    def test_success(self, service, mock_reminder_repo):
+        dto = ReminderCreateDTO(charge_id=uuid4(), reminder_type="first")
+        result = service.create_reminder(uuid4(), dto)
+        assert result.reminder_type == "first"
+        assert "Иван" in result.message_text
+
+    def test_charge_not_overdue(self, service, mock_charge_repo):
+        mock_charge_repo.get_by_id.return_value.status = "paid"
+        dto = ReminderCreateDTO(charge_id=uuid4(), reminder_type="first")
+        with pytest.raises(ValidationError, match="overdue"):
+            service.create_reminder(uuid4(), dto)
+
+    def test_max_reminders_removed(self, service, mock_reminder_repo):
+        mock_reminder_repo.count_by_charge.return_value = 10
+        mock_reminder_repo.create.return_value = ReminderEntity(
+            id=uuid4(), account_id=uuid4(), contract_id=uuid4(),
+            charge_id=uuid4(), reminder_type="third",
+            message_text="текст",
+            created_at=datetime.utcnow(),
+        )
+        dto = ReminderCreateDTO(charge_id=uuid4(), reminder_type="third")
+        result = service.create_reminder(uuid4(), dto)
+        assert result.reminder_type == "third"
+
+
+class TestShouldShowReminder:
+    def test_first_reminder(self, service, mock_reminder_repo):
+        mock_reminder_repo.count_by_charge.return_value = 0
+        result = service.should_show_reminder(uuid4(), uuid4())
+        assert result["can_remind"] is True
+        assert result["reminder_type"] == "first"
+
+    def test_cannot_remind_if_not_overdue(self, service, mock_charge_repo):
+        mock_charge_repo.get_by_id.return_value.status = "paid"
+        result = service.should_show_reminder(uuid4(), uuid4())
+        assert result["can_remind"] is False

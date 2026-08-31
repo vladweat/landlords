@@ -1,0 +1,41 @@
+---
+description: Обзор проекта Landlords — стек, структура, общие принципы
+alwaysApply: true
+---
+
+# Landlords — CRM для арендодателей
+
+SaaS-приложение для управления арендой: объекты, арендаторы, договоры, платежи, начисления, дашборд с аналитикой.
+
+## Стек
+
+| Часть | Технологии |
+|-------|-----------|
+| Backend | Python 3, FastAPI, SQLAlchemy 2, Alembic, Celery, Redis, PostgreSQL |
+| Frontend | React 19, TypeScript, Vite, TanStack Query, Zustand, Tailwind CSS 4 |
+| Infra | Docker Compose (api, celery-worker/beat, postgres, redis, nginx, flower) |
+
+## Структура репозитория
+
+```
+backend/app/          — API, сервисы, домен, репозитории, модели
+frontend/src/         — React-приложение (FSD-подобная архитектура)
+nginx/                — reverse proxy
+storage/documents/    — загруженные документы
+```
+
+## Общие правила
+
+- **Язык UI и docstring'ов** — русский. Имена переменных, функций, типов — английский.
+- **Multi-tenancy**: все данные изолированы по `account_id`. Любой запрос к БД/API должен учитывать аккаунт текущего пользователя.
+- **API-ответы**: `{ "status": "success" | "error", "data": ... }`. Ошибки — через `AppException` (backend) или axios interceptors (frontend).
+- **Деньги**: `Decimal` на backend, строки на frontend (не `float`).
+- **Минимальный diff**: не рефакторить и не менять несвязанный код.
+- **Секреты**: не коммитить `backend/.env`, токены, пароли.
+- **Тесты**: pytest (unit + integration с TestClient). Запуск из `backend/`.
+
+## Локальная разработка
+
+- Frontend dev-сервер: `cd frontend && npm run dev` (порт 3000, proxy `/api` → nginx:80).
+- Backend через Docker: `docker compose up` (postgres, redis, api, celery, nginx).
+- Venv: `.venv` в корне проекта.

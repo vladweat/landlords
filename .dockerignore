@@ -1,0 +1,5 @@
+.venv/lib/python3.12/site-packages/__pycache__/
+.git/
+*.pyc
+*.pyo
+frontend/

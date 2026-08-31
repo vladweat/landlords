@@ -1,0 +1,62 @@
+---
+description: Архитектура и конвенции React/TypeScript frontend
+globs: frontend/src/**/*.{ts,tsx}
+alwaysApply: false
+---
+
+# Frontend — FSD-подобная структура
+
+```
+src/
+  app/        — роутинг, провайдеры, ProtectedRoute
+  pages/      — страницы (композиция features + UI)
+  features/   — фичи: api.ts, components/, store (если нужен)
+  entities/   — типы доменных сущностей (Contract, Payment, …)
+  shared/     — ui/, api/, lib/, hooks/ — переиспользуемое
+```
+
+## Паттерны
+
+```typescript
+// API — объект с методами, axios через shared/api/client.ts
+export const contractsApi = {
+  getAll: async (query?: ContractsQuery): Promise<PaginatedData<Contract>> => {
+    const response = await apiClient.get<{ status: string; data: PaginatedData<Contract> }>(
+      '/contracts', { params: query }
+    );
+    return response.data.data;
+  },
+};
+
+// Серверное состояние — TanStack Query
+const { data, isLoading } = useQuery({
+  queryKey: ['contracts', page, statusFilter],
+  queryFn: () => contractsApi.getAll({ page }),
+});
+
+// Импорты через алиас @/
+import { Button } from '@/shared/ui/Button';
+```
+
+## UI и стиль
+
+- **Tailwind CSS 4** для стилей. Компоненты UI в `shared/ui/`.
+- **lucide-react** для иконок, **framer-motion** для анимаций, **sonner** для toast.
+- **react-hook-form + zod** для форм.
+- **Zustand** — только для auth store (`features/auth/store`).
+- Страницы — `default export`, lazy-loaded в `app/router.tsx`.
+- Тексты интерфейса — на русском.
+
+## Типы и данные
+
+- Доменные типы — в `entities/`, не дублировать в features.
+- Денежные суммы с API приходят как `string` — не парсить в `number` без необходимости.
+- `apiClient.baseURL = '/api/v1'`, токен из `localStorage('access_token')`.
+
+## Новая фича
+
+1. Тип в `entities/`
+2. API-методы в `features/{name}/api.ts`
+3. Компоненты в `features/{name}/components/`
+4. Страница в `pages/{name}/`
+5. Роут в `app/router.tsx`
