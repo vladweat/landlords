@@ -3,19 +3,24 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from loguru import logger
 
 from app.api.deps import get_current_user_id, get_user_service
 from app.api.v1.schemas.user_schema import (
     AuthResponse,
+    ChangePasswordRequest,
+    DeleteAccountRequest,
+    ForgotPasswordRequest,
     LoginRequest,
-    RegisterRequest,
-    UserResponse,
     MeResponse,
+    RegisterRequest,
+    ResetPasswordRequest,
+    UpdateProfileRequest,
+    UserResponse,
 )
 from app.core.exceptions import ValidationError
+from app.core.security import create_reset_token, verify_reset_token
 from app.services.user_service import UserService
-from app.api.responses import success_response, success_list_response
 
 router = APIRouter(prefix="/v1/auth", tags=["Auth"])
 
@@ -58,14 +63,7 @@ def get_me(
         "status": "success",
         "user": UserResponse.model_validate(user_dto),
     }
-    
-from app.api.v1.schemas.user_schema import (
-    ForgotPasswordRequest, ResetPasswordRequest,
-    UpdateProfileRequest, ChangePasswordRequest, DeleteAccountRequest,
-)
-from app.core.security import create_reset_token, verify_reset_token
-from app.core.security import create_reset_token, verify_reset_token
-from loguru import logger
+
 
 @router.post("/forgot-password")
 def forgot_password(

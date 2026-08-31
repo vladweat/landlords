@@ -1,7 +1,11 @@
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from uuid import UUID
+
+
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 @dataclass
@@ -13,7 +17,7 @@ class UserEntity:
     password_hash: str
     full_name: str
     is_active: bool = True
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=_utc_now)
     
 @dataclass
 class AccountEntity:
@@ -24,7 +28,7 @@ class AccountEntity:
     owner_id: UUID
     base_currency: str = "RUB"
     timezone: str = "Europe/Moscow"
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=_utc_now)
     
 
 from decimal import Decimal
@@ -45,8 +49,8 @@ class PropertyEntity:
     size_m2: float = 0.0
     purchase_price: Decimal | None = None
     status: str = "active"
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    updated_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=_utc_now)
+    updated_at: datetime = field(default_factory=_utc_now)
 
     def get_address(self) -> str:
         """Полный адрес одной строкой."""
@@ -69,8 +73,8 @@ class TenantEntity:
     phone: str | None = None
     notes: str | None = None
     is_active: bool = True
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    updated_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=_utc_now)
+    updated_at: datetime = field(default_factory=_utc_now)
     
 from datetime import date
 
@@ -93,8 +97,8 @@ class ContractEntity:
     auto_generate_charges: bool = False
     status: str = "draft"  # draft, active, ended, terminated, overdue
     termination_reason: str | None = None
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    updated_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=_utc_now)
+    updated_at: datetime = field(default_factory=_utc_now)
     
 @dataclass
 class RentChargeEntity:
@@ -109,8 +113,8 @@ class RentChargeEntity:
     amount: Decimal
     currency: str = "RUB"
     status: str = "pending"  # pending, partially_paid, paid, overdue
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    updated_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=_utc_now)
+    updated_at: datetime = field(default_factory=_utc_now)
 
 
 @dataclass
@@ -126,8 +130,8 @@ class PaymentEntity:
     currency: str = "RUB"
     method: str = "transfer"  # cash, bank, transfer
     note: str | None = None
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    updated_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=_utc_now)
+    updated_at: datetime = field(default_factory=_utc_now)
     
 @dataclass
 class LedgerLine:
@@ -150,7 +154,7 @@ class ReminderEntity:
     charge_id: UUID
     reminder_type: str  # first, second, third
     message_text: str
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=_utc_now)
     
 @dataclass
 class DocumentEntity:
@@ -161,7 +165,7 @@ class DocumentEntity:
     contract_id: UUID
     filename: str
     file_path: str
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=_utc_now)
 
 
 @dataclass
@@ -173,7 +177,7 @@ class ContractTemplateEntity:
     name: str
     is_default: bool = False
     file_data: bytes | None = None
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=_utc_now)
 
 @dataclass
 class FeedbackEntity:
@@ -183,7 +187,7 @@ class FeedbackEntity:
     category: str  # bug, feature, question, other
     message: str
     status: str = "new"
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=_utc_now)
     
 @dataclass
 class ContractEventEntity:
@@ -195,4 +199,4 @@ class ContractEventEntity:
     description: str | None = None
     event_metadata: dict | None = None  # ← переименовано
     created_by: UUID | None = None
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=_utc_now)

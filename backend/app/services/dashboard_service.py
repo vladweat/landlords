@@ -94,7 +94,7 @@ class DashboardService:
                 "address": prop.get_address(),
                 "tenant_name": tenant_name,
                 "contract_status": active_contract.status if active_contract else None,
-                "monthly_income": float(active_contract.rent_amount) if active_contract else 0,
+                "monthly_income": str(active_contract.rent_amount) if active_contract else "0",
                 "roi": roi,
                 "payback_years": payback,
                 "days_until_contract_end": days_until_end,
@@ -133,7 +133,7 @@ class DashboardService:
             data.append({
                 "id": str(p.id),
                 "contract_id": str(p.contract_id),
-                "amount": float(p.amount),
+                "amount": str(p.amount),
                 "date_paid": p.date_paid.isoformat(),
                 "method": p.method,
                 "property_address": address,

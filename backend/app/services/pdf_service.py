@@ -1,7 +1,7 @@
 """Сервис генерации PDF договоров."""
 
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from io import BytesIO
 from uuid import UUID, uuid4
 
@@ -300,7 +300,7 @@ class PdfService:
         dir_path = os.path.join(STORAGE_DIR, str(account_id), str(contract_id))
         os.makedirs(dir_path, exist_ok=True)
 
-        filename = f"contract_{str(contract_id)[:8]}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.pdf"
+        filename = f"contract_{str(contract_id)[:8]}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.pdf"
         file_path = os.path.join(dir_path, filename)
 
         with open(file_path, "wb") as f:
