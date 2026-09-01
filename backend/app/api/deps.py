@@ -15,6 +15,7 @@ from app.db.repositories.contract_repo import ContractRepository
 from app.db.repositories.document_repo import DocumentRepository
 from app.db.repositories.feedback_repo import FeedbackRepository
 from app.db.repositories.payment_repo import PaymentRepository
+from app.db.repositories.property_expense_repo import PropertyExpenseRepository
 from app.db.repositories.property_repo import PropertyRepository
 from app.db.repositories.reminder_repo import ReminderRepository
 from app.db.repositories.rent_charge_repo import RentChargeRepository
@@ -32,6 +33,7 @@ from app.services.forecast_service import ForecastService
 from app.services.ledger_service import LedgerService
 from app.services.payment_service import PaymentService
 from app.services.pdf_service import PdfService
+from app.services.property_expense_service import PropertyExpenseService
 from app.services.property_service import PropertyService
 from app.services.reminder_service import ReminderService
 from app.services.rent_charge_service import RentChargeService
@@ -64,6 +66,11 @@ def get_rent_charge_repo(session: Session = Depends(get_db_session)) -> RentChar
 
 def get_payment_repo(session: Session = Depends(get_db_session)) -> PaymentRepository:
     return PaymentRepository(session)
+
+def get_property_expense_repo(
+    session: Session = Depends(get_db_session),
+) -> PropertyExpenseRepository:
+    return PropertyExpenseRepository(session)
 
 def get_reminder_repo(session: Session = Depends(get_db_session)) -> ReminderRepository:
     return ReminderRepository(session)
@@ -128,14 +135,23 @@ def get_payment_service(
 ) -> PaymentService:
     return PaymentService(payment_repo, contract_repo, charge_repo, event_repo)
 
+def get_property_expense_service(
+    expense_repo: PropertyExpenseRepository = Depends(get_property_expense_repo),
+    property_repo: PropertyRepository = Depends(get_property_repo),
+) -> PropertyExpenseService:
+    return PropertyExpenseService(expense_repo, property_repo)
+
 def get_dashboard_service(
     property_repo=Depends(get_property_repo),
     contract_repo=Depends(get_contract_repo),
     charge_repo=Depends(get_rent_charge_repo),
     payment_repo=Depends(get_payment_repo),
     tenant_repo=Depends(get_tenant_repo),
+    expense_repo=Depends(get_property_expense_repo),
 ) -> DashboardService:
-    return DashboardService(property_repo, contract_repo, charge_repo, payment_repo, tenant_repo)
+    return DashboardService(
+        property_repo, contract_repo, charge_repo, payment_repo, tenant_repo, expense_repo
+    )
 
 def get_ledger_service(
     contract_repo: ContractRepository = Depends(get_contract_repo),
@@ -164,8 +180,9 @@ def get_roi_service(
     property_repo: PropertyRepository = Depends(get_property_repo),
     contract_repo: ContractRepository = Depends(get_contract_repo),
     payment_repo: PaymentRepository = Depends(get_payment_repo),
+    expense_repo: PropertyExpenseRepository = Depends(get_property_expense_repo),
 ) -> RoiService:
-    return RoiService(property_repo, contract_repo, payment_repo)
+    return RoiService(property_repo, contract_repo, payment_repo, expense_repo)
 
 def get_pdf_service(
     contract_repo: ContractRepository = Depends(get_contract_repo),

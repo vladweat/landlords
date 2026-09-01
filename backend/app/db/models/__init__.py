@@ -2,6 +2,7 @@ from app.db.models.account_model import AccountModel
 from app.db.models.base import Base
 from app.db.models.contract_model import ContractModel
 from app.db.models.payment_model import PaymentModel
+from app.db.models.property_expense_model import PropertyExpenseModel
 from app.db.models.property_model import PropertyModel
 from app.db.models.rent_charge_model import RentChargeModel
 from app.db.models.tenant_model import TenantModel
@@ -21,6 +22,7 @@ __all__ = [
     "ContractModel",
     "RentChargeModel",
     "PaymentModel",
+    "PropertyExpenseModel",
     "AuditLogModel",
     "ReminderModel",
     "FeedbackModel",

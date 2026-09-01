@@ -7,6 +7,8 @@ export interface ActiveContract {
 
 export interface ROIData {
   annual_income: string;
+  annual_expenses: string;
+  annual_profit: string;
   roi: number | null;
   payback_years: number | null;
 }

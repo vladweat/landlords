@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LayoutDashboard, Building2, Users, FileText, CreditCard, Settings, X, PanelLeft, LogOut, User, MessageSquare } from 'lucide-react';
+import { LayoutDashboard, Building2, Users, FileText, CreditCard, Wallet, Settings, X, PanelLeft, LogOut, User, MessageSquare } from 'lucide-react';
 import { useAuthStore } from '@/features/auth/store';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { FeedbackModal } from '@/features/feedback/components/FeedbackModal';
@@ -12,6 +12,7 @@ const navigation = [
   { name: 'Арендаторы', href: '/tenants', icon: Users },
   { name: 'Договоры', href: '/contracts', icon: FileText },
   { name: 'Платежи', href: '/payments', icon: CreditCard },
+  { name: 'Расходы', href: '/expenses', icon: Wallet },
   { name: 'Настройки', href: '/settings', icon: Settings },
 ];
 
