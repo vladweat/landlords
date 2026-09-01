@@ -147,9 +147,10 @@ def get_contract_document(
     account_id: UUID = Depends(get_current_account_id),
     service: PdfService = Depends(get_pdf_service),
 ) -> dict:
-    """Сгенерировать и сохранить PDF, вернуть URL."""
+    """Сгенерировать и сохранить PDF, вернуть защищённый URL через API."""
     doc = service.generate_and_save(contract_id, account_id)
-    url = f"/documents/{account_id}/{contract_id}/{doc.filename}"
+    # Возвращаем ссылку на API-эндоинт, который отдаёт документ с авторизацией.
+    url = f"/api/v1/contracts/documents/{doc.id}"
     return {"status": "success", "data": {"url": url, "filename": doc.filename}}
 
 

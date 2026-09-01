@@ -4,7 +4,46 @@
 
 Справочник по архитектуре: [ARCHITECTURE.md](./ARCHITECTURE.md)
 
-**Статус:** 37 / 38 выполнено
+**Статус:** 47 / 66 выполнено
+
+---
+
+## Перед запуском — приоритетный backlog
+
+Ниже приоритетные задачи, которые рекомендуется закрыть перед production‑запуском.
+
+### Срочно — критично (P0 / P1)
+- [X] Убрать логирование reset‑токена и реализовать реальный forgot‑password flow — `app/api/v1/routes/auth.py`, `app/services/user_service.py`, `app/core/config.py`.
+- [x] Защитить доступ к документам (PDF): proxy через API с auth или signed URLs — `nginx/nginx.conf`, `app/api/v1/routes/contracts.py`.
+- [x] Запретить дефолтный `SECRET_KEY`; требовать значение через env в prod — `app/core/config.py`, `.env.example`.
+- [X] Закрыть или защитить Flower в prod — `docker-compose.yml`.
+- [X] Ужесточить CORS и security headers в prod — `nginx/nginx.conf`, `app/main.py`.
+
+### Инфраструктура и CI
+- [ ] Reproducible Docker build из `requirements.txt` (не копировать `.venv`) — `Dockerfile`, CI.
+- [ ] Добавить volume `storage/documents` для API и Celery worker — `docker-compose.yml`.
+- [ ] CI: lint → unit → integration → build image → security scan → smoke tests.
+
+### Тесты, миграции и БД
+- [ ] Исправить `confest.py` → `conftest.py`; адаптировать integration tests к `/v1/...` и новой схеме property.
+- [ ] Использовать Alembic для integration tests (вместо `create_all`) — `alembic/versions/`.
+- [ ] Проверить индексы и производительность запросов (account_id, contract_id).
+
+### Celery и фоновые задачи
+- [x] Сузить `autoretry_for` к transient‑исключениям; сделать задачи идемпотентными и account‑aware — `app/tasks/charge_tasks.py`, `app/celery_app.py`.
+- [x] Добавить locking/idempotency для bulk‑tasks (update_overdue_charges).
+
+### Наблюдаемость и безопасность
+- [x] Подключить Sentry и структурированные логи; экспорт базовых метрик (Prometheus) — `app/main.py`, `app/core/config.py`.
+- [x] Настроить rate‑limit для чувствительных endpoint'ов (login, forgot-password, reminders).
+- [x] Health/readiness endpoints, deploy runbook и backup/restore план.
+
+### Мелочи / техдолг
+- [ ] Удалить неиспользуемые настройки и зависимости (`CACHE_DEFAULT_TTL`, `APP_TIMEZONE`, `testcontainers` в requirements).
+- [ ] Добавить pre‑commit (black/isort/ruff/mypy) и enforce style в CI.
+- [ ] Seed script / fixtures и скрипт создания initial admin user.
+
+Для каждой задачи рекомендуется отдельный small PR (≈1–3ч) с описанием: цель, изменения, тест‑план и шаги отката.
 
 ---
 
@@ -21,7 +60,7 @@
 
 - [ ] Убрать логирование reset-токена в plaintext — `app/api/v1/routes/auth.py:78`
 - [ ] Защитить `/documents/`: proxy через API с auth или signed URLs — `nginx/nginx.conf`
-- [ ] Задать сильный `SECRET_KEY` через env; убрать/запретить дефолт в prod — `app/core/config.py`
+- [x] Задать сильный `SECRET_KEY` через env; убрать/запретить дефолт в prod — `app/core/config.py`
 - [ ] Реализовать отправку email для forgot-password (или временно отключить endpoint)
 - [ ] Закрыть Flower auth или не публиковать порт в prod — `docker-compose.yml`
 - [ ] Ужесточить CORS для prod (не `*`) — nginx / `main.py`
@@ -88,3 +127,4 @@
 1. После исправления — `- [x]` и при желании ссылка на commit/PR.
 2. Обновить счётчик в шапке (можно вручную или `grep -c '\- \[x\]' TODO.md`).
 3. Крупные изменения архитектуры — кратко дописать в [ARCHITECTURE.md](./ARCHITECTURE.md) (раздел «Исправлено»).
+

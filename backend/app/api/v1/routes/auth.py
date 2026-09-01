@@ -19,7 +19,7 @@ from app.api.v1.schemas.user_schema import (
     UserResponse,
 )
 from app.core.exceptions import ValidationError
-from app.core.security import create_reset_token, verify_reset_token
+from app.core.security import verify_reset_token
 from app.services.user_service import UserService
 
 router = APIRouter(prefix="/v1/auth", tags=["Auth"])
@@ -71,10 +71,8 @@ def forgot_password(
     service: UserService = Depends(get_user_service),
 ) -> dict:
     """Запросить сброс пароля."""
-    user = service.get_user_by_email(body.email)
-    if user:
-        token = create_reset_token(str(user.id))
-        logger.info(f"Reset token for {body.email}: {token}")
+    # Создаём и отправляем инструкцию на почту, но не логируем токен.
+    service.request_password_reset(body.email)
     return {"message": "Если аккаунт с таким email существует, инструкция отправлена на почту."}
 
 

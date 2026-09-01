@@ -28,6 +28,16 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "change-me-in-production-change-me"
     SENTRY_DSN: str | None = None
     
+    # ==================== Frontend / Email ====================
+    # Базовый URL фронтенда — используется для формирования ссылок в письмах (reset password).
+    FRONTEND_URL: str = "http://localhost:3000"
+
+    # SMTP (опционально). Если не задано, ссылки для сброса пароля сохраняются в storage/password_resets для dev.
+    SMTP_HOST: str | None = None
+    SMTP_PORT: int | None = None
+    SMTP_USER: str | None = None
+    SMTP_PASSWORD: str | None = None
+    SMTP_FROM: str | None = None
     # ==================== База данных ====================
     
     DB_HOST: str = "localhost"
@@ -74,3 +84,10 @@ class Settings(BaseSettings):
     LOG_FORMAT: str = "json"
     
 settings = Settings()
+# Ensure SECRET_KEY is explicitly set in production
+if settings.APP_ENV == "production" and (
+    not settings.SECRET_KEY or settings.SECRET_KEY == "change-me-in-production-change-me"
+):
+    raise RuntimeError(
+        "SECRET_KEY must be set in production. Set SECRET_KEY in the environment and restart."
+    )
