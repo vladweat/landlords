@@ -4,7 +4,7 @@
 
 Справочник по архитектуре: [ARCHITECTURE.md](./ARCHITECTURE.md)
 
-**Статус:** 47 / 66 выполнено
+**Статус:** 57 / 66 выполнено
 
 ---
 
@@ -25,9 +25,9 @@
 - [ ] CI: lint → unit → integration → build image → security scan → smoke tests.
 
 ### Тесты, миграции и БД
-- [ ] Исправить `confest.py` → `conftest.py`; адаптировать integration tests к `/v1/...` и новой схеме property.
-- [ ] Использовать Alembic для integration tests (вместо `create_all`) — `alembic/versions/`.
-- [ ] Проверить индексы и производительность запросов (account_id, contract_id).
+- [x] Исправить `confest.py` → `conftest.py`; адаптировать integration tests к `/v1/...` и новой схеме property.
+- [x] Использовать Alembic для integration tests (вместо `create_all`) — `alembic/versions/`.
+- [x] Проверить индексы и производительность запросов (account_id, contract_id).
 
 ### Celery и фоновые задачи
 - [x] Сузить `autoretry_for` к transient‑исключениям; сделать задачи идемпотентными и account‑aware — `app/tasks/charge_tasks.py`, `app/celery_app.py`.
@@ -39,9 +39,9 @@
 - [x] Health/readiness endpoints, deploy runbook и backup/restore план.
 
 ### Мелочи / техдолг
-- [ ] Удалить неиспользуемые настройки и зависимости (`CACHE_DEFAULT_TTL`, `APP_TIMEZONE`, `testcontainers` в requirements).
-- [ ] Добавить pre‑commit (black/isort/ruff/mypy) и enforce style в CI.
-- [ ] Seed script / fixtures и скрипт создания initial admin user.
+- [x] Удалить неиспользуемые настройки и зависимости (`CACHE_DEFAULT_TTL`, `APP_TIMEZONE`, `testcontainers` в requirements).
+- [x] Добавить pre‑commit (black/ruff; import-sort через ruff) и enforce style в CI.
+- [x] Seed script / fixtures и скрипт создания initial admin user.
 
 Для каждой задачи рекомендуется отдельный small PR (≈1–3ч) с описанием: цель, изменения, тест‑план и шаги отката.
 
@@ -107,7 +107,7 @@
 - [x] Integration tests: миграции Alembic вместо `create_all`
 - [x] Celery: сузить `autoretry_for` до transient-исключений — `charge_tasks.py`
 - [x] Подключить Sentry в `main.py` или убрать из deps
-- [ ] Удалить неиспользуемый `testcontainers` из requirements (или начать использовать)
+- [x] Удалить неиспользуемый `testcontainers` из requirements (или начать использовать)
 
 ---
 

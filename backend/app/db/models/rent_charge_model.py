@@ -18,6 +18,7 @@ class RentChargeModel(TimestampMixin, Base):
     __table_args__ = (
         Index("ix_rent_charges_contract_status", "contract_id", "status"),
         Index("ix_rent_charges_due_date_status", "due_date", "status"),
+        Index("ix_rent_charges_account_status", "account_id", "status"),
     )
 
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)

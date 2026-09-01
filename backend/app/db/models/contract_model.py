@@ -19,6 +19,7 @@ class ContractModel(TimestampMixin, Base):
     
     __table_args__ = (
         Index("ix_contracts_property_status", "property_id", "status"),
+        Index("ix_contracts_account_status", "account_id", "status"),
     )
 
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)

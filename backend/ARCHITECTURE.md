@@ -129,10 +129,8 @@ entity → interface → repo → service → schema → route → deps → те
 
 ### Мёртвая конфигурация
 
-- Redis cache (`CACHE_DEFAULT_TTL`) — не используется.
-- `APP_TIMEZONE` — не используется.
-- `CELERY_BROKER_URL` / `CELERY_RESULT_BACKEND` — пустые; `worker.py` берёт `REDIS_URL`.
-- `sentry-sdk` в requirements — не подключён в `main.py`.
+~~Redis cache (`CACHE_DEFAULT_TTL`), `APP_TIMEZONE`, `CELERY_BROKER_URL` / `CELERY_RESULT_BACKEND`~~ — удалены из Settings; Celery берёт `REDIS_URL`.
+~~`sentry-sdk` не подключён~~ — подключён в `main.py`.
 
 ---
 
@@ -140,10 +138,10 @@ entity → interface → repo → service → schema → route → deps → те
 
 | # | Проблема | Файл |
 |---|----------|------|
-| 1 | **`ValidationError` не импортирован** — `NameError` при reset/change password, delete account | `api/v1/routes/auth.py:90`, `services/user_service.py:111,130,132,140` |
-| 2 | **Document download читает `doc.file_data`**, но поле удалено из БД; файлы на диске (`file_path`) | `api/v1/routes/contracts.py:180-184` |
-| 3 | **Интеграционные тесты: неверные URL** (`/auth/` вместо `/v1/auth/`) и устаревшая схема property (`address` вместо `city`/`street`/`house`) | `tests/integration/*` |
-| 4 | **Мёртвый метод `get_by_id_for_update`** в `RentChargeService` — ссылается на `self.session`, `RentChargeModel` | `services/rent_charge_service.py:137-145` |
+| 1 | ~~**`ValidationError` не импортирован**~~ | `api/v1/routes/auth.py`, `services/user_service.py` |
+| 2 | ~~**Document download читает `doc.file_data`**~~ | `api/v1/routes/contracts.py` |
+| 3 | ~~**Интеграционные тесты: неверные URL / схема property**~~ | `tests/integration/*` |
+| 4 | ~~**Мёртвый метод `get_by_id_for_update`**~~ | `services/rent_charge_service.py` |
 
 ---
 
@@ -191,21 +189,18 @@ entity → interface → repo → service → schema → route → deps → те
 
 ```
 tests/
-├── confest.py              # ОПЕЧАТКА — должно быть conftest.py; pytest не загружает
-├── integration/            # conftest.py + 8 модулей (URL и схемы устарели)
-├── unit/                   # domain + 7 service modules (mock repos — ok)
+├── conftest.py
+├── integration/            # Alembic migrations + /v1/... URLs
+├── unit/
 └── tasks/test_charge_tasks.py
 ```
 
-- Integration: `Base.metadata.create_all` вместо Alembic — drift схемы.
-- `testcontainers` в requirements — не используется.
+- Индексы: `account_id` на tenant-таблицах; композиты `(account_id, status)` на contracts/rent_charges; `(contract_id, status)` / `(due_date, status)` на charges.
 - Нет integration-тестов: feedback, reminders, PDF/documents, Celery beat, password reset.
 
 ### Celery
 
-- `autoretry_for=(Exception,)` — ретраит программные ошибки, не только transient.
-- `update_overdue_charges` — bulk update по всем аккаунтам без `account_id` (ok для cron, но без locking/idempotency).
-
+~~`autoretry_for=(Exception,)`~~ — сужен до transient; locking/idempotency для bulk-tasks добавлены.
 ---
 
 ## Приоритеты исправления
@@ -216,12 +211,17 @@ tests/
 
 ## Мелочи (code smells)
 
-- Дублированный import в `auth.py:65-66`
-- `datetime.utcnow()` — deprecated
-- `float()` для денег в dashboard/ROI
-- Rate-limit напоминаний закомментирован (`reminder_service.py:75-77`)
-- Комментарий-артеfact `# В app/api/v1/routes/contracts.py добавить:` в production-коде
-- CORS закомментирован в `main.py` (nginx обрабатывает)
+~~Дублированный import / `utcnow` / `float()` для денег / rate-limit / комментарий-артефакт~~ — закрыто.
+- CORS по-прежнему через nginx (`main.py` не дублирует).
+
+### Bootstrap CLI
+
+```text
+python -m app.cli create-user --email … --password … --full-name …
+python -m app.cli seed --email … --password …
+```
+
+Создаёт user+account (как register); `seed` дополнительно — 1 property и 1 tenant.
 
 ---
 
