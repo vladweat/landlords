@@ -5,6 +5,31 @@ from celery.schedules import crontab
 
 from app.core.config import settings
 
+
+def _init_sentry() -> None:
+    """Initialize Sentry for Celery workers if DSN is provided."""
+    if not settings.SENTRY_DSN:
+        return
+
+    try:
+        import sentry_sdk
+        from sentry_sdk.integrations.celery import CeleryIntegration
+        from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
+
+        sentry_sdk.init(
+            dsn=settings.SENTRY_DSN,
+            environment=settings.APP_ENV,
+            release=settings.APP_VERSION,
+            integrations=[CeleryIntegration(), SqlalchemyIntegration()],
+            traces_sample_rate=0.1 if settings.APP_ENV == "production" else 0.0,
+        )
+    except Exception:
+        # don't fail worker startup if Sentry initialization fails
+        pass
+
+
+_init_sentry()
+
 celery_app = Celery("app")
 
 celery_app.conf.update(
@@ -31,3 +56,31 @@ celery_app.conf.update(
         },
     },
 )
+
+# Prometheus metrics for Celery tasks (optional)
+try:
+    from prometheus_client import Counter
+    from celery.signals import task_postrun, task_failure
+
+    CELERY_TASKS_COUNTER = Counter(
+        "celery_tasks_total", "Total number of Celery tasks executed", ["task_name", "status"]
+    )
+
+    @task_postrun.connect
+    def _on_task_postrun(sender, task_id, task, args, kwargs, retval, state, **_):
+        try:
+            name = getattr(task, "name", sender.name if hasattr(sender, "name") else str(sender))
+            CELERY_TASKS_COUNTER.labels(task_name=name, status="success").inc()
+        except Exception:
+            pass
+
+    @task_failure.connect
+    def _on_task_failure(sender, task_id, exception, args, kwargs, einfo, **_):
+        try:
+            name = getattr(sender, "name", str(sender))
+            CELERY_TASKS_COUNTER.labels(task_name=name, status="failure").inc()
+        except Exception:
+            pass
+except Exception:
+    # prometheus_client or celery.signals may be missing in dev env; ignore
+    pass

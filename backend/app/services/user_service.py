@@ -3,7 +3,12 @@
 from uuid import UUID, uuid4
 
 from app.core.exceptions import ConflictError, NotFoundError, UnauthorizedError, ValidationError
-from app.core.security import create_access_token, hash_password, verify_password
+from app.core.security import create_access_token, hash_password, verify_password, create_reset_token
+from loguru import logger
+from pathlib import Path
+import time
+import smtplib
+from email.message import EmailMessage
 from app.db.repositories.account_repo import AccountRepository
 from app.domain.entities import AccountEntity, UserEntity
 from app.domain.interfaces import IUserRepository
@@ -100,6 +105,56 @@ class UserService:
         """Получить пользователя по email (для публичного использования)."""
         user = self.user_repo.get_by_email(email)
         return UserDTO.model_validate(user) if user else None
+
+    def request_password_reset(self, email: str) -> None:
+        """
+        Запрос на сброс пароля: создать токен и отправить письмо.
+        Не логируем сам токен. Если SMTP не настроен, ссылка сохраняется в storage/password_resets для dev.
+        """
+        user = self.user_repo.get_by_email(email)
+        if not user:
+            # Ничего не говорим во внешнем API — резолвим silently
+            return
+
+        token = create_reset_token(str(user.id))
+
+        # Формируем ссылку для фронтенда
+        try:
+            from app.core.config import settings
+
+            frontend = settings.FRONTEND_URL.rstrip("/")
+            reset_link = f"{frontend}/reset-password?token={token}"
+
+            if settings.SMTP_HOST:
+                msg = EmailMessage()
+                msg["Subject"] = "Сброс пароля"
+                msg["From"] = settings.SMTP_FROM or "no-reply@example.com"
+                msg["To"] = user.email
+                # В теле — ссылка. В логах НЕ пишем сам токен/ссылку.
+                msg.set_content(f"Чтобы сбросить пароль, перейдите по ссылке: {reset_link}")
+                try:
+                    smtp_port = settings.SMTP_PORT or 25
+                    with smtplib.SMTP(settings.SMTP_HOST, smtp_port) as smtp:
+                        # Попробуем поднять TLS если указаны креды
+                        if settings.SMTP_USER and settings.SMTP_PASSWORD:
+                            try:
+                                smtp.starttls()
+                            except Exception:
+                                pass
+                            smtp.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+                        smtp.send_message(msg)
+                    logger.info("Password reset email sent (no token in logs).")
+                except Exception:
+                    logger.exception("Failed to send password reset email")
+            else:
+                # Для разработки сохраняем ссылку в файл в storage — безопаснее, чем логирование токена.
+                out_dir = Path("storage/password_resets")
+                out_dir.mkdir(parents=True, exist_ok=True)
+                fname = out_dir / f"{user.email}-{int(time.time())}.txt"
+                fname.write_text(reset_link)
+                logger.info("Password reset link written to storage/password_resets (SMTP unset).")
+        except Exception:
+            logger.exception("Error while preparing password reset")
 
 
     def reset_password(self, user_id: UUID, new_password: str) -> None:

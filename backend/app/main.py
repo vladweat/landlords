@@ -1,8 +1,10 @@
 from http import HTTPStatus
-
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from loguru import logger
+
+from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+import redis
 
 from app.core.config import settings
 from app.core.exceptions import AppException
@@ -25,11 +27,7 @@ def _init_sentry() -> None:
         dsn=settings.SENTRY_DSN,
         environment=settings.APP_ENV,
         release=settings.APP_VERSION,
-        integrations=[
-            FastApiIntegration(),
-            CeleryIntegration(),
-            SqlalchemyIntegration(),
-        ],
+        integrations=[FastApiIntegration(), CeleryIntegration(), SqlalchemyIntegration()],
         traces_sample_rate=0.1 if settings.APP_ENV == "production" else 0.0,
     )
 
@@ -52,62 +50,63 @@ def create_app() -> FastAPI:
 
     # Middleware
     app.add_middleware(LoggingMiddleware)
-    
-    # app.add_middleware(
-    #     CORSMiddleware,
-    #     allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
-    #     allow_credentials=True,
-    #     allow_methods=["*"],
-    #     allow_headers=["*"],
-    # )
-    
+
     # Обработчик ошибок валидации
     @app.exception_handler(RequestValidationError)
     def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
         return JSONResponse(
             status_code=422,
-            content={
-                "status": "error",
-                "message": "Validation error",
-                "details": exc.errors(),
-            },
+            content={"status": "error", "message": "Validation error", "details": exc.errors()},
         )
 
     # Глобальный обработчик кастомных исключений
     @app.exception_handler(AppException)
     def app_exception_handler(request: Request, exc: AppException) -> JSONResponse:
         """Обработать кастомное исключение приложения."""
-        logger.warning(
-            f"Application exception: {exc.message}",
-            status_code=exc.status_code,
-            path=request.url.path,
-        )
-        return JSONResponse(
-            status_code=exc.status_code,
-            content={
-                "status": "error",
-                "message": exc.message,
-            },
-        )
+        logger.warning(f"Application exception: {exc.message}", status_code=exc.status_code, path=request.url.path)
+        return JSONResponse(status_code=exc.status_code, content={"status": "error", "message": exc.message})
 
     # Обработчик необработанных исключений
     @app.exception_handler(Exception)
     def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
         """Обработать неожиданное исключение."""
         logger.exception("Unhandled exception: {}", str(exc), path=request.url.path)
-        return JSONResponse(
-            status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
-            content={
-                "status": "error",
-                "message": "Internal server error",
-            },
-        )
+        return JSONResponse(status_code=HTTPStatus.INTERNAL_SERVER_ERROR, content={"status": "error", "message": "Internal server error"})
 
     # Healthcheck
     @app.get("/health", tags=["System"])
     def healthcheck() -> dict[str, str]:
         """Проверка работоспособности сервиса."""
         return {"status": "ok"}
+
+    @app.get("/ready", tags=["System"])
+    def readiness() -> JSONResponse:
+        """Readiness check: DB and Redis connectivity."""
+        # Check DB
+        from app.db.session import SessionLocal
+
+        try:
+            session = SessionLocal()
+            session.execute("SELECT 1")
+            session.close()
+        except Exception:
+            return JSONResponse(status_code=503, content={"status": "error", "message": "db_unavailable"})
+
+        # Check Redis
+        try:
+            r = redis.from_url(settings.REDIS_URL)
+            if not r.ping():
+                raise RuntimeError("redis_ping_failed")
+        except Exception:
+            return JSONResponse(status_code=503, content={"status": "error", "message": "redis_unavailable"})
+
+        return JSONResponse(status_code=200, content={"status": "ok"})
+
+    @app.get("/metrics")
+    def metrics() -> Response:
+        """Prometheus metrics endpoint."""
+        data = generate_latest()
+        return Response(content=data, media_type=CONTENT_TYPE_LATEST)
 
     from app.api.v1.routes.auth import router as auth_router
     from app.api.v1.routes.properties import router as properties_router
@@ -131,15 +130,12 @@ def create_app() -> FastAPI:
 
     return app
 
+
 app = create_app()
+
 
 if __name__ == "__main__":
     import uvicorn
-    
-    uvicorn.run(
-        "main:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=settings.DEBUG,
-        log_level=settings.LOG_LEVEL.lower()
-    )
+
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=settings.DEBUG, log_level=settings.LOG_LEVEL.lower())
+

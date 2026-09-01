@@ -83,8 +83,6 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     command: python -m celery -A worker.celery_app flower --port=5555
-    ports:
-      - "5555:5555"
     env_file:
       - backend/.env
     depends_on:
@@ -95,6 +93,9 @@ services:
       - app-network
     healthcheck:
       disable: true
+    # Flower — включается только в development профиле, не открываем порт в проде.
+    profiles:
+      - development
 
   postgres:
     image: postgres:15
