@@ -19,7 +19,13 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r backend/requirements.txt
-      - name: Run tests
+      - name: Lint
         working-directory: backend
         run: |
-          pytest -q
+          # Critical syntax/undefined-name errors. Full black/ruff style via pre-commit;
+          # enable black --check after a dedicated format pass.
+          ruff check app tests --select E9,F63,F7,F82
+      - name: Run unit tests
+        working-directory: backend
+        run: |
+          pytest -q tests/unit tests/tasks

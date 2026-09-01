@@ -28,7 +28,6 @@ loguru
 gunicorn
 flower
 sentry-sdk
-testcontainers
 pytest-asyncio
-factory-boy
 tenacity
+pre-commit

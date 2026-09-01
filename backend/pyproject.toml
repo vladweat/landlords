@@ -1,0 +1,24 @@
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+extend-exclude = '''
+/(
+  \.venv
+  | alembic/versions
+)/
+'''
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["app", "tests"]
+
+[tool.ruff.lint]
+# Pre-commit applies E/F/I/W with --fix. CI enforces critical runtime rules only
+# until a dedicated black/ruff format pass lands.
+select = ["E", "F", "I", "W"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"alembic/**" = ["E", "F", "I", "W"]
+"tests/**" = ["F401"]
