@@ -8,8 +8,8 @@ from datetime import date
 
 from app.domain.entities import (
     AccountEntity, ContractEntity, ContractEventEntity, DocumentEntity,
-    FeedbackEntity, PaymentEntity, PropertyEntity, ReminderEntity,
-    RentChargeEntity, TenantEntity, UserEntity,
+    FeedbackEntity, PaymentEntity, PropertyEntity, PropertyExpenseEntity,
+    ReminderEntity, RentChargeEntity, TenantEntity, UserEntity,
 )
 
 from app.domain.pagination import PaginatedResult
@@ -324,7 +324,61 @@ class IPaymentRepository(ABC):
     def get_by_tenant(self, tenant_id: UUID, account_id: UUID) -> Sequence[PaymentEntity]:
         """Получить все платежи арендатора."""
         ...
-        
+
+
+class IPropertyExpenseRepository(ABC):
+    """Интерфейс репозитория расходов по объектам."""
+
+    @abstractmethod
+    def get_by_id(self, expense_id: UUID, account_id: UUID) -> PropertyExpenseEntity | None:
+        """Получить расход по ID."""
+        ...
+
+    @abstractmethod
+    def list_by_account(
+        self,
+        account_id: UUID,
+        property_id: UUID | None = None,
+        start_date: date | None = None,
+        end_date: date | None = None,
+    ) -> Sequence[PropertyExpenseEntity]:
+        """Список расходов аккаунта с фильтрацией."""
+        ...
+
+    @abstractmethod
+    def list_by_property(
+        self, property_id: UUID, account_id: UUID
+    ) -> Sequence[PropertyExpenseEntity]:
+        """Список расходов по объекту."""
+        ...
+
+    @abstractmethod
+    def get_total_for_property(
+        self,
+        property_id: UUID,
+        account_id: UUID,
+        start_date: date | None = None,
+        end_date: date | None = None,
+    ) -> Decimal:
+        """Сумма расходов по объекту за период."""
+        ...
+
+    @abstractmethod
+    def create(self, entity: PropertyExpenseEntity) -> PropertyExpenseEntity:
+        """Создать расход."""
+        ...
+
+    @abstractmethod
+    def update(self, entity: PropertyExpenseEntity) -> PropertyExpenseEntity:
+        """Обновить расход."""
+        ...
+
+    @abstractmethod
+    def delete(self, expense_id: UUID, account_id: UUID) -> None:
+        """Удалить расход."""
+        ...
+
+
 class IReminderRepository(ABC):
     @abstractmethod
     def create(self, entity: ReminderEntity) -> ReminderEntity: ...

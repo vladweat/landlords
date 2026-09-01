@@ -17,6 +17,9 @@ export interface PropertyOverviewItem {
   contract_status: 'active' | 'overdue' | null;
   monthly_income: number;
   roi: number | null;
+  annual_income?: string;
+  annual_expenses?: string;
+  annual_profit?: string;
   days_until_contract_end: number | null;
 }
 

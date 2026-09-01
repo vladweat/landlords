@@ -132,7 +132,24 @@ class PaymentEntity:
     note: str | None = None
     created_at: datetime = field(default_factory=_utc_now)
     updated_at: datetime = field(default_factory=_utc_now)
-    
+
+
+@dataclass
+class PropertyExpenseEntity:
+    """Расход по объекту недвижимости (ЖКХ, ремонт, налоги и т.п.)."""
+
+    id: UUID
+    account_id: UUID
+    property_id: UUID
+    category: str  # utilities, repair, tax, realtor_fee, other
+    amount: Decimal
+    date_incurred: date
+    currency: str = "RUB"
+    note: str | None = None
+    created_at: datetime = field(default_factory=_utc_now)
+    updated_at: datetime = field(default_factory=_utc_now)
+
+
 @dataclass
 class LedgerLine:
     """Строка в ledger — либо начисление, либо платёж."""

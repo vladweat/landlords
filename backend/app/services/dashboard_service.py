@@ -7,6 +7,7 @@ from uuid import UUID
 from app.domain.interfaces import (
     IContractRepository,
     IPaymentRepository,
+    IPropertyExpenseRepository,
     IPropertyRepository,
     IRentChargeRepository,
     ITenantRepository,
@@ -25,12 +26,14 @@ class DashboardService:
         charge_repo: IRentChargeRepository,
         payment_repo: IPaymentRepository,
         tenant_repo: ITenantRepository | None = None,
+        expense_repo: IPropertyExpenseRepository | None = None,
     ) -> None:
         self.property_repo = property_repo
         self.contract_repo = contract_repo
         self.charge_repo = charge_repo
         self.payment_repo = payment_repo
         self.tenant_repo = tenant_repo
+        self.expense_repo = expense_repo
 
     def get_summary(self, account_id: UUID) -> DashboardSummaryDTO:
         today = date.today()
@@ -79,11 +82,20 @@ class DashboardService:
                 if annual_income == 0:
                     annual_income = active_contract.rent_amount * 12
 
+            annual_expenses = Decimal("0")
+            if self.expense_repo:
+                year_ago = today - timedelta(days=365)
+                annual_expenses = self.expense_repo.get_total_for_property(
+                    prop.id, account_id, start_date=year_ago, end_date=today
+                )
+            annual_profit = annual_income - annual_expenses
+
             roi = None
             payback = None
-            if prop.purchase_price and prop.purchase_price > 0 and annual_income > 0:
-                roi = round(float(annual_income / prop.purchase_price * 100), 1)
-                payback = round(float(prop.purchase_price / annual_income), 1)
+            if prop.purchase_price and prop.purchase_price > 0:
+                roi = round(float(annual_profit / prop.purchase_price * 100), 1)
+                if annual_profit > 0:
+                    payback = round(float(prop.purchase_price / annual_profit), 1)
 
             days_until_end = None
             if active_contract and active_contract.end_date:
@@ -97,6 +109,9 @@ class DashboardService:
                 "monthly_income": str(active_contract.rent_amount) if active_contract else "0",
                 "roi": roi,
                 "payback_years": payback,
+                "annual_income": str(annual_income),
+                "annual_expenses": str(annual_expenses),
+                "annual_profit": str(annual_profit),
                 "days_until_contract_end": days_until_end,
                 "has_active_contract": active_contract is not None,
             })
