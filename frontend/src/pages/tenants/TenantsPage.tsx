@@ -2,12 +2,12 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Pencil, Trash2, Search, Users } from 'lucide-react';
-import { showError, showUndo } from '@/shared/lib/toast';
+import { toast } from 'sonner';
+import { showError } from '@/shared/lib/toast';
 import { scrollToTop } from '@/shared/lib/scrollToTop';
 import { tenantsApi } from '@/features/tenants/api';
 import type { Tenant } from '@/entities/tenant';
 import { Button } from '@/shared/ui/Button';
-import { Card } from '@/shared/ui/Card';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { ActionMenu } from '@/shared/ui/ActionMenu';
 import { TenantModal } from './TenantModal';
@@ -40,11 +40,10 @@ export default function TenantsPage() {
   });
 
   const tenants = (paginated?.items || []) as TenantWithScore[];
-  const totalPages = paginated?.pages || 1;
 
   const deleteMutation = useMutation({
     mutationFn: tenantsApi.delete,
-    onSuccess: () => { scrollToTop(); queryClient.invalidateQueries({ queryKey: ['tenants'] }); setDeleting(null); showUndo('Арендатор удалён', () => {}); },
+    onSuccess: () => { scrollToTop(); queryClient.invalidateQueries({ queryKey: ['tenants'] }); setDeleting(null); toast.success('Арендатор удалён'); },
     onError: (error) => showError(error, 'Ошибка удаления'),
   });
 

@@ -25,14 +25,22 @@ function HomeRedirect() {
   return null;
 }
 
+/** Редирект авторизованных с публичных auth-страниц на дашборд. */
+function GuestOnly({ children }: { children: React.ReactNode }) {
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const token = localStorage.getItem('access_token');
+  if (isAuthenticated || token) return <Navigate to="/dashboard" replace />;
+  return <>{children}</>;
+}
+
 export function AppRouter() {
   return (
     <Suspense fallback={<FullPageLoader />}>
       <Routes>
         <Route path="/" element={<HomeRedirect />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-        <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/login" element={<GuestOnly><LoginPage /></GuestOnly>} />
+        <Route path="/forgot-password" element={<GuestOnly><ForgotPasswordPage /></GuestOnly>} />
+        <Route path="/reset-password" element={<GuestOnly><ResetPasswordPage /></GuestOnly>} />
         <Route element={<ProtectedRoute />}>
           <Route element={<AppLayout />}>
             <Route path="/dashboard" element={<DashboardPage />} />

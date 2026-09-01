@@ -16,8 +16,6 @@ import { isOnboardingCompleted } from '@/shared/lib/onboarding';
 import { useHotkeys } from '@/shared/hooks/useHotkeys';
 import { useCountUp } from '@/shared/hooks/useCountUp';
 import { cn } from '@/shared/lib/utils';
-import { formatDistanceToNow } from 'date-fns';
-import { ru } from 'date-fns/locale';
 
 function getGreeting() {
   const hour = new Date().getHours();
@@ -118,7 +116,7 @@ export default function DashboardPage() {
                 <div key={p.id} className="flex items-center gap-2 text-sm">
                   <span className="text-gray-900 font-medium">{p.tenant_name}</span>
                   <span className="text-gray-400">—</span>
-                  <span className="text-emerald-600 font-medium">+{p.amount.toLocaleString('ru-RU')} ₽</span>
+                  <span className="text-emerald-600 font-medium">+{Number(p.amount).toLocaleString('ru-RU')} ₽</span>
                 </div>
               ))}
             </div>

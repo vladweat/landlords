@@ -167,13 +167,20 @@ class UserService:
         user.password_hash = hash_password(new_password)
         self.user_repo.update(user)
         
-    def update_profile(self, user_id: UUID, full_name: str | None = None) -> UserDTO:
+    def update_profile(
+        self,
+        user_id: UUID,
+        full_name: str | None = None,
+        phone: str | None = None,
+    ) -> UserDTO:
         """Обновить профиль пользователя."""
         user = self.user_repo.get_by_id(user_id)
         if not user:
             raise NotFoundError(f"User {user_id} not found")
-        if full_name:
+        if full_name is not None:
             user.full_name = full_name
+        if phone is not None:
+            user.phone = phone or None
         self.user_repo.update(user)
         return UserDTO.model_validate(user)
 

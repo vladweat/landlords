@@ -10,7 +10,7 @@ export interface PropertyFormData {
   apartment?: string;
   type: 'apartment' | 'house' | 'commercial';
   size_m2: number;
-  purchase_price: number | null;
+  purchase_price: string | null;
 }
 
 export interface PropertiesQuery {

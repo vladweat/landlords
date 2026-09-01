@@ -1,17 +1,22 @@
 import { useParams, useNavigate } from 'react-router-dom';
+import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, FileX, RefreshCw } from 'lucide-react';
 import { contractsApi } from '@/features/contracts/api';
 import { propertiesApi } from '@/features/properties/api';
 import { tenantsApi } from '@/features/tenants/api';
 import { paymentsApi } from '@/features/payments/api';
 import { Card } from '@/shared/ui/Card';
+import { Button } from '@/shared/ui/Button';
 import { Skeleton, LedgerSkeleton } from '@/shared/ui/Skeleton';
 import { LedgerTable } from '@/features/contracts/components/LedgerTable';
 import { ReminderButton } from '@/features/reminders/components/ReminderButton';
 import { DownloadContractButton } from '@/features/contracts/components/DownloadContractButton';
+import { TerminateContractWizard } from '@/features/contracts/components/TerminateContractWizard';
+import { RenewContractWizard } from '@/features/contracts/components/RenewContractWizard';
 import { ContractTimeline } from '@/features/contracts/components/ContractTimeline';
 import { copyToClipboard } from '@/shared/lib/clipboard';
+import { formatDate } from '@/shared/lib/utils';
 
 const statusLabels: Record<string, string> = {
   draft: 'Черновик', active: 'Активен', ended: 'Завершён', overdue: 'Просрочен', terminated: 'Расторгнут',
@@ -25,6 +30,8 @@ export default function ContractDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [terminateOpen, setTerminateOpen] = useState(false);
+  const [renewOpen, setRenewOpen] = useState(false);
 
   const { data: contract, isLoading: contractLoading } = useQuery({ queryKey: ['contract', id], queryFn: () => contractsApi.getById(id!), enabled: !!id });
   const { data: propertiesData, isLoading: propsLoading } = useQuery({ queryKey: ['properties'], queryFn: () => propertiesApi.getAll({ per_page: 100 }) });
@@ -53,16 +60,18 @@ export default function ContractDetailPage() {
   const tenants = tenantsData?.items || [];
   const property = properties.find((p) => p.id === contract.property_id);
   const tenant = tenants.find((t) => t.id === contract.tenant_id);
+  const canTerminate = contract.status === 'draft' || contract.status === 'active' || contract.status === 'overdue';
+  const canRenew = contract.status === 'active' || contract.status === 'overdue' || contract.status === 'ended';
 
   return (
     <div className="space-y-6">
       <button onClick={() => navigate('/contracts')} className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900"><ArrowLeft className="h-4 w-4" /> Назад</button>
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-semibold text-gray-900">
           Договор{' '}
           <button onClick={() => copyToClipboard(contract.id)} className="hover:text-blue-600 cursor-pointer" title="Копировать ID">#{contract.id.slice(0,8)}</button>
         </h1>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="inline-flex items-center gap-2 text-sm text-gray-700">
             <span className={`w-2 h-2 rounded-full ${statusDots[contract.status] || 'bg-gray-400'}`} />
             {statusLabels[contract.status] || contract.status}
@@ -76,6 +85,16 @@ export default function ContractDetailPage() {
           >
             Обновить
           </button>
+          {canRenew && (
+            <Button variant="secondary" leftIcon={<RefreshCw className="h-4 w-4" />} onClick={() => setRenewOpen(true)}>
+              Продлить
+            </Button>
+          )}
+          {canTerminate && (
+            <Button variant="danger" leftIcon={<FileX className="h-4 w-4" />} onClick={() => setTerminateOpen(true)}>
+              Расторгнуть
+            </Button>
+          )}
         </div>
       </div>
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -89,6 +108,12 @@ export default function ContractDetailPage() {
             <div className="flex justify-between"><span className="text-gray-500">День платежа</span><span>{contract.payment_day} число</span></div>
             <div className="flex justify-between"><span className="text-gray-500">Период оплаты</span><span>{contract.billing_period==='monthly'?'Ежемесячно':contract.billing_period==='quarterly'?'Ежеквартально':'Ежегодно'}</span></div>
             {contract.deposit_amount && Number(contract.deposit_amount)>0 && <div className="flex justify-between"><span className="text-gray-500">Депозит</span><span>{Number(contract.deposit_amount).toLocaleString('ru-RU')} {contract.currency}</span></div>}
+            {contract.termination_reason && (
+              <div className="flex justify-between gap-4">
+                <span className="text-gray-500 shrink-0">Причина расторжения</span>
+                <span className="text-right">{contract.termination_reason}</span>
+              </div>
+            )}
           </div>
           <div className="mt-4 pt-3 border-t border-gray-100">
             <DownloadContractButton contractId={contract.id} />
@@ -99,7 +124,7 @@ export default function ContractDetailPage() {
             <div className="flex justify-between"><span className="text-gray-500">Начислено</span><span>{Number(ledger.total_expected||0).toLocaleString('ru-RU')} {contract.currency}</span></div>
             <div className="flex justify-between"><span className="text-gray-500">Оплачено</span><span className="text-emerald-600">{Number(ledger.total_paid||0).toLocaleString('ru-RU')} {contract.currency}</span></div>
             <div className="border-t pt-2 flex justify-between"><span className="font-medium">Ожидает оплаты</span><span className={`font-semibold ${Number(ledger.outstanding_balance||0)>0?'text-red-600':'text-emerald-600'}`}>{Number(ledger.outstanding_balance||0).toLocaleString('ru-RU')} {contract.currency}</span></div>
-            {ledger.last_payment_date && <div className="flex justify-between"><span className="text-gray-500">Последний платёж</span><span>{new Date(ledger.last_payment_date).toLocaleDateString('ru-RU')}</span></div>}
+            {ledger.last_payment_date && <div className="flex justify-between"><span className="text-gray-500">Последний платёж</span><span>{formatDate(ledger.last_payment_date)}</span></div>}
             {ledger.overdue_days > 0 && <div className="flex justify-between"><span className="text-gray-500">Просрочка</span><span className={ledger.overdue_days > 60 ? 'text-red-600 font-medium' : 'text-orange-600'}>{ledger.overdue_days} дн.</span></div>}
           </div> : <p className="text-sm text-gray-500">Нет данных</p>}
         </Card>
@@ -127,6 +152,9 @@ export default function ContractDetailPage() {
       {ledger?.lines && ledger.lines.length > 0 && (
         <Card><h2 className="text-lg font-medium text-gray-800 mb-3">История операций</h2><LedgerTable lines={ledger.lines} currency={contract.currency} /></Card>
       )}
+
+      <TerminateContractWizard isOpen={terminateOpen} onClose={() => setTerminateOpen(false)} contract={contract} />
+      <RenewContractWizard isOpen={renewOpen} onClose={() => setRenewOpen(false)} contract={contract} />
     </div>
   );
 }

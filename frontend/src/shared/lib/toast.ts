@@ -13,13 +13,26 @@ export const showError = (error: unknown, fallback = 'Произошла оши�
   toast.error(message);
 };
 
+type ErrorBody = {
+  message?: string;
+  detail?: { msg?: string }[] | string;
+};
+
 function extractErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error) {
-    const axiosError = error as AxiosError<{ detail?: { msg?: string }[] | string }>;
-    const detail = axiosError.response?.data?.detail;
+    const axiosError = error as AxiosError<ErrorBody>;
+    const data = axiosError.response?.data;
 
+    // Backend AppException: { status: "error", message: "..." }
+    if (typeof data?.message === 'string' && data.message) {
+      return getUserMessage(data.message);
+    }
+
+    const detail = data?.detail;
     if (typeof detail === 'string') return getUserMessage(detail);
-    if (Array.isArray(detail) && detail.length > 0 && detail[0].msg) return getUserMessage(detail[0].msg);
+    if (Array.isArray(detail) && detail.length > 0 && detail[0].msg) {
+      return getUserMessage(detail[0].msg);
+    }
     if (axiosError.message) return getUserMessage(axiosError.message);
   }
   return fallback;

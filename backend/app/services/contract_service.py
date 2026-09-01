@@ -1,9 +1,11 @@
 """Сервис управления контрактами."""
 
+from datetime import date
+from decimal import Decimal
 from uuid import UUID, uuid4
 
 from app.core.exceptions import ConflictError, NotFoundError, ValidationError
-from app.domain.entities import ContractEntity, ContractEventEntity
+from app.domain.entities import ContractEntity, ContractEventEntity, RentChargeEntity
 from app.domain.interfaces import (
     IContractEventRepository,
     IContractRepository,
@@ -11,7 +13,10 @@ from app.domain.interfaces import (
     IRentChargeRepository,
 )
 from app.domain.rules import (
+    compute_charge_status,
     compute_ledger,
+    plan_charges_on_renew,
+    plan_charges_on_terminate,
     validate_contract_dates,
     validate_payment_day,
     validate_status_transition,
@@ -21,6 +26,9 @@ from app.services.contract_status import check_and_update_contract_status
 from app.services.dto.contract_dto import (
     ContractCreateDTO,
     ContractDTO,
+    ContractLifecycleResultDTO,
+    ContractRenewDTO,
+    ContractTerminateDTO,
     ContractUpdateDTO,
 )
 from app.services.dto.dashboard_dto import LedgerDTO
@@ -42,12 +50,14 @@ class ContractService:
         payment_repo: IPaymentRepository | None = None,
         event_repo: IContractEventRepository | None = None,
         audit_service: AuditService | None = None,
+        pdf_service=None,
     ) -> None:
         self.repo = repo
         self.charge_repo = charge_repo
         self.payment_repo = payment_repo
         self.event_repo = event_repo
         self.audit_service = audit_service
+        self.pdf_service = pdf_service
 
     def list_contracts(
         self, account_id: UUID, page: int = 1, per_page: int = 20,
@@ -88,7 +98,7 @@ class ContractService:
             end_date=dto.end_date,
             rent_amount=dto.rent_amount,
             currency=dto.currency,
-            billing_period="monthly",
+            billing_period=dto.billing_period,
             payment_day=dto.payment_day,
             deposit_amount=dto.deposit_amount,
             auto_generate_charges=dto.auto_generate_charges,
@@ -171,6 +181,266 @@ class ContractService:
         if not entity:
             raise NotFoundError(f"Contract with id={contract_id} not found")
         self.repo.delete(contract_id, account_id)
+
+    def terminate_contract(
+        self,
+        contract_id: UUID,
+        account_id: UUID,
+        dto: ContractTerminateDTO,
+        user_id: UUID | None = None,
+    ) -> ContractLifecycleResultDTO:
+        """Расторгнуть договор: статус, пересчёт начислений, акт."""
+        entity = self.repo.get_by_id(contract_id, account_id)
+        if not entity:
+            raise NotFoundError(f"Contract with id={contract_id} not found")
+
+        if entity.status not in ("draft", "active", "overdue"):
+            raise ValidationError(
+                f"Cannot terminate contract in status '{entity.status}'"
+            )
+
+        if dto.effective_date < entity.start_date:
+            raise ValidationError("effective_date cannot be before start_date")
+        if dto.effective_date > entity.end_date:
+            raise ValidationError("effective_date cannot be after end_date")
+
+        old_status = entity.status
+        old_end = entity.end_date
+        _run_rule(validate_status_transition, old_status, "terminated")
+
+        deleted_count = 0
+        updated_count = 0
+        if self.charge_repo and self.payment_repo:
+            deleted_count, updated_count = self._recalc_charges_on_terminate(
+                contract_id, account_id, dto.effective_date
+            )
+
+        entity.status = "terminated"
+        entity.termination_reason = dto.termination_reason
+        if dto.effective_date < entity.end_date:
+            entity.end_date = dto.effective_date
+
+        updated = self.repo.update(entity)
+
+        if self.event_repo:
+            self.event_repo.create(ContractEventEntity(
+                id=uuid4(),
+                account_id=account_id,
+                contract_id=contract_id,
+                event_type="termination",
+                title="Договор расторгнут",
+                description=dto.termination_reason,
+                event_metadata={
+                    "old_status": old_status,
+                    "effective_date": dto.effective_date.isoformat(),
+                    "charges_deleted": deleted_count,
+                    "charges_updated": updated_count,
+                },
+            ))
+
+        if self.audit_service and user_id:
+            self.audit_service.log(
+                user_id=user_id,
+                action="terminate",
+                entity_type="contract",
+                entity_id=contract_id,
+                old_data={"status": old_status, "end_date": str(old_end)},
+                new_data={
+                    "status": "terminated",
+                    "effective_date": dto.effective_date.isoformat(),
+                    "termination_reason": dto.termination_reason,
+                },
+            )
+
+        doc_id = None
+        doc_url = None
+        doc_filename = None
+        if dto.generate_act and self.pdf_service:
+            doc = self.pdf_service.generate_termination_act(
+                contract_id, account_id, dto.effective_date, dto.termination_reason
+            )
+            doc_id = doc.id
+            doc_filename = doc.filename
+            doc_url = f"/api/v1/contracts/documents/{doc.id}"
+
+        return ContractLifecycleResultDTO(
+            contract=ContractDTO.model_validate(updated),
+            charges_deleted=deleted_count,
+            charges_updated=updated_count,
+            document_id=doc_id,
+            document_url=doc_url,
+            document_filename=doc_filename,
+        )
+
+    def renew_contract(
+        self,
+        contract_id: UUID,
+        account_id: UUID,
+        dto: ContractRenewDTO,
+        user_id: UUID | None = None,
+    ) -> ContractLifecycleResultDTO:
+        """Продлить договор: новая дата окончания, начисления, допсоглашение."""
+        entity = self.repo.get_by_id(contract_id, account_id)
+        if not entity:
+            raise NotFoundError(f"Contract with id={contract_id} not found")
+
+        if entity.status not in ("active", "overdue", "ended"):
+            raise ValidationError(
+                f"Cannot renew contract in status '{entity.status}'"
+            )
+
+        if dto.new_end_date <= entity.end_date:
+            raise ValidationError("new_end_date must be after current end_date")
+
+        old_end = entity.end_date
+        old_status = entity.status
+        old_rent = entity.rent_amount
+        new_rent = (
+            dto.new_rent_amount if dto.new_rent_amount is not None else entity.rent_amount
+        )
+
+        if entity.status == "ended":
+            existing = self.repo.get_active_by_property(entity.property_id, account_id)
+            if existing and existing.id != entity.id:
+                raise ConflictError(
+                    f"Property {entity.property_id} already has an active contract"
+                )
+
+        created_count = 0
+        if self.charge_repo:
+            created_count = self._append_charges_on_renew(
+                entity, account_id, old_end, dto.new_end_date, new_rent
+            )
+
+        entity.end_date = dto.new_end_date
+        entity.rent_amount = new_rent
+        if entity.status == "ended":
+            entity.status = "active"
+
+        updated = self.repo.update(entity)
+
+        if self.event_repo:
+            self.event_repo.create(ContractEventEntity(
+                id=uuid4(),
+                account_id=account_id,
+                contract_id=contract_id,
+                event_type="renewal",
+                title="Договор продлён",
+                description=f"Новая дата окончания: {dto.new_end_date.isoformat()}",
+                event_metadata={
+                    "old_end_date": old_end.isoformat(),
+                    "new_end_date": dto.new_end_date.isoformat(),
+                    "old_rent_amount": str(old_rent),
+                    "new_rent_amount": str(new_rent),
+                    "old_status": old_status,
+                    "charges_created": created_count,
+                },
+            ))
+
+        if self.audit_service and user_id:
+            self.audit_service.log(
+                user_id=user_id,
+                action="renew",
+                entity_type="contract",
+                entity_id=contract_id,
+                old_data={"end_date": old_end.isoformat(), "rent_amount": str(old_rent)},
+                new_data={
+                    "end_date": dto.new_end_date.isoformat(),
+                    "rent_amount": str(new_rent),
+                },
+            )
+
+        doc_id = None
+        doc_url = None
+        doc_filename = None
+        if dto.generate_act and self.pdf_service:
+            doc = self.pdf_service.generate_renewal_act(
+                contract_id, account_id, old_end, dto.new_end_date, new_rent
+            )
+            doc_id = doc.id
+            doc_filename = doc.filename
+            doc_url = f"/api/v1/contracts/documents/{doc.id}"
+
+        return ContractLifecycleResultDTO(
+            contract=ContractDTO.model_validate(updated),
+            charges_created=created_count,
+            document_id=doc_id,
+            document_url=doc_url,
+            document_filename=doc_filename,
+        )
+
+    def _recalc_charges_on_terminate(
+        self,
+        contract_id: UUID,
+        account_id: UUID,
+        effective_date: date,
+    ) -> tuple[int, int]:
+        """Пересчитать начисления при расторжении. Возвращает (deleted, updated)."""
+        assert self.charge_repo is not None
+        assert self.payment_repo is not None
+
+        charges = list(self.charge_repo.list_by_contract(contract_id, account_id))
+        paid_by_charge = {
+            c.id: self.payment_repo.get_total_paid_for_charge(c.id, account_id)
+            for c in charges
+        }
+        to_delete, to_update = plan_charges_on_terminate(
+            charges, paid_by_charge, effective_date
+        )
+
+        for charge_id in to_delete:
+            self.charge_repo.delete(charge_id, account_id)
+
+        charge_map = {c.id: c for c in charges}
+        for charge_id, new_amount, new_period_end in to_update:
+            charge = charge_map[charge_id]
+            paid = paid_by_charge.get(charge_id, Decimal("0"))
+            charge.amount = new_amount
+            charge.period_end = new_period_end
+            charge.status = compute_charge_status(new_amount, paid, charge.due_date)
+            self.charge_repo.update(charge)
+
+        return len(to_delete), len(to_update)
+
+    def _append_charges_on_renew(
+        self,
+        contract: ContractEntity,
+        account_id: UUID,
+        old_end: date,
+        new_end: date,
+        rent_amount: Decimal,
+    ) -> int:
+        """Добавить начисления на продлённый период. Возвращает число созданных."""
+        assert self.charge_repo is not None
+
+        existing = list(self.charge_repo.list_by_contract(contract.id, account_id))
+        try:
+            schedule = plan_charges_on_renew(
+                existing=existing,
+                old_end_date=old_end,
+                new_end_date=new_end,
+                rent_amount=rent_amount,
+                payment_day=contract.payment_day,
+                billing_period=contract.billing_period,
+            )
+        except ValueError as exc:
+            raise ValidationError(str(exc)) from exc
+
+        for item in schedule:
+            entity = RentChargeEntity(
+                id=uuid4(),
+                account_id=account_id,
+                contract_id=contract.id,
+                due_date=item["due_date"],
+                period_start=item["period_start"],
+                period_end=item["period_end"],
+                amount=item["amount"],
+                currency=contract.currency,
+                status="pending",
+            )
+            self.charge_repo.create(entity)
+
+        return len(schedule)
 
     def refresh_contract_status(self, contract_id: UUID, account_id: UUID) -> ContractDTO:
         """Принудительно пересчитать статус контракта."""

@@ -1,13 +1,15 @@
 export interface Payment {
-  property_id: string;
-  contract_property_id: string;
+  id: string;
+  account_id: string;
+  contract_id: string;
+  rent_charge_id: string | null;
+  date_paid: string;
   amount: string;
-  date_paproperty_id: string;
   currency: string;
   method: string;
   note: string | null;
-  rent_charge_id: string | null;
   created_at: string;
+  updated_at: string;
 }
 
 export interface PropertyOverviewItem {
@@ -15,7 +17,7 @@ export interface PropertyOverviewItem {
   address: string;
   tenant_name: string | null;
   contract_status: 'active' | 'overdue' | null;
-  monthly_income: number;
+  monthly_income: string;
   roi: number | null;
   annual_income?: string;
   annual_expenses?: string;

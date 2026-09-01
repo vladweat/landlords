@@ -22,7 +22,7 @@ export function PropertyModal({ isOpen, onClose, property }: PropertyModalProps)
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<PropertyFormData>({
     resolver: zodResolver(propertySchema),
-    defaultValues: { city: '', street: '', house: '', building: '', apartment: '', type: 'apartment', size_m2: undefined, purchase_price: undefined },
+    defaultValues: { city: '', street: '', house: '', building: '', apartment: '', type: 'apartment', size_m2: undefined, purchase_price: '' },
   });
 
   useEffect(() => {
@@ -34,8 +34,8 @@ export function PropertyModal({ isOpen, onClose, property }: PropertyModalProps)
       apartment: property.apartment || '',
       type: property.type,
       size_m2: property.size_m2,
-      purchase_price: property.purchase_price,
-    } : { city: '', street: '', house: '', building: '', apartment: '', type: 'apartment', size_m2: undefined, purchase_price: undefined });
+      purchase_price: property.purchase_price ?? '',
+    } : { city: '', street: '', house: '', building: '', apartment: '', type: 'apartment', size_m2: undefined, purchase_price: '' });
   }, [property, reset]);
 
   const createMutation = useMutation({
@@ -51,7 +51,10 @@ export function PropertyModal({ isOpen, onClose, property }: PropertyModalProps)
   });
 
   const onSubmit = (data: PropertyFormData) => {
-    const payload = { ...data, purchase_price: data.purchase_price || null };
+    const payload = {
+      ...data,
+      purchase_price: data.purchase_price && data.purchase_price !== '' ? data.purchase_price : null,
+    };
     property ? updateMutation.mutate(payload) : createMutation.mutate(payload);
   };
 

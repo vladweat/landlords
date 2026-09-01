@@ -3,11 +3,11 @@ import type { Payment } from '@/entities/payment';
 
 export interface PaymentFormData {
   contract_id: string;
-  amount: number;
+  amount: string;
   date_paid: string;
   method: string;
   note?: string;
-  charge_id?: string;
+  rent_charge_id?: string;
 }
 
 export const paymentsApi = {

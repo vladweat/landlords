@@ -4,6 +4,7 @@ import { dashboardApi } from '@/features/dashboard/api';
 import { Skeleton } from '@/shared/ui/Skeleton';
 import { formatDistanceToNow } from 'date-fns';
 import { ru } from 'date-fns/locale';
+import { parseLocalDate } from '@/shared/lib/utils';
 
 export function PaymentsChartTab() {
   const { data: summary, isLoading: summaryLoading } = useQuery({ queryKey: ['dashboard-summary'], queryFn: dashboardApi.getSummary });
@@ -35,7 +36,7 @@ export function PaymentsChartTab() {
       ) : (
         <div className="space-y-2">
           {payments.slice(0, 7).map((p) => {
-            const relativeTime = p.date_paid ? formatDistanceToNow(new Date(p.date_paid), { addSuffix: true, locale: ru }) : '';
+            const relativeTime = p.date_paid ? formatDistanceToNow(parseLocalDate(p.date_paid), { addSuffix: true, locale: ru }) : '';
             return (
               <div key={p.id} className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-gray-50 transition-colors">
                 <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -45,7 +46,7 @@ export function PaymentsChartTab() {
                     <p className="text-xs text-gray-400">{p.tenant_name} · {relativeTime}</p>
                   </div>
                 </div>
-                <span className="text-sm font-medium text-emerald-600 flex-shrink-0 ml-3">+{p.amount.toLocaleString('ru-RU')} ₽</span>
+                <span className="text-sm font-medium text-emerald-600 flex-shrink-0 ml-3">+{Number(p.amount).toLocaleString('ru-RU')} ₽</span>
               </div>
             );
           })}

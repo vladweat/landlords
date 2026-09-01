@@ -28,7 +28,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   logout: () => {
     localStorage.removeItem('access_token');
     queryClient.clear();
-    set({ user: null, token: null, isAuthenticated: false });
+    set({ user: null, token: null, isAuthenticated: false, isLoading: false });
   },
 
   loadFromStorage: () => {
@@ -45,7 +45,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const response = await authApi.getMe();
       set({ user: response.user, isLoading: false });
     } catch {
-      set({ isLoading: false });
+      get().logout();
     }
   },
 }));

@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { ArrowUp, ArrowDown } from 'lucide-react';
 import type { LedgerLine } from '@/entities/contract';
+import { formatDate } from '@/shared/lib/utils';
 
 interface LedgerTableProps {
   lines: LedgerLine[];
@@ -31,7 +32,7 @@ export function LedgerTable({ lines, currency }: LedgerTableProps) {
         <tbody>
           {lines.map((line, i) => (
             <motion.tr key={i} variants={row} className="border-b last:border-0">
-              <td className="py-2 text-gray-600">{new Date(line.date).toLocaleDateString('ru-RU')}</td>
+              <td className="py-2 text-gray-600">{formatDate(line.date)}</td>
               <td className="py-2">
                 {line.type === 'charge' ? (
                   <span className="inline-flex items-center gap-1 text-gray-600"><ArrowUp className="h-3 w-3" /> Начисление</span>

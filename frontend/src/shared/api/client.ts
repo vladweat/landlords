@@ -19,8 +19,10 @@ apiClient.interceptors.response.use(
   (response) => response,
   (error: AxiosError) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('access_token');
-      // Не делаем window.location.href — ProtectedRoute сам разрулит
+      // Динамический импорт, чтобы избежать циклической зависимости client ↔ store
+      void import('@/features/auth/store').then(({ useAuthStore }) => {
+        useAuthStore.getState().logout();
+      });
     }
     return Promise.reject(error);
   }

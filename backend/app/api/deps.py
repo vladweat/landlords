@@ -110,14 +110,26 @@ def get_tenant_service(
 ) -> TenantService:
     return TenantService(repo, contract_repo, property_repo)
 
+def get_pdf_service(
+    contract_repo: ContractRepository = Depends(get_contract_repo),
+    property_repo: PropertyRepository = Depends(get_property_repo),
+    tenant_repo: TenantRepository = Depends(get_tenant_repo),
+    document_repo: DocumentRepository = Depends(get_document_repo),
+) -> PdfService:
+    return PdfService(contract_repo, property_repo, tenant_repo, document_repo)
+
+
 def get_contract_service(
     repo: ContractRepository = Depends(get_contract_repo),
     charge_repo: RentChargeRepository = Depends(get_rent_charge_repo),
     payment_repo: PaymentRepository = Depends(get_payment_repo),
     event_repo: ContractEventRepository = Depends(get_contract_event_repo),
     audit_service: AuditService = Depends(get_audit_service),
+    pdf_service: PdfService = Depends(get_pdf_service),
 ) -> ContractService:
-    return ContractService(repo, charge_repo, payment_repo, event_repo, audit_service)
+    return ContractService(
+        repo, charge_repo, payment_repo, event_repo, audit_service, pdf_service
+    )
 
 def get_rent_charge_service(
     charge_repo: RentChargeRepository = Depends(get_rent_charge_repo),
@@ -183,14 +195,6 @@ def get_roi_service(
     expense_repo: PropertyExpenseRepository = Depends(get_property_expense_repo),
 ) -> RoiService:
     return RoiService(property_repo, contract_repo, payment_repo, expense_repo)
-
-def get_pdf_service(
-    contract_repo: ContractRepository = Depends(get_contract_repo),
-    property_repo: PropertyRepository = Depends(get_property_repo),
-    tenant_repo: TenantRepository = Depends(get_tenant_repo),
-    document_repo: DocumentRepository = Depends(get_document_repo),
-) -> PdfService:
-    return PdfService(contract_repo, property_repo, tenant_repo, document_repo)
 
 def get_forecast_service(
     contract_repo: ContractRepository = Depends(get_contract_repo),

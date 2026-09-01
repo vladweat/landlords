@@ -20,6 +20,10 @@ from app.api.v1.schemas.contract_schema import (
     ContractResponse,
     ContractSingleResponse,
     ContractUpdateRequest,
+    ContractTerminateRequest,
+    ContractRenewRequest,
+    ContractLifecycleResponse,
+    ContractLifecycleSingleResponse,
     ContractLedgerResponse,
     LedgerResponse,
 )
@@ -99,6 +103,74 @@ def update_contract(
     return {
         "status": "success",
         "data": ContractResponse.model_validate(dto),
+    }
+
+
+@router.post(
+    "/{contract_id}/terminate",
+    response_model=ContractLifecycleSingleResponse,
+)
+def terminate_contract(
+    contract_id: UUID,
+    body: ContractTerminateRequest,
+    account_id: UUID = Depends(get_current_account_id),
+    user_id: UUID = Depends(get_current_user_id),
+    service: ContractService = Depends(get_contract_service),
+) -> dict:
+    """Расторгнуть договор с пересчётом начислений и актом."""
+    from app.services.dto.contract_dto import ContractTerminateDTO
+
+    result = service.terminate_contract(
+        contract_id,
+        account_id,
+        ContractTerminateDTO.model_validate(body.model_dump()),
+        user_id=user_id,
+    )
+    return {
+        "status": "success",
+        "data": ContractLifecycleResponse(
+            contract=ContractResponse.model_validate(result.contract),
+            charges_deleted=result.charges_deleted,
+            charges_updated=result.charges_updated,
+            charges_created=result.charges_created,
+            document_id=result.document_id,
+            document_url=result.document_url,
+            document_filename=result.document_filename,
+        ),
+    }
+
+
+@router.post(
+    "/{contract_id}/renew",
+    response_model=ContractLifecycleSingleResponse,
+)
+def renew_contract(
+    contract_id: UUID,
+    body: ContractRenewRequest,
+    account_id: UUID = Depends(get_current_account_id),
+    user_id: UUID = Depends(get_current_user_id),
+    service: ContractService = Depends(get_contract_service),
+) -> dict:
+    """Продлить договор с генерацией начислений и допсоглашением."""
+    from app.services.dto.contract_dto import ContractRenewDTO
+
+    result = service.renew_contract(
+        contract_id,
+        account_id,
+        ContractRenewDTO.model_validate(body.model_dump()),
+        user_id=user_id,
+    )
+    return {
+        "status": "success",
+        "data": ContractLifecycleResponse(
+            contract=ContractResponse.model_validate(result.contract),
+            charges_deleted=result.charges_deleted,
+            charges_updated=result.charges_updated,
+            charges_created=result.charges_created,
+            document_id=result.document_id,
+            document_url=result.document_url,
+            document_filename=result.document_filename,
+        ),
     }
 
 

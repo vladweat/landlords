@@ -1,5 +1,9 @@
 import { z } from 'zod';
 
+const moneyString = z
+  .string()
+  .refine((v) => v === '' || (!Number.isNaN(Number(v)) && Number(v) >= 0), 'Некорректная сумма');
+
 export const propertySchema = z.object({
   city: z.string().min(1, 'Город обязателен'),
   street: z.string().min(1, 'Улица обязательна'),
@@ -8,7 +12,7 @@ export const propertySchema = z.object({
   apartment: z.string().optional(),
   type: z.enum(['apartment', 'house', 'commercial']),
   size_m2: z.coerce.number().min(1, 'Площадь должна быть больше 0'),
-  purchase_price: z.coerce.number().nullable(),
+  purchase_price: moneyString.nullable().optional(),
 });
 
 export type PropertyFormData = z.infer<typeof propertySchema>;

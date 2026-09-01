@@ -14,6 +14,7 @@ class UserDTO(BaseModel):
     id: UUID
     email: str
     full_name: str
+    phone: str | None = None
     is_active: bool
     created_at: datetime
 
@@ -24,3 +25,4 @@ class UserCreateDTO(BaseModel):
     email: str
     password: str
     full_name: str
+    phone: str | None = None

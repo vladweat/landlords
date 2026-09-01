@@ -38,7 +38,7 @@ export interface Ledger {
   overdue_days: number;
 }
 
-export type EventType = 'note' | 'reminder' | 'status_change' | 'payment';
+export type EventType = 'note' | 'reminder' | 'status_change' | 'payment' | 'termination' | 'renewal';
 
 export interface ContractEvent {
   id: string;

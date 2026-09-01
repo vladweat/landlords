@@ -1,9 +1,13 @@
 import { Link } from 'react-router-dom';
 import { AlertTriangle } from 'lucide-react';
 import type { ForecastAlertItem } from '@/entities/dashboard';
+import { parseLocalDate } from '@/shared/lib/utils';
 
 function daysUntil(dateStr: string): number {
-  const diff = new Date(dateStr).getTime() - new Date().getTime();
+  const target = parseLocalDate(dateStr);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const diff = target.getTime() - today.getTime();
   return Math.ceil(diff / (1000 * 60 * 60 * 24));
 }
 

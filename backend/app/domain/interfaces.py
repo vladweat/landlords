@@ -223,6 +223,16 @@ class IRentChargeRepository(ABC):
         ...
 
     @abstractmethod
+    def update(self, entity: RentChargeEntity) -> RentChargeEntity:
+        """Обновить начисление."""
+        ...
+
+    @abstractmethod
+    def delete(self, charge_id: UUID, account_id: UUID) -> None:
+        """Удалить начисление."""
+        ...
+
+    @abstractmethod
     def update_status(
         self, charge_id: UUID, account_id: UUID, status: str
     ) -> RentChargeEntity:

@@ -39,6 +39,7 @@ class ContractCreateRequest(BaseModel):
     end_date: date
     rent_amount: Decimal = Field(..., gt=0)
     currency: str = "RUB"
+    billing_period: str = Field(default="monthly", pattern="^(monthly|quarterly|yearly)$")
     payment_day: int = Field(..., ge=1, le=28)
     deposit_amount: Decimal | None = Field(None, ge=0)
     auto_generate_charges: bool = False
@@ -50,11 +51,47 @@ class ContractUpdateRequest(BaseModel):
     start_date: date | None = None
     end_date: date | None = None
     rent_amount: Decimal | None = Field(None, gt=0)
+    billing_period: str | None = Field(None, pattern="^(monthly|quarterly|yearly)$")
     payment_day: int | None = Field(None, ge=1, le=28)
     deposit_amount: Decimal | None = Field(None, ge=0)
     auto_generate_charges: bool | None = None
     status: str | None = Field(None, pattern="^(draft|active|ended|terminated|overdue)$")
     termination_reason: str | None = Field(None, max_length=500)
+
+
+class ContractTerminateRequest(BaseModel):
+    """Запрос на расторжение договора."""
+
+    effective_date: date
+    termination_reason: str = Field(..., min_length=1, max_length=500)
+    generate_act: bool = True
+
+
+class ContractRenewRequest(BaseModel):
+    """Запрос на продление договора."""
+
+    new_end_date: date
+    new_rent_amount: Decimal | None = Field(None, gt=0)
+    generate_act: bool = True
+
+
+class ContractLifecycleResponse(BaseModel):
+    """Ответ продления / расторжения."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    contract: ContractResponse
+    charges_deleted: int = 0
+    charges_updated: int = 0
+    charges_created: int = 0
+    document_id: UUID | None = None
+    document_url: str | None = None
+    document_filename: str | None = None
+
+
+class ContractLifecycleSingleResponse(BaseModel):
+    status: str = "success"
+    data: ContractLifecycleResponse
 
 
 class ContractListResponse(BaseModel):

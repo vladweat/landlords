@@ -2,18 +2,20 @@ import { useState, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Pencil, Trash2, Play, Check, XCircle, Filter, ExternalLink, FileText, Search } from 'lucide-react';
-import { showError, showUndo } from '@/shared/lib/toast';
+import { Plus, Pencil, Trash2, Play, Check, XCircle, Filter, ExternalLink, FileText, Search, RefreshCw } from 'lucide-react';
+import { toast } from 'sonner';
+import { showError } from '@/shared/lib/toast';
 import { scrollToTop } from '@/shared/lib/scrollToTop';
 import { contractsApi } from '@/features/contracts/api';
 import { propertiesApi } from '@/features/properties/api';
 import { tenantsApi } from '@/features/tenants/api';
 import type { Contract } from '@/entities/contract';
 import { Button } from '@/shared/ui/Button';
-import { Card } from '@/shared/ui/Card';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { ActionMenu } from '@/shared/ui/ActionMenu';
 import { ContractModal } from './ContractModal';
+import { TerminateContractWizard } from '@/features/contracts/components/TerminateContractWizard';
+import { RenewContractWizard } from '@/features/contracts/components/RenewContractWizard';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { useHotkeys } from '@/shared/hooks/useHotkeys';
 import { useDebounce } from '@/shared/hooks/useDebounce';
@@ -38,8 +40,10 @@ export default function ContractsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editing, setEditing] = useState<Contract | null>(null);
   const [deleting, setDeleting] = useState<Contract | null>(null);
+  const [terminating, setTerminating] = useState<Contract | null>(null);
+  const [renewing, setRenewing] = useState<Contract | null>(null);
   const [changingStatus, setChangingStatus] = useState<string | null>(null);
-  const [statusConfirm, setStatusConfirm] = useState<{id:string;status:string;label:string}|null>(null);
+  const [statusConfirm, setStatusConfirm] = useState<{id:string;status:Contract['status'];label:string}|null>(null);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const debouncedSearch = useDebounce(search, 300);
@@ -53,7 +57,6 @@ export default function ContractsPage() {
   const { data: tenantsData } = useQuery({ queryKey: ['tenants'], queryFn: () => tenantsApi.getAll({ per_page: 100 }), staleTime: 10*60*1000 });
 
   const contracts = paginated?.items || [];
-  const totalPages = paginated?.pages || 1;
   const properties = propertiesData?.items || [];
   const tenants = tenantsData?.items || [];
 
@@ -62,11 +65,11 @@ export default function ContractsPage() {
 
   const deleteMutation = useMutation({
     mutationFn: contractsApi.delete,
-    onSuccess: () => { scrollToTop(); queryClient.invalidateQueries({ queryKey: ['contracts'] }); setDeleting(null); showUndo('Договор удалён', () => {}); },
+    onSuccess: () => { scrollToTop(); queryClient.invalidateQueries({ queryKey: ['contracts'] }); setDeleting(null); toast.success('Договор удалён'); },
     onError: (error) => showError(error, 'Ошибка удаления'),
   });
   const statusMutation = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: string }) => contractsApi.update(id, { status } as Record<string, never>),
+    mutationFn: ({ id, status }: { id: string; status: Contract['status'] }) => contractsApi.update(id, { status }),
     onMutate: ({ id }) => setChangingStatus(id), onSettled: () => setChangingStatus(null),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['contracts'] }); },
     onError: (error) => showError(error, 'Ошибка смены статуса'),
@@ -106,7 +109,8 @@ export default function ContractsPage() {
               <ActionMenu items={[
                 ...(c.status === 'draft' ? [{ label: 'Активировать', icon: changingStatus === c.id ? <Spinner/> : <Play className="h-4 w-4" />, onClick: () => setStatusConfirm({id:c.id,status:'active',label:'Активировать'}) }] : []),
                 ...(c.status === 'active' || c.status === 'overdue' ? [{ label: 'Завершить', icon: changingStatus === c.id ? <Spinner/> : <Check className="h-4 w-4" />, onClick: () => setStatusConfirm({id:c.id,status:'ended',label:'Завершить'}) }] : []),
-                ...(c.status !== 'terminated' ? [{ label: 'Расторгнуть', icon: <XCircle className="h-4 w-4" />, onClick: () => setStatusConfirm({id:c.id,status:'terminated',label:'Расторгнуть'}) }] : []),
+                ...(c.status === 'active' || c.status === 'overdue' || c.status === 'ended' ? [{ label: 'Продлить', icon: <RefreshCw className="h-4 w-4" />, onClick: () => setRenewing(c) }] : []),
+                ...(c.status === 'draft' || c.status === 'active' || c.status === 'overdue' ? [{ label: 'Расторгнуть', icon: <XCircle className="h-4 w-4" />, onClick: () => setTerminating(c) }] : []),
                 { label: 'Редактировать', icon: <Pencil className="h-4 w-4" />, onClick: () => { setEditing(c); setIsModalOpen(true); } },
                 { label: 'Удалить', icon: <Trash2 className="h-4 w-4" />, danger: true, onClick: () => setDeleting(c) },
               ]} />
@@ -115,6 +119,8 @@ export default function ContractsPage() {
         ))}</AnimatePresence></tbody></table></div></div>
       )}
       <ContractModal isOpen={isModalOpen} onClose={()=>{setIsModalOpen(false);setEditing(null)}} contract={editing}/>
+      <TerminateContractWizard isOpen={!!terminating} onClose={() => setTerminating(null)} contract={terminating} />
+      <RenewContractWizard isOpen={!!renewing} onClose={() => setRenewing(null)} contract={renewing} />
       <ConfirmDialog isOpen={!!deleting} onClose={()=>setDeleting(null)} onConfirm={()=>deleting&&deleteMutation.mutate(deleting.id)} title="Удалить договор?" message="Вы уверены?" isLoading={deleteMutation.isPending}/>
       <ConfirmDialog isOpen={!!statusConfirm} onClose={()=>setStatusConfirm(null)} onConfirm={()=>{if(statusConfirm){statusMutation.mutate({id:statusConfirm.id,status:statusConfirm.status});setStatusConfirm(null);}}} title={`${statusConfirm?.label} договор?`} message="Вы уверены?" isLoading={statusMutation.isPending}/>
     </div>

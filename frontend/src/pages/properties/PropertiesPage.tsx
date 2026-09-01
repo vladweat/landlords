@@ -3,13 +3,13 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Pencil, Trash2, Search, Building2, Download } from 'lucide-react';
-import { showError, showUndo } from '@/shared/lib/toast';
+import { toast } from 'sonner';
+import { showError } from '@/shared/lib/toast';
 import { scrollToTop } from '@/shared/lib/scrollToTop';
 import { propertiesApi } from '@/features/properties/api';
 import { contractsApi } from '@/features/contracts/api';
 import type { Property } from '@/entities/property';
 import { Button } from '@/shared/ui/Button';
-import { Card } from '@/shared/ui/Card';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { ActionMenu } from '@/shared/ui/ActionMenu';
 import { PropertyModal } from './PropertyModal';
@@ -41,7 +41,6 @@ export default function PropertiesPage() {
   const { data: contractsData } = useQuery({ queryKey: ['contracts'], queryFn: () => contractsApi.getAll({ per_page: 100 }), staleTime: 10*60*1000 });
 
   const properties = paginated?.items || [];
-  const totalPages = paginated?.pages || 1;
   const contracts = contractsData?.items || [];
 
   const contractByProperty = useMemo(() => {
@@ -52,7 +51,7 @@ export default function PropertiesPage() {
 
   const deleteMutation = useMutation({
     mutationFn: propertiesApi.delete,
-    onSuccess: () => { scrollToTop(); queryClient.invalidateQueries({ queryKey: ['properties'] }); setDeleting(null); showUndo('Объект удалён', () => {}); },
+    onSuccess: () => { scrollToTop(); queryClient.invalidateQueries({ queryKey: ['properties'] }); setDeleting(null); toast.success('Объект удалён'); },
     onError: (error) => showError(error, 'Ошибка удаления'),
   });
 

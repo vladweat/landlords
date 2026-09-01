@@ -13,6 +13,7 @@ class UserResponse(BaseModel):
     id: UUID
     email: str
     full_name: str
+    phone: str | None = None
     is_active: bool
 
 
@@ -54,6 +55,7 @@ class ResetPasswordRequest(BaseModel):
 
 class UpdateProfileRequest(BaseModel):
     full_name: str | None = None
+    phone: str | None = None
 
 
 class ChangePasswordRequest(BaseModel):

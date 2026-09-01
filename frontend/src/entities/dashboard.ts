@@ -24,7 +24,7 @@ export interface PropertyOverview {
   address: string;
   tenant_name: string | null;
   contract_status: 'active' | 'overdue' | null;
-  monthly_income: number;
+  monthly_income: string;
   roi: number | null;
   days_until_contract_end: number | null;
 }
@@ -32,7 +32,7 @@ export interface PropertyOverview {
 export interface LastPayment {
   id: string;
   contract_id: string;
-  amount: number;
+  amount: string;
   date_paid: string;
   method: string;
   property_address: string;

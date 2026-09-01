@@ -40,6 +40,7 @@ class UserRepository(IUserRepository):
         model.email = entity.email
         model.password_hash = entity.password_hash
         model.full_name = entity.full_name
+        model.phone = entity.phone
         model.is_active = entity.is_active
         self.session.flush()
         return model.to_entity()

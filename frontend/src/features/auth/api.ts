@@ -14,6 +14,7 @@ export interface AuthResponse {
     id: string;
     email: string;
     full_name: string;
+    phone?: string | null;
   };
 }
 
@@ -23,6 +24,7 @@ export interface MeResponse {
     id: string;
     email: string;
     full_name: string;
+    phone?: string | null;
     is_active: boolean;
   };
 }
@@ -47,7 +49,7 @@ export const authApi = {
   },
 
   updateProfile: async (data: { full_name?: string; phone?: string }) => {
-    const response = await apiClient.put<{ status: string; data: { id: string; email: string; full_name: string; is_active: boolean } }>('/auth/me', data);
+    const response = await apiClient.put<{ status: string; data: { id: string; email: string; full_name: string; phone?: string | null; is_active: boolean } }>('/auth/me', data);
     return response.data;
   },
 
