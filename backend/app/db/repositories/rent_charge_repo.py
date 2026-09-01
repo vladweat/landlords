@@ -56,6 +56,35 @@ class RentChargeRepository(IRentChargeRepository):
         self.session.flush()
         return model.to_entity()
 
+    def update(self, entity: RentChargeEntity) -> RentChargeEntity:
+        """Обновить начисление."""
+        model = (
+            self.session.query(RentChargeModel)
+            .filter_by(id=entity.id, account_id=entity.account_id)
+            .first()
+        )
+        if not model:
+            raise ValueError("RentCharge not found")
+        model.due_date = entity.due_date
+        model.period_start = entity.period_start
+        model.period_end = entity.period_end
+        model.amount = entity.amount
+        model.currency = entity.currency
+        model.status = entity.status
+        self.session.flush()
+        return model.to_entity()
+
+    def delete(self, charge_id: UUID, account_id: UUID) -> None:
+        """Удалить начисление."""
+        model = (
+            self.session.query(RentChargeModel)
+            .filter_by(id=charge_id, account_id=account_id)
+            .first()
+        )
+        if model:
+            self.session.delete(model)
+            self.session.flush()
+
     def update_status(
         self, charge_id: UUID, account_id: UUID, status: str
     ) -> RentChargeEntity:

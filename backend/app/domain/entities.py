@@ -16,6 +16,7 @@ class UserEntity:
     email: str
     password_hash: str
     full_name: str
+    phone: str | None = None
     is_active: bool = True
     created_at: datetime = field(default_factory=_utc_now)
     

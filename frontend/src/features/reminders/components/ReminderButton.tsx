@@ -1,7 +1,5 @@
-import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Bell, Check, AlertTriangle } from 'lucide-react';
-import { toast } from 'sonner';
+import { Bell, AlertTriangle } from 'lucide-react';
 import { remindersApi } from '@/features/reminders/api';
 import { showError } from '@/shared/lib/toast';
 import { copyToClipboard } from '@/shared/lib/clipboard';
@@ -9,8 +7,6 @@ import { copyToClipboard } from '@/shared/lib/clipboard';
 interface ReminderButtonProps {
   chargeId: string;
   chargeStatus: string;
-  dueDate: string;
-  daysOverdue: number;
 }
 
 export function ReminderButton({ chargeId, chargeStatus }: ReminderButtonProps) {
@@ -29,7 +25,6 @@ export function ReminderButton({ chargeId, chargeStatus }: ReminderButtonProps) 
     onSuccess: async (data) => {
       queryClient.invalidateQueries({ queryKey: ['reminders', chargeId] });
       await copyToClipboard(data.message_text);
-      
     },
     onError: (error) => showError(error, 'Ошибка отправки'),
   });
@@ -55,9 +50,7 @@ export function ReminderButton({ chargeId, chargeStatus }: ReminderButtonProps) 
     ? 'text-amber-600 hover:text-amber-800'
     : 'text-blue-600 hover:text-blue-800';
 
-  const Icon = reminderCount >= 2 ? AlertTriangle
-    : reminderCount >= 1 ? AlertTriangle
-    : Bell;
+  const Icon = reminderCount >= 1 ? AlertTriangle : Bell;
 
   const label = reminderCount >= 2 ? 'Напомнить строго'
     : reminderCount >= 1 ? `Напомнить повторно (${reminderCount})`

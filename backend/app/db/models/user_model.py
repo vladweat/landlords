@@ -18,6 +18,7 @@ class UserModel(TimestampMixin, Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     def to_entity(self) -> UserEntity:
@@ -27,6 +28,7 @@ class UserModel(TimestampMixin, Base):
             email=self.email,
             password_hash=self.password_hash,
             full_name=self.full_name,
+            phone=self.phone,
             is_active=self.is_active,
             created_at=self.created_at,
         )
@@ -39,6 +41,7 @@ class UserModel(TimestampMixin, Base):
             email=entity.email,
             password_hash=entity.password_hash,
             full_name=entity.full_name,
+            phone=entity.phone,
             is_active=entity.is_active,
             created_at=entity.created_at,
         )

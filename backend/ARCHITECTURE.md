@@ -169,7 +169,6 @@ entity → interface → repo → service → schema → route → deps → те
 | `delete_payment` — неполный пересчёт статусов | `services/payment_service.py:205-236` |
 | `create_contract_note` — нет проверки существования контракта | `api/v1/routes/contracts.py:200-215` |
 | Login возвращает `NotFoundError` вместо `UnauthorizedError` — утечка «email существует» | `services/user_service.py:64,67` |
-| `UpdateProfileRequest.phone` принимается, но не сохраняется | `services/user_service.py:115-123` |
 
 ---
 

@@ -5,14 +5,19 @@ import type { PaginatedData } from '@/shared/api/types';
 export interface ContractFormData {
   property_id: string;
   tenant_id: string;
-  rent_amount: number;
+  rent_amount: string;
   currency: string;
   start_date: string;
   end_date: string;
   payment_day: number;
   billing_period: string;
-  deposit_amount: number | null;
+  deposit_amount: string | null;
   auto_generate_charges: boolean;
+}
+
+export interface ContractUpdateData extends Partial<ContractFormData> {
+  status?: Contract['status'];
+  termination_reason?: string | null;
 }
 
 export interface ContractsQuery {
@@ -20,6 +25,29 @@ export interface ContractsQuery {
   per_page?: number;
   overdue_only?: boolean;
   search?: string;
+  status?: string;
+}
+
+export interface TerminateContractData {
+  effective_date: string;
+  termination_reason: string;
+  generate_act?: boolean;
+}
+
+export interface RenewContractData {
+  new_end_date: string;
+  new_rent_amount?: string | null;
+  generate_act?: boolean;
+}
+
+export interface ContractLifecycleResult {
+  contract: Contract;
+  charges_deleted: number;
+  charges_updated: number;
+  charges_created: number;
+  document_id: string | null;
+  document_url: string | null;
+  document_filename: string | null;
 }
 
 export const contractsApi = {
@@ -63,8 +91,24 @@ export const contractsApi = {
     return response.data.data;
   },
 
-  update: async (id: string, data: Partial<ContractFormData>): Promise<Contract> => {
+  update: async (id: string, data: ContractUpdateData): Promise<Contract> => {
     const response = await apiClient.put<{ status: string; data: Contract }>(`/contracts/${id}`, data);
+    return response.data.data;
+  },
+
+  terminate: async (id: string, data: TerminateContractData): Promise<ContractLifecycleResult> => {
+    const response = await apiClient.post<{ status: string; data: ContractLifecycleResult }>(
+      `/contracts/${id}/terminate`,
+      data,
+    );
+    return response.data.data;
+  },
+
+  renew: async (id: string, data: RenewContractData): Promise<ContractLifecycleResult> => {
+    const response = await apiClient.post<{ status: string; data: ContractLifecycleResult }>(
+      `/contracts/${id}/renew`,
+      data,
+    );
     return response.data.data;
   },
 

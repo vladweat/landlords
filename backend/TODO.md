@@ -77,7 +77,7 @@
 - [x] `delete_payment`: использовать `_check_and_update_contract_status` + пересчёт charges — `payment_service.py`
 - [x] `create_contract_note`: проверять существование контракта в tenant — `contracts.py`
 - [x] Login: `UnauthorizedError` вместо `NotFoundError` — `user_service.py`
-- [x] `update_profile`: убрать `phone` из API или добавить поле в модель — `user_schema.py`, `UserModel`
+- [x] `update_profile`: добавить `phone` в модель и API — `user_schema.py`, `UserModel`
 
 ---
 

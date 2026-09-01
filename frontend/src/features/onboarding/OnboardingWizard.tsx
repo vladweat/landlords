@@ -32,23 +32,23 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
 
   const { data: properties } = useQuery({
     queryKey: ['properties'],
-    queryFn: propertiesApi.getAll,
+    queryFn: () => propertiesApi.getAll(),
     refetchInterval: 5000,
   });
   const { data: tenants } = useQuery({
     queryKey: ['tenants'],
-    queryFn: tenantsApi.getAll,
+    queryFn: () => tenantsApi.getAll(),
     refetchInterval: 5000,
   });
   const { data: contracts } = useQuery({
     queryKey: ['contracts'],
-    queryFn: contractsApi.getAll,
+    queryFn: () => contractsApi.getAll(),
     refetchInterval: 5000,
   });
 
-  const hasProperties = (properties?.length ?? 0) > 0;
-  const hasTenants = (tenants?.length ?? 0) > 0;
-  const hasContracts = (contracts?.length ?? 0) > 0;
+  const hasProperties = (properties?.items.length ?? 0) > 0;
+  const hasTenants = (tenants?.items.length ?? 0) > 0;
+  const hasContracts = (contracts?.items.length ?? 0) > 0;
 
   useEffect(() => {
     if (hasContracts) setCurrentStep(4);

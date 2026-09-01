@@ -28,7 +28,7 @@ export default function SettingsPage() {
 
   const { register: profileRegister, handleSubmit: handleProfileSubmit, formState: { errors: profileErrors } } = useForm({
     resolver: zodResolver(profileSchema),
-    defaultValues: { full_name: user?.full_name || '', phone: '' },
+    defaultValues: { full_name: user?.full_name || '', phone: user?.phone || '' },
   });
 
   const { register: passwordRegister, handleSubmit: handlePasswordSubmit, reset: resetPassword, formState: { errors: passwordErrors } } = useForm({
@@ -38,7 +38,11 @@ export default function SettingsPage() {
   const profileMutation = useMutation({
     mutationFn: authApi.updateProfile,
     onSuccess: (data) => {
-      if (user) setAuth({ ...user, full_name: data.data.full_name }, localStorage.getItem('access_token')!);
+      if (user) setAuth({
+        ...user,
+        full_name: data.data.full_name,
+        phone: data.data.phone ?? null,
+      }, localStorage.getItem('access_token')!);
       toast.success('Профиль обновлён');
     },
     onError: (error) => showError(error, 'Ошибка обновления'),

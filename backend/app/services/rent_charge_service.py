@@ -116,6 +116,7 @@ class RentChargeService:
             end_date=contract.end_date,
             rent_amount=contract.rent_amount,
             payment_day=contract.payment_day,
+            billing_period=contract.billing_period,
         )
 
         charges = []

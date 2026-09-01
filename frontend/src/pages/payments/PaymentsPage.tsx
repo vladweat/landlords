@@ -2,7 +2,9 @@ import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Trash2, CreditCard, Search } from 'lucide-react';
-import { showError, showUndo } from '@/shared/lib/toast';
+import { toast } from 'sonner';
+import { showError } from '@/shared/lib/toast';
+import { formatDate } from '@/shared/lib/utils';
 import { scrollToTop } from '@/shared/lib/scrollToTop';
 import { paymentsApi } from '@/features/payments/api';
 import { contractsApi } from '@/features/contracts/api';
@@ -10,7 +12,6 @@ import { propertiesApi } from '@/features/properties/api';
 import { tenantsApi } from '@/features/tenants/api';
 import type { Payment } from '@/entities/payment';
 import { Button } from '@/shared/ui/Button';
-import { Card } from '@/shared/ui/Card';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { ActionMenu } from '@/shared/ui/ActionMenu';
 import { PaymentModal } from './PaymentModal';
@@ -57,7 +58,7 @@ export default function PaymentsPage() {
 
   const deleteMutation = useMutation({
     mutationFn: paymentsApi.delete,
-    onSuccess: () => { scrollToTop(); queryClient.invalidateQueries({ queryKey: ['payments'] }); setDeleting(null); showUndo('Платёж удалён', () => {}); },
+    onSuccess: () => { scrollToTop(); queryClient.invalidateQueries({ queryKey: ['payments'] }); setDeleting(null); toast.success('Платёж удалён'); },
     onError: (error) => showError(error, 'Ошибка удаления'),
   });
 
@@ -85,7 +86,7 @@ export default function PaymentsPage() {
             <td className="py-3 px-4 text-sm text-gray-700">{contractMap[p.contract_id]||p.contract_id}</td>
             <td className="py-3 px-4 text-sm font-medium text-gray-900">{Number(p.amount).toLocaleString('ru-RU')} {p.currency}</td>
             <td className="py-3 px-4 text-sm text-gray-700">{methodLabels[p.method]||p.method}</td>
-            <td className="py-3 px-4 text-sm text-gray-700">{new Date(p.date_paid).toLocaleDateString('ru-RU')}</td>
+            <td className="py-3 px-4 text-sm text-gray-700">{formatDate(p.date_paid)}</td>
             <td className="py-3 px-4 text-right">
               <ActionMenu items={[
                 { label: 'Удалить', icon: <Trash2 className="h-4 w-4" />, danger: true, onClick: () => setDeleting(p) },

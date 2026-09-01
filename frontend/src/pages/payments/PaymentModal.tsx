@@ -19,11 +19,14 @@ import { z } from 'zod';
 
 const paymentSchema = z.object({
   contract_id: z.string().min(1, 'Выберите договор'),
-  amount: z.coerce.number().min(1, 'Сумма должна быть больше 0'),
+  amount: z
+    .string()
+    .min(1, 'Укажите сумму')
+    .refine((v) => !Number.isNaN(Number(v)) && Number(v) > 0, 'Сумма должна быть больше 0'),
   date_paid: z.string().min(1, 'Выберите дату'),
   method: z.string().min(1, 'Выберите способ'),
   note: z.string().optional(),
-  charge_id: z.string().optional(),
+  rent_charge_id: z.string().optional(),
 });
 
 type PaymentFormData = z.infer<typeof paymentSchema>;
@@ -49,27 +52,27 @@ export function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
 
   const { register, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm<PaymentFormData>({
     resolver: zodResolver(paymentSchema),
-    defaultValues: { contract_id: '', amount: undefined, date_paid: '', method: 'transfer', note: '', charge_id: '' },
+    defaultValues: { contract_id: '', amount: '', date_paid: '', method: 'transfer', note: '', rent_charge_id: '' },
   });
 
   const contractId = watch('contract_id');
-  const selectedChargeId = watch('charge_id');
+  const selectedChargeId = watch('rent_charge_id');
 
   useEffect(() => {
     setSelectedContract(contractId);
-    setValue('charge_id', '');
-    setValue('amount', undefined);
+    setValue('rent_charge_id', '');
+    setValue('amount', '');
   }, [contractId, setValue]);
 
   useEffect(() => {
     if (selectedChargeId && pendingCharges.length > 0) {
       const charge = pendingCharges.find((c: { id: string; amount: string }) => c.id === selectedChargeId);
-      if (charge) setValue('amount', Number(charge.amount));
+      if (charge) setValue('amount', charge.amount);
     }
   }, [selectedChargeId, pendingCharges, setValue]);
 
   useEffect(() => {
-    if (!isOpen) reset({ contract_id: '', amount: undefined, date_paid: '', method: 'transfer', note: '', charge_id: '' });
+    if (!isOpen) reset({ contract_id: '', amount: '', date_paid: '', method: 'transfer', note: '', rent_charge_id: '' });
   }, [isOpen, reset]);
 
   const createMutation = useMutation({
@@ -78,10 +81,18 @@ export function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
     onError: (error) => showError(error, 'Ошибка создания'),
   });
 
-  const onSubmit = (data: PaymentFormData) => createMutation.mutate({ contract_id: data.contract_id, amount: data.amount, date_paid: data.date_paid, method: data.method, note: data.note || undefined, rent_charge_id: data.charge_id || undefined });
+  const maxAmount = selectedChargeId
+    ? Number(pendingCharges.find((c: { id: string; amount: string }) => c.id === selectedChargeId)?.amount || 0)
+    : undefined;
 
-
-  const maxAmount = selectedChargeId ? Number(pendingCharges.find((c: { id: string; amount: string }) => c.id === selectedChargeId)?.amount || 0) : undefined;
+  const onSubmit = (data: PaymentFormData) => createMutation.mutate({
+    contract_id: data.contract_id,
+    amount: data.amount,
+    date_paid: data.date_paid,
+    method: data.method,
+    note: data.note || undefined,
+    rent_charge_id: data.rent_charge_id || undefined,
+  });
 
   return (
     <AnimatePresence>
@@ -106,7 +117,7 @@ export function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
                 {pendingCharges.length > 0 && (
                   <div className="w-full">
                     <label className="block text-sm font-medium text-gray-700 mb-1">Начисление (необязательно)</label>
-                    <select className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" {...register('charge_id')}>
+                    <select className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" {...register('rent_charge_id')}>
                       <option value="">Без привязки</option>
                       {pendingCharges.map((c: { id: string; due_date: string; amount: string }) => (
                         <option key={c.id} value={c.id}>{c.due_date} — {Number(c.amount).toLocaleString('ru-RU')} ₽</option>

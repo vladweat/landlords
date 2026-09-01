@@ -293,14 +293,21 @@ class PdfService:
         buffer.seek(0)
         return buffer.read()
 
-    def generate_and_save(self, contract_id: UUID, account_id: UUID) -> DocumentEntity:
-        """Сгенерировать PDF и сохранить на диск."""
-        pdf_bytes = self.generate_contract_pdf(contract_id, account_id)
-
+    def _save_pdf(
+        self,
+        contract_id: UUID,
+        account_id: UUID,
+        pdf_bytes: bytes,
+        prefix: str,
+    ) -> DocumentEntity:
+        """Сохранить PDF на диск и создать запись документа."""
         dir_path = os.path.join(STORAGE_DIR, str(account_id), str(contract_id))
         os.makedirs(dir_path, exist_ok=True)
 
-        filename = f"contract_{str(contract_id)[:8]}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.pdf"
+        filename = (
+            f"{prefix}_{str(contract_id)[:8]}_"
+            f"{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.pdf"
+        )
         file_path = os.path.join(dir_path, filename)
 
         with open(file_path, "wb") as f:
@@ -316,6 +323,143 @@ class PdfService:
         if self.document_repo:
             return self.document_repo.create(doc)
         return doc
+
+    def generate_and_save(self, contract_id: UUID, account_id: UUID) -> DocumentEntity:
+        """Сгенерировать PDF договора и сохранить на диск."""
+        pdf_bytes = self.generate_contract_pdf(contract_id, account_id)
+        return self._save_pdf(contract_id, account_id, pdf_bytes, "contract")
+
+    def generate_termination_act(
+        self,
+        contract_id: UUID,
+        account_id: UUID,
+        effective_date,
+        reason: str,
+    ) -> DocumentEntity:
+        """Сгенерировать акт расторжения договора."""
+        from datetime import date as date_cls
+
+        contract = self.contract_repo.get_by_id(contract_id, account_id)
+        if not contract:
+            raise NotFoundError(f"Contract {contract_id} not found")
+
+        prop = self.property_repo.get_by_id(contract.property_id, account_id)
+        tenant = self.tenant_repo.get_by_id(contract.tenant_id, account_id)
+
+        tenant_name = tenant.full_name if tenant else "_____________________________"
+        prop_address = prop.get_address() if prop else "_____________________________"
+        eff = effective_date if isinstance(effective_date, date_cls) else effective_date
+
+        buffer = BytesIO()
+        c = canvas.Canvas(buffer, pagesize=A4)
+        width, height = A4
+        left = 22 * mm
+        y = height - 20 * mm
+
+        def line(text: str, y_pos: float, bold: bool = False, size: int = 10) -> float:
+            c.setFont(FONT_BOLD if bold else FONT_NAME, size)
+            c.drawString(left, y_pos, text)
+            return y_pos - 6 * mm
+
+        c.setFont(FONT_BOLD, 14)
+        c.drawCentredString(width / 2, y, "АКТ РАСТОРЖЕНИЯ ДОГОВОРА АРЕНДЫ")
+        y -= 12 * mm
+
+        y = line(f"Договор № {str(contract.id)[:8]}", y, bold=True)
+        y = line(f"Объект: {prop_address}", y)
+        y = line(f"Арендатор: {tenant_name}", y)
+        y = line(
+            f"Период договора: {contract.start_date.isoformat()} — "
+            f"{contract.end_date.isoformat()}",
+            y,
+        )
+        y = line(f"Дата расторжения: {eff.isoformat()}", y, bold=True)
+        y -= 4 * mm
+        y = line("Основание расторжения:", y, bold=True)
+        words = reason.split()
+        chunk = ""
+        for word in words:
+            trial = f"{chunk} {word}".strip()
+            if len(trial) > 80:
+                y = line(chunk, y)
+                chunk = word
+            else:
+                chunk = trial
+        if chunk:
+            y = line(chunk, y)
+        y -= 8 * mm
+        y = line("Стороны подтверждают расторжение договора с указанной даты.", y)
+        y = line("Взаимные расчёты производятся согласно условиям договора.", y)
+        y -= 16 * mm
+        y = line("Арендодатель: _________________ / _______________", y)
+        y -= 8 * mm
+        y = line("Арендатор:   _________________ / _______________", y)
+
+        c.showPage()
+        c.save()
+        buffer.seek(0)
+        return self._save_pdf(contract_id, account_id, buffer.read(), "termination_act")
+
+    def generate_renewal_act(
+        self,
+        contract_id: UUID,
+        account_id: UUID,
+        old_end_date,
+        new_end_date,
+        new_rent_amount,
+    ) -> DocumentEntity:
+        """Сгенерировать дополнительное соглашение о продлении."""
+        from decimal import Decimal
+
+        contract = self.contract_repo.get_by_id(contract_id, account_id)
+        if not contract:
+            raise NotFoundError(f"Contract {contract_id} not found")
+
+        prop = self.property_repo.get_by_id(contract.property_id, account_id)
+        tenant = self.tenant_repo.get_by_id(contract.tenant_id, account_id)
+
+        tenant_name = tenant.full_name if tenant else "_____________________________"
+        prop_address = prop.get_address() if prop else "_____________________________"
+        rent = Decimal(str(new_rent_amount))
+
+        buffer = BytesIO()
+        c = canvas.Canvas(buffer, pagesize=A4)
+        width, height = A4
+        left = 22 * mm
+        y = height - 20 * mm
+
+        def line(text: str, y_pos: float, bold: bool = False, size: int = 10) -> float:
+            c.setFont(FONT_BOLD if bold else FONT_NAME, size)
+            c.drawString(left, y_pos, text)
+            return y_pos - 6 * mm
+
+        c.setFont(FONT_BOLD, 13)
+        c.drawCentredString(width / 2, y, "ДОПОЛНИТЕЛЬНОЕ СОГЛАШЕНИЕ")
+        y -= 7 * mm
+        c.setFont(FONT_BOLD, 12)
+        c.drawCentredString(width / 2, y, "о продлении договора аренды")
+        y -= 12 * mm
+
+        y = line(f"Договор № {str(contract.id)[:8]}", y, bold=True)
+        y = line(f"Объект: {prop_address}", y)
+        y = line(f"Арендатор: {tenant_name}", y)
+        y = line(f"Дата начала договора: {contract.start_date.isoformat()}", y)
+        y -= 4 * mm
+        y = line("Стороны договорились о продлении договора на следующих условиях:", y)
+        y = line(f"Прежняя дата окончания: {old_end_date.isoformat()}", y)
+        y = line(f"Новая дата окончания: {new_end_date.isoformat()}", y, bold=True)
+        y = line(f"Арендная плата: {rent} {contract.currency}", y, bold=True)
+        y -= 8 * mm
+        y = line("Остальные условия договора остаются без изменений.", y)
+        y -= 16 * mm
+        y = line("Арендодатель: _________________ / _______________", y)
+        y -= 8 * mm
+        y = line("Арендатор:   _________________ / _______________", y)
+
+        c.showPage()
+        c.save()
+        buffer.seek(0)
+        return self._save_pdf(contract_id, account_id, buffer.read(), "renewal_act")
 
     def get_documents(self, contract_id: UUID, account_id: UUID) -> list[DocumentEntity]:
         if not self.document_repo:

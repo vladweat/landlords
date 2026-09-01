@@ -1,4 +1,4 @@
-import { StickyNote, Bell, RefreshCw, CreditCard } from 'lucide-react';
+import { StickyNote, Bell, RefreshCw, CreditCard, FileX } from 'lucide-react';
 import type { EventType } from '@/entities/contract';
 
 const iconMap: Record<EventType, { icon: typeof StickyNote; color: string; bg: string }> = {
@@ -6,6 +6,8 @@ const iconMap: Record<EventType, { icon: typeof StickyNote; color: string; bg: s
   reminder: { icon: Bell,       color: 'text-orange-600', bg: 'bg-orange-50' },
   status_change: { icon: RefreshCw, color: 'text-purple-600', bg: 'bg-purple-50' },
   payment: { icon: CreditCard,  color: 'text-green-600', bg: 'bg-green-50' },
+  termination: { icon: FileX, color: 'text-amber-700', bg: 'bg-amber-50' },
+  renewal: { icon: RefreshCw, color: 'text-blue-700', bg: 'bg-blue-50' },
 };
 
 interface TimelineItemProps {

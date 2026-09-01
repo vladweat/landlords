@@ -1,6 +1,8 @@
 """Бизнес-правила и доменные сервисы (чистые функции)."""
 
 from datetime import date, datetime, timezone
+from typing import Sequence
+from uuid import UUID
 
 from app.domain.entities import ContractEntity, LedgerLine, PaymentEntity, RentChargeEntity
 
@@ -65,13 +67,6 @@ def compute_charge_status(charge_amount: Decimal, total_paid: Decimal, due_date:
         return "pending"
     
     
-from decimal import Decimal
-from datetime import date
-from typing import Sequence
-
-from app.domain.entities import ContractEntity, RentChargeEntity
-
-
 def compute_ledger(
     charges: Sequence[RentChargeEntity],
     total_paid: Decimal,
@@ -139,31 +134,31 @@ def generate_charge_schedule(
     end_date: date,
     rent_amount: Decimal,
     payment_day: int,
+    billing_period: str = "monthly",
 ) -> list[dict]:
-    """Сгенерировать расписание начислений по месяцам.
+    """Сгенерировать расписание начислений по периоду оплаты.
 
     Args:
         start_date: дата начала контракта.
         end_date: дата окончания контракта.
-        rent_amount: ежемесячная сумма.
+        rent_amount: сумма за один период оплаты.
         payment_day: день оплаты (1-28).
+        billing_period: monthly | quarterly | yearly.
 
     Returns:
         Список словарей с due_date, period_start, period_end, amount.
     """
+    months = {"monthly": 1, "quarterly": 3, "yearly": 12}.get(billing_period, 1)
     charges = []
     current = start_date
 
     while current < end_date:
-        # Период: с current по current + 1 месяц
         period_start = current
-        period_end = period_start + relativedelta(months=1)
+        period_end = period_start + relativedelta(months=months)
 
-        # Не выходим за end_date
         if period_end > end_date:
             period_end = end_date
 
-        # Дата оплаты — payment_day месяца period_start
         due_date = date(period_start.year, period_start.month, min(payment_day, 28))
 
         charges.append({
@@ -248,3 +243,92 @@ def validate_payment_day(day: int) -> None:
     """
     if not (1 <= day <= 28):
         raise ValueError("payment_day must be between 1 and 28")
+
+
+def prorate_charge_amount(
+    amount: Decimal,
+    period_start: date,
+    period_end: date,
+    cut_date: date,
+) -> Decimal:
+    """Пропорционально уменьшить сумму начисления до cut_date.
+
+    Считает по календарным дням периода [period_start, period_end).
+    """
+    total_days = (period_end - period_start).days
+    if total_days <= 0:
+        return Decimal("0.00")
+    if cut_date <= period_start:
+        return Decimal("0.00")
+    if cut_date >= period_end:
+        return amount
+    used_days = (cut_date - period_start).days
+    return (amount * Decimal(used_days) / Decimal(total_days)).quantize(Decimal("0.01"))
+
+
+def plan_charges_on_terminate(
+    charges: Sequence[RentChargeEntity],
+    paid_by_charge: dict[UUID, Decimal],
+    effective_date: date,
+) -> tuple[list[UUID], list[tuple[UUID, Decimal, date]]]:
+    """Спланировать пересчёт начислений при расторжении.
+
+    Returns:
+        (ids_to_delete, updates) где updates = [(id, new_amount, new_period_end), ...]
+    """
+    to_delete: list[UUID] = []
+    to_update: list[tuple[UUID, Decimal, date]] = []
+
+    for charge in charges:
+        paid = paid_by_charge.get(charge.id, Decimal("0"))
+
+        # Будущие периоды — удаляем, если нет платежей
+        if charge.period_start >= effective_date:
+            if paid == 0:
+                to_delete.append(charge.id)
+            continue
+
+        # Текущий период, пересекающий дату расторжения
+        if charge.period_start < effective_date < charge.period_end:
+            if paid >= charge.amount:
+                # Уже полностью оплачен — только укорачиваем период
+                to_update.append((charge.id, charge.amount, effective_date))
+                continue
+            new_amount = prorate_charge_amount(
+                charge.amount, charge.period_start, charge.period_end, effective_date
+            )
+            if new_amount < paid:
+                new_amount = paid
+            if new_amount == 0 and paid == 0:
+                to_delete.append(charge.id)
+            else:
+                to_update.append((charge.id, new_amount, effective_date))
+
+    return to_delete, to_update
+
+
+def plan_charges_on_renew(
+    existing: Sequence[RentChargeEntity],
+    old_end_date: date,
+    new_end_date: date,
+    rent_amount: Decimal,
+    payment_day: int,
+    billing_period: str = "monthly",
+) -> list[dict]:
+    """Спланировать новые начисления при продлении договора.
+
+    Генерирует расписание от старой даты окончания до новой,
+    пропуская периоды, которые уже есть (по period_start).
+    """
+    if new_end_date <= old_end_date:
+        raise ValueError("new_end_date must be after current end_date")
+
+    existing_starts = {c.period_start for c in existing}
+    schedule = generate_charge_schedule(
+        start_date=old_end_date,
+        end_date=new_end_date,
+        rent_amount=rent_amount,
+        payment_day=payment_day,
+        billing_period=billing_period,
+    )
+    return [item for item in schedule if item["period_start"] not in existing_starts]

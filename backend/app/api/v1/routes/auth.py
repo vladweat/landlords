@@ -96,7 +96,7 @@ def update_profile(
     service: UserService = Depends(get_user_service),
 ) -> dict:
     """Обновить профиль."""
-    dto = service.update_profile(user_id, body.full_name)
+    dto = service.update_profile(user_id, body.full_name, body.phone)
     return {"status": "success", "data": UserResponse.model_validate(dto).model_dump()}
 
 
