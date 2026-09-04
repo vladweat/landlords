@@ -2,7 +2,7 @@
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, File, Form, UploadFile
 from fastapi.responses import Response
 
 from app.api.deps import (
@@ -10,6 +10,7 @@ from app.api.deps import (
     get_contract_service,
     get_current_account_id,
     get_current_user_id,
+    get_document_service,
     get_ledger_service,
     get_payment_service,
     get_pdf_service,
@@ -30,6 +31,7 @@ from app.api.v1.schemas.contract_schema import (
 )
 from app.services.contract_event_service import ContractEventService
 from app.services.contract_service import ContractService
+from app.services.document_service import DocumentService, serialize_document
 from app.services.dto.contract_event_dto import CreateNoteDTO
 from app.services.ledger_service import LedgerService
 from app.services.payment_service import PaymentService
@@ -234,8 +236,7 @@ def get_contract_document(
 ) -> dict:
     """Сгенерировать и сохранить PDF, вернуть защищённый URL через API."""
     doc = service.generate_and_save(contract_id, account_id)
-    # Возвращаем ссылку на API-эндоинт, который отдаёт документ с авторизацией.
-    url = f"/api/v1/contracts/documents/{doc.id}"
+    url = f"/api/v1/documents/{doc.id}"
     return {"status": "success", "data": {"url": url, "filename": doc.filename}}
 
 
@@ -243,33 +244,43 @@ def get_contract_document(
 def list_contract_documents(
     contract_id: UUID,
     account_id: UUID = Depends(get_current_account_id),
-    service: PdfService = Depends(get_pdf_service),
+    service: DocumentService = Depends(get_document_service),
 ) -> dict:
-    """Список сохранённых документов."""
-    docs = service.get_documents(contract_id, account_id)
-    return {
-        "status": "success",
-        "data": [
-            {"id": str(d.id), "filename": d.filename, "created_at": d.created_at.isoformat()}
-            for d in docs
-        ],
-    }
+    """Список документов и вложений договора."""
+    docs = service.list_by_contract(contract_id, account_id)
+    return {"status": "success", "data": [serialize_document(d) for d in docs]}
+
+
+@router.post("/{contract_id}/documents")
+async def upload_contract_document(
+    contract_id: UUID,
+    account_id: UUID = Depends(get_current_account_id),
+    service: DocumentService = Depends(get_document_service),
+    file: UploadFile = File(...),
+    title: str | None = Form(None),
+    category: str = Form("other"),
+) -> dict:
+    """Загрузить вложение к договору."""
+    doc = await service.upload_for_contract(
+        contract_id, account_id, file, title=title, category=category
+    )
+    return {"status": "success", "data": serialize_document(doc)}
 
 
 @router.get("/documents/{doc_id}")
-def get_document(
+def get_document_legacy(
     doc_id: UUID,
     account_id: UUID = Depends(get_current_account_id),
-    service: PdfService = Depends(get_pdf_service),
+    service: DocumentService = Depends(get_document_service),
 ) -> Response:
-    """Скачать сохранённый документ по ID."""
+    """Скачать документ (alias для совместимости)."""
     doc = service.get_document(doc_id, account_id)
     with open(doc.file_path, "rb") as f:
         content = f.read()
     return Response(
         content=content,
-        media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename={doc.filename}"},
+        media_type=doc.mime_type or "application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{doc.filename}"'},
     )
 
 

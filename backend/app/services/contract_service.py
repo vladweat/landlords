@@ -256,7 +256,7 @@ class ContractService:
             )
             doc_id = doc.id
             doc_filename = doc.filename
-            doc_url = f"/api/v1/contracts/documents/{doc.id}"
+            doc_url = f"/api/v1/documents/{doc.id}"
 
         return ContractLifecycleResultDTO(
             contract=ContractDTO.model_validate(updated),
@@ -354,7 +354,7 @@ class ContractService:
             )
             doc_id = doc.id
             doc_filename = doc.filename
-            doc_url = f"/api/v1/contracts/documents/{doc.id}"
+            doc_url = f"/api/v1/documents/{doc.id}"
 
         return ContractLifecycleResultDTO(
             contract=ContractDTO.model_validate(updated),

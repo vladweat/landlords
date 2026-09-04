@@ -19,6 +19,7 @@ import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { ROIBadge } from '@/features/properties/components/ROIBadge';
 import { ExpenseModal } from '@/pages/expenses/ExpenseModal';
 import { PropertyModal } from './PropertyModal';
+import { AttachmentsSection } from '@/features/documents/components/AttachmentsSection';
 
 const typeLabels: Record<string, string> = {
   apartment: 'Квартира',
@@ -272,6 +273,8 @@ export default function PropertyDetailPage() {
           </div>
         )}
       </Card>
+
+      <AttachmentsSection parentType="property" parentId={property.id} />
 
       <ExpenseModal
         isOpen={isExpenseModalOpen}

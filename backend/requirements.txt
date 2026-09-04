@@ -18,6 +18,7 @@ python-jose[cryptography]
 passlib[bcrypt]
 reportlab
 python-dateutil
+python-multipart
 
 pytest
 httpx

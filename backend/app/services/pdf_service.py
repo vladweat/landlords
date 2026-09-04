@@ -313,12 +313,19 @@ class PdfService:
         with open(file_path, "wb") as f:
             f.write(pdf_bytes)
 
+        category = "act" if "act" in prefix else "contract_pdf"
+
         doc = DocumentEntity(
             id=uuid4(),
             account_id=account_id,
             contract_id=contract_id,
             filename=filename,
             file_path=file_path,
+            category=category,
+            mime_type="application/pdf",
+            size_bytes=len(pdf_bytes),
+            source="generated",
+            title=filename,
         )
         if self.document_repo:
             return self.document_repo.create(doc)

@@ -28,6 +28,15 @@ class DocumentRepository(IDocumentRepository):
         )
         return [m.to_entity() for m in models]
 
+    def get_by_property(self, property_id: UUID, account_id: UUID) -> list[DocumentEntity]:
+        models = (
+            self.session.query(DocumentModel)
+            .filter_by(property_id=property_id, account_id=account_id)
+            .order_by(DocumentModel.created_at.desc())
+            .all()
+        )
+        return [m.to_entity() for m in models]
+
     def get_by_id(self, doc_id: UUID, account_id: UUID) -> DocumentEntity | None:
         model = (
             self.session.query(DocumentModel)
@@ -35,3 +44,15 @@ class DocumentRepository(IDocumentRepository):
             .first()
         )
         return model.to_entity() if model else None
+
+    def delete(self, doc_id: UUID, account_id: UUID) -> bool:
+        model = (
+            self.session.query(DocumentModel)
+            .filter_by(id=doc_id, account_id=account_id)
+            .first()
+        )
+        if not model:
+            return False
+        self.session.delete(model)
+        self.session.flush()
+        return True

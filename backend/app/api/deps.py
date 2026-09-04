@@ -29,6 +29,7 @@ from app.services.contract_event_service import ContractEventService
 from app.services.contract_service import ContractService
 from app.services.credit_score_service import CreditScoreService
 from app.services.dashboard_service import DashboardService
+from app.services.document_service import DocumentService
 from app.services.feedback_service import FeedbackService
 from app.services.forecast_service import ForecastService
 from app.services.ledger_service import LedgerService
@@ -118,6 +119,14 @@ def get_pdf_service(
     document_repo: DocumentRepository = Depends(get_document_repo),
 ) -> PdfService:
     return PdfService(contract_repo, property_repo, tenant_repo, document_repo)
+
+
+def get_document_service(
+    document_repo: DocumentRepository = Depends(get_document_repo),
+    contract_repo: ContractRepository = Depends(get_contract_repo),
+    property_repo: PropertyRepository = Depends(get_property_repo),
+) -> DocumentService:
+    return DocumentService(document_repo, contract_repo, property_repo)
 
 
 def get_contract_service(
