@@ -94,10 +94,13 @@ def update_overdue_charges() -> dict[str, Any]:
         payment_repo = PaymentRepository(session)
         contract_repo = ContractRepository(session)
 
-        # 1. Update charges: pending -> overdue
+        # 1. Update charges: pending/partially_paid -> overdue when past due
         charges_result = session.execute(
             sql_update(RentChargeModel)
-            .where(RentChargeModel.due_date < today, RentChargeModel.status == "pending")
+            .where(
+                RentChargeModel.due_date < today,
+                RentChargeModel.status.in_(("pending", "partially_paid")),
+            )
             .values(status="overdue")
         )
         charges_updated = charges_result.rowcount

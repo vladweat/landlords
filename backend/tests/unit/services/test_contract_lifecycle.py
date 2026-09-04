@@ -157,6 +157,8 @@ class TestTerminateRenewService:
         contract_repo.get_by_id.return_value = contract
         contract_repo.update.side_effect = lambda e: e
         charge_repo.list_by_contract.return_value = []
+        payment_repo.list_unlinked_for_contract_for_update.return_value = []
+        charge_repo.list_unpaid_for_contract_for_update.return_value = []
 
         service = ContractService(
             contract_repo, charge_repo, payment_repo, event_repo, pdf_service=None

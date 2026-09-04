@@ -5,6 +5,8 @@ from app.domain.entities import RentChargeEntity
 from app.domain.interfaces import IContractRepository, IPaymentRepository, IRentChargeRepository, IReminderRepository
 from app.domain.rules import compute_charge_status
 from app.services.dto.rent_charge_dto import RentChargeCreateDTO, RentChargeDTO
+from app.services.payment_allocation import allocate_unlinked_payments
+
 
 class RentChargeService:
     def __init__(
@@ -50,6 +52,7 @@ class RentChargeService:
         computed_status = compute_charge_status(entity.amount, total_paid, entity.due_date)
         entity.status = computed_status
         dto = RentChargeDTO.model_validate(entity)
+        dto.amount_paid = total_paid
 
         if self.reminder_repo:
             count = self.reminder_repo.count_by_charge(entity.id, account_id)
@@ -106,6 +109,10 @@ class RentChargeService:
         # Проверяем, есть ли уже начисления
         existing = self.charge_repo.list_by_contract(contract_id, account_id)
         if existing:
+            allocate_unlinked_payments(
+                self.charge_repo, self.payment_repo, self.contract_repo,
+                contract_id, account_id,
+            )
             return [RentChargeDTO.model_validate(e) for e in existing]
 
         # Генерируем расписание
@@ -133,4 +140,8 @@ class RentChargeService:
             charge = self.create_charge(account_id, dto)
             charges.append(charge)
 
+        allocate_unlinked_payments(
+            self.charge_repo, self.payment_repo, self.contract_repo,
+            contract_id, account_id,
+        )
         return charges

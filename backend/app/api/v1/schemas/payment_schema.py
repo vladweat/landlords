@@ -57,3 +57,17 @@ class PaymentSingleResponse(BaseModel):
 
     status: str = "success"
     data: PaymentResponse
+
+
+class PaymentCreateData(BaseModel):
+    """Данные создания платежа (включая split по начислениям)."""
+
+    payments: list[PaymentResponse]
+    total_amount: Decimal
+
+
+class PaymentCreateResponse(BaseModel):
+    """Ответ на создание платежа."""
+
+    status: str = "success"
+    data: PaymentCreateData

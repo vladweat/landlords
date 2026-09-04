@@ -6,7 +6,9 @@ from fastapi import APIRouter, Depends
 from app.api.mappers import to_dto
 from app.api.deps import get_current_account_id, get_payment_service
 from app.api.v1.schemas.payment_schema import (
+    PaymentCreateData,
     PaymentCreateRequest,
+    PaymentCreateResponse,
     PaymentListResponse,
     PaymentResponse,
     PaymentSingleResponse,
@@ -46,28 +48,21 @@ def list_payments_by_contract(
     }
 
 
-@router.post("", response_model=PaymentSingleResponse, status_code=201)
+@router.post("", response_model=PaymentCreateResponse, status_code=201)
 def create_payment(
     body: PaymentCreateRequest,
     account_id: UUID = Depends(get_current_account_id),
     service: PaymentService = Depends(get_payment_service),
 ) -> dict:
-    """Создать платёж."""
-    # dto = PaymentCreateDTO(
-    #     contract_id=body.contract_id,
-    #     rent_charge_id=body.rent_charge_id,
-    #     date_paid=body.date_paid,
-    #     amount=body.amount,
-    #     method=body.method,
-    #     note=body.note,
-    # )
-    
+    """Создать платёж (при автораспределении — все split-строки)."""
     dto = to_dto(body, PaymentCreateDTO)
-
-    created = service.create_payment(account_id, dto)
+    result = service.create_payment(account_id, dto)
     return {
         "status": "success",
-        "data": PaymentResponse.model_validate(created),
+        "data": PaymentCreateData(
+            payments=[PaymentResponse.model_validate(p) for p in result.payments],
+            total_amount=result.total_amount,
+        ),
     }
 
 

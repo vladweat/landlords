@@ -72,11 +72,20 @@ class TestComputeChargeStatus:
         assert status == "paid"
 
     def test_partially_paid(self):
-        """Частичная оплата."""
+        """Частичная оплата до due_date."""
+        tomorrow = date.today() + timedelta(days=1)
         status = compute_charge_status(
-            Decimal("1000"), Decimal("500"), date.today()
+            Decimal("1000"), Decimal("500"), tomorrow
         )
         assert status == "partially_paid"
+
+    def test_partially_paid_past_due_is_overdue(self):
+        """Частичная оплата после due_date — overdue."""
+        yesterday = date.today() - timedelta(days=1)
+        status = compute_charge_status(
+            Decimal("1000"), Decimal("500"), yesterday
+        )
+        assert status == "overdue"
 
     def test_overdue_when_past_due_and_unpaid(self):
         """Просрочено."""

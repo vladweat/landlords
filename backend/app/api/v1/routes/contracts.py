@@ -11,6 +11,7 @@ from app.api.deps import (
     get_current_account_id,
     get_current_user_id,
     get_ledger_service,
+    get_payment_service,
     get_pdf_service,
 )
 from app.api.pagination import PaginationParams
@@ -31,6 +32,7 @@ from app.services.contract_event_service import ContractEventService
 from app.services.contract_service import ContractService
 from app.services.dto.contract_event_dto import CreateNoteDTO
 from app.services.ledger_service import LedgerService
+from app.services.payment_service import PaymentService
 from app.services.pdf_service import PdfService
 
 router = APIRouter(prefix="/v1/contracts", tags=["Contracts"])
@@ -211,6 +213,17 @@ def generate_charges(
         args=[str(account_id), str(contract_id)],
     )
     return {"status": "success", "data": {"task_id": result.id}}
+
+
+@router.post("/{contract_id}/allocate-advance")
+def allocate_advance(
+    contract_id: UUID,
+    account_id: UUID = Depends(get_current_account_id),
+    service: PaymentService = Depends(get_payment_service),
+) -> dict:
+    """Распределить неаллоцированный аванс по неоплаченным начислениям."""
+    data = service.allocate_advance(contract_id, account_id)
+    return {"status": "success", "data": data}
 
 
 @router.get("/{contract_id}/document")

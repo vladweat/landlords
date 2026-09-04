@@ -36,6 +36,13 @@ class PaymentCreateDTO(BaseModel):
     note: str | None = None
 
 
+class PaymentCreateResultDTO(BaseModel):
+    """Результат создания платежа (возможны несколько split-строк)."""
+
+    payments: list[PaymentDTO]
+    total_amount: Decimal
+
+
 class PaymentUpdateDTO(BaseModel):
     """DTO для обновления платежа."""
 

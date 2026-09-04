@@ -56,11 +56,9 @@
 |---------|--------|
 | Создание / активация / генерация charges | OK по дизайну |
 | Ledger (касса) | OK |
-| Аванс → покрытие следующих начислений | **Не работает** |
-| Статусы charges / дашборд outstanding | **Есть баги** |
+| Аванс → покрытие следующих начислений | OK (allocate FIFO) |
+| Статусы charges / дашборд outstanding | OK (остатки − аванс; partial+due → overdue) |
 | Депозит в учёте | Нет (только метаданные) |
-
-Типичный симптом: в ledger «аванс», а начисления остаются `pending`/`overdue`, договор может быть `overdue`.
 
 ---
 
@@ -68,32 +66,32 @@
 
 ### P0 — деньги и статусы
 
-- [ ] **Распределять аванс на начисления** — при создании платежа, появлении новых charges (generate / renew) и по запросу: FIFO по `due_date` из unlinked payments (`rent_charge_id=None`) в неоплаченные charges. Либо явная сущность «кредит договора».
+- [x] **Распределять аванс на начисления** — при создании платежа, появлении новых charges (generate / renew) и по запросу: FIFO по `due_date` из unlinked payments (`rent_charge_id=None`) в неоплаченные charges. Либо явная сущность «кредит договора».
   - `backend/app/services/payment_service.py`
   - `backend/app/services/rent_charge_service.py`
   - вызовы после `create_charges_batch` / renew
 
-- [ ] **Единый outstanding** — считать остаток как `Σ max(0, charge.amount − paid_for_charge)` и опционально вычитать неаллоцированный аванс. Сейчас дашборд суммирует полную сумму charges со `status != paid` и **игнорирует частичные оплаты**.
+- [x] **Единый outstanding** — считать остаток как `Σ max(0, charge.amount − paid_for_charge)` и опционально вычитать неаллоцированный аванс. Сейчас дашборд суммирует полную сумму charges со `status != paid` и **игнорирует частичные оплаты**.
   - `backend/app/db/repositories/rent_charge_repo.py` → `get_total_outstanding`
   - сверить с `ledger_service` / карточкой договора
 
-- [ ] **`partially_paid` + просрочка** — если остаток > 0 и `due_date < today`, статус должен отражать просрочку (например `overdue` или отдельный статус). Сейчас любая частичная оплата навсегда `partially_paid`.
+- [x] **`partially_paid` + просрочка** — если остаток > 0 и `due_date < today`, статус должен отражать просрочку (например `overdue` или отдельный статус). Сейчас любая частичная оплата навсегда `partially_paid`.
   - `backend/app/domain/rules.py` → `compute_charge_status`
   - Celery `update_overdue_charges`, reminders, UI
 
 ### P1 — платежи и UI
 
-- [ ] **PaymentModal**: показывать `partially_paid`; max суммы = **остаток** charge, не полная сумма; после create инвалидировать `contract-ledger` / dashboard.
+- [x] **PaymentModal**: показывать `partially_paid`; max суммы = **остаток** charge, не полная сумма; после create инвалидировать `contract-ledger` / dashboard.
   - `frontend/src/pages/payments/PaymentModal.tsx`
   - `frontend/src/pages/contracts/ContractDetailPage.tsx` (лейбл «Ожидает» для `partially_paid`)
 
-- [ ] **Платёж с явным `rent_charge_id`**: проверить `charge.contract_id == dto.contract_id`; избыток сверх остатка → в аванс (как в auto-distribute), не вешать целиком на один charge.
+- [x] **Платёж с явным `rent_charge_id`**: проверить `charge.contract_id == dto.contract_id`; избыток сверх остатка → в аванс (как в auto-distribute), не вешать целиком на один charge.
   - `backend/app/services/payment_service.py`
 
-- [ ] **Карточка договора**: отрицательный `outstanding_balance` показывать как аванс (как в `LedgerTable`), не как обычное «ожидает оплаты».
+- [x] **Карточка договора**: отрицательный `outstanding_balance` показывать как аванс (как в `LedgerTable`), не как обычное «ожидает оплаты».
   - `frontend/src/pages/contracts/ContractDetailPage.tsx`
 
-- [ ] **Автораспределение API**: сейчас возвращается только **первый** split-платёж при нескольких строках — ответ/toast вводят в заблуждение.
+- [x] **Автораспределение API**: сейчас возвращается только **первый** split-платёж при нескольких строках — ответ/toast вводят в заблуждение.
   - `payment_service._auto_distribute`
 
 ### P2 — создание договора и расписание

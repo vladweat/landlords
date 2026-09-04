@@ -10,14 +10,19 @@ export interface PaymentFormData {
   rent_charge_id?: string;
 }
 
+export interface PaymentCreateResult {
+  payments: Payment[];
+  total_amount: string;
+}
+
 export const paymentsApi = {
   getAll: async (): Promise<Payment[]> => {
     const response = await apiClient.get<{ status: string; data: Payment[] }>('/payments');
     return response.data.data;
   },
 
-  create: async (data: PaymentFormData): Promise<Payment> => {
-    const response = await apiClient.post<{ status: string; data: Payment }>('/payments', data);
+  create: async (data: PaymentFormData): Promise<PaymentCreateResult> => {
+    const response = await apiClient.post<{ status: string; data: PaymentCreateResult }>('/payments', data);
     return response.data.data;
   },
 

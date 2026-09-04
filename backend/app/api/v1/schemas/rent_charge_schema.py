@@ -23,6 +23,7 @@ class RentChargeResponse(BaseModel):
     status: str
     created_at: datetime
     updated_at: datetime
+    amount_paid: Decimal = Decimal("0")
     reminder_status: dict | None = None
 
 

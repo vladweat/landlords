@@ -297,6 +297,18 @@ class IPaymentRepository(ABC):
         ...
 
     @abstractmethod
+    def list_unlinked_for_contract_for_update(
+        self, contract_id: UUID, account_id: UUID
+    ) -> Sequence[PaymentEntity]:
+        """Авансы (rent_charge_id IS NULL) по контракту с блокировкой строк."""
+        ...
+
+    @abstractmethod
+    def get_total_unallocated_for_account(self, account_id: UUID) -> Decimal:
+        """Сумма неаллоцированных платежей (авансов) по аккаунту."""
+        ...
+
+    @abstractmethod
     def create(self, entity: PaymentEntity) -> PaymentEntity:
         """Создать платёж."""
         ...
