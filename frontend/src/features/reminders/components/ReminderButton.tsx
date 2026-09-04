@@ -60,7 +60,7 @@ export function ReminderButton({ chargeId, chargeStatus }: ReminderButtonProps) 
     <button
       onClick={handleClick}
       disabled={createReminder.isPending}
-      className={`inline-flex items-center gap-1 text-xs font-medium transition-colors ${buttonStyle}`}
+      className={`inline-flex items-center justify-center gap-1.5 min-h-10 px-2 text-sm font-medium transition-colors md:min-h-0 md:px-0 md:text-xs ${buttonStyle}`}
     >
       {createReminder.isPending ? (
         <span className="inline-block w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
