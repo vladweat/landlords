@@ -421,13 +421,19 @@ class IReminderRepository(ABC):
 class IDocumentRepository(ABC):
     @abstractmethod
     def create(self, entity: DocumentEntity) -> DocumentEntity: ...
-    
+
     @abstractmethod
     def get_by_contract(self, contract_id: UUID, account_id: UUID) -> list[DocumentEntity]: ...
-    
+
+    @abstractmethod
+    def get_by_property(self, property_id: UUID, account_id: UUID) -> list[DocumentEntity]: ...
+
     @abstractmethod
     def get_by_id(self, doc_id: UUID, account_id: UUID) -> DocumentEntity | None: ...
-    
+
+    @abstractmethod
+    def delete(self, doc_id: UUID, account_id: UUID) -> bool: ...
+
 class IContractEventRepository(ABC):
 
     @abstractmethod

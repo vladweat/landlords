@@ -2,9 +2,14 @@
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, File, Form, UploadFile
 
-from app.api.deps import get_current_account_id, get_property_service, get_roi_service
+from app.api.deps import (
+    get_current_account_id,
+    get_document_service,
+    get_property_service,
+    get_roi_service,
+)
 from app.api.v1.schemas.property_schema import (
     PropertyCreateRequest,
     PropertyListResponse,
@@ -14,6 +19,7 @@ from app.api.v1.schemas.property_schema import (
 )
 from app.services.property_service import PropertyService
 from app.services.roi_service import RoiService
+from app.services.document_service import DocumentService, serialize_document
 
 from app.api.responses import success_response, success_list_response
 from app.api.pagination import PaginationParams
@@ -115,5 +121,31 @@ def delete_property(
 ) -> None:
     """Удалить объект недвижимости."""
     service.delete_property(property_id, account_id)
-    
+
+
+@router.get("/{property_id}/documents")
+def list_property_documents(
+    property_id: UUID,
+    account_id: UUID = Depends(get_current_account_id),
+    service: DocumentService = Depends(get_document_service),
+) -> dict:
+    """Список вложений объекта."""
+    docs = service.list_by_property(property_id, account_id)
+    return {"status": "success", "data": [serialize_document(d) for d in docs]}
+
+
+@router.post("/{property_id}/documents")
+async def upload_property_document(
+    property_id: UUID,
+    account_id: UUID = Depends(get_current_account_id),
+    service: DocumentService = Depends(get_document_service),
+    file: UploadFile = File(...),
+    title: str | None = Form(None),
+    category: str = Form("other"),
+) -> dict:
+    """Загрузить вложение к объекту."""
+    doc = await service.upload_for_property(
+        property_id, account_id, file, title=title, category=category
+    )
+    return {"status": "success", "data": serialize_document(doc)}
 

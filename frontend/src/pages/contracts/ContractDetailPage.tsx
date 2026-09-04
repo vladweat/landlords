@@ -28,6 +28,7 @@ import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { LedgerTable } from '@/features/contracts/components/LedgerTable';
 import { ChargePeriodsList, type ChargeRow } from '@/features/contracts/components/ChargePeriodsList';
 import { TerminateContractWizard } from '@/features/contracts/components/TerminateContractWizard';
+import { AttachmentsSection } from '@/features/documents/components/AttachmentsSection';
 import { RenewContractWizard } from '@/features/contracts/components/RenewContractWizard';
 import { ContractTimeline } from '@/features/contracts/components/ContractTimeline';
 import { PaymentModal } from '@/pages/payments/PaymentModal';
@@ -248,7 +249,16 @@ export default function ContractDetailPage() {
           const res = await apiClient.get<{ status: string; data: { url: string } }>(
             `/contracts/${contract.id}/document`,
           );
-          window.open(res.data.data.url, '_blank');
+          const token = localStorage.getItem('access_token');
+          const fileRes = await fetch(res.data.data.url, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          });
+          if (!fileRes.ok) throw new Error('download failed');
+          const blob = await fileRes.blob();
+          const objectUrl = URL.createObjectURL(blob);
+          window.open(objectUrl, '_blank');
+          setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+          queryClient.invalidateQueries({ queryKey: ['contract-documents', contract.id] });
         } catch (error) {
           showError(error, 'Ошибка скачивания');
         }
@@ -531,6 +541,8 @@ export default function ContractDetailPage() {
           {tab === 'events' && <ContractTimeline contractId={contract.id} />}
         </div>
       </div>
+
+      <AttachmentsSection parentType="contract" parentId={contract.id} />
 
       <PaymentModal
         isOpen={paymentOpen}

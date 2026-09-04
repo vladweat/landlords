@@ -25,6 +25,8 @@ services:
       dockerfile: backend/Dockerfile
     # ports:
     #   - "8000:8000"
+    volumes:
+      - ./storage/documents:/app/storage/documents
     env_file:
       - backend/.env
     depends_on:

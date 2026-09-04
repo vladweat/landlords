@@ -178,13 +178,19 @@ class ReminderEntity:
     
 @dataclass
 class DocumentEntity:
-    """Сохранённый документ."""
+    """Сохранённый документ или вложение."""
 
     id: UUID
     account_id: UUID
-    contract_id: UUID
     filename: str
     file_path: str
+    contract_id: UUID | None = None
+    property_id: UUID | None = None
+    title: str | None = None
+    category: str = "other"
+    mime_type: str = "application/pdf"
+    size_bytes: int | None = None
+    source: str = "generated"
     created_at: datetime = field(default_factory=_utc_now)
 
 
