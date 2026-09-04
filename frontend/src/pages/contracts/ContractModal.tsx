@@ -155,6 +155,7 @@ export function ContractModal({ isOpen, onClose, contract }: ContractModalProps)
                 </div>
                 <Input label="День платежа (1–28)" type="number" min={1} max={28} error={errors.payment_day?.message} {...register('payment_day', { valueAsNumber: true })} />
                 <Input label="Депозит" type="number" placeholder="Необязательно" error={errors.deposit_amount?.message} {...register('deposit_amount')} />
+                <p className="text-xs text-gray-500 -mt-2">Не входит в кассу аренды / ledger — только в договоре</p>
                 <Input label="Дата начала" type="date" error={errors.start_date?.message} {...register('start_date')} />
                 <Input label="Дата окончания" type="date" error={errors.end_date?.message} {...register('end_date')} />
                 <label className="flex items-center gap-2"><input type="checkbox" {...register('auto_generate_charges')} className="rounded border-gray-300" /><span className="text-sm text-gray-700">Авто-начисления</span></label>

@@ -22,6 +22,7 @@ export interface PropertyOverviewItem {
   annual_income?: string;
   annual_expenses?: string;
   annual_profit?: string;
+  income_is_forecast?: boolean;
   days_until_contract_end: number | null;
 }
 

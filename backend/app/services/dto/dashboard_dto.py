@@ -1,7 +1,8 @@
 """DTO для дашборда и ledger."""
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
@@ -17,6 +18,8 @@ class LedgerLineDTO(BaseModel):
     amount: Decimal
     balance: Decimal
     reminder_status: dict | None = None
+    source_id: UUID | None = None
+    created_at: datetime | None = None
 
 
 class LedgerDTO(BaseModel):

@@ -73,6 +73,7 @@ class DashboardService:
                 tenant_name = tenant.full_name if tenant else None
 
             annual_income = Decimal("0")
+            income_is_forecast = False
             if active_contract:
                 payments = self.payment_repo.list_by_contract(active_contract.id, account_id)
                 year_ago = today - timedelta(days=365)
@@ -81,6 +82,7 @@ class DashboardService:
                         annual_income += payment.amount
                 if annual_income == 0:
                     annual_income = active_contract.rent_amount * 12
+                    income_is_forecast = True
 
             annual_expenses = Decimal("0")
             if self.expense_repo:
@@ -112,6 +114,7 @@ class DashboardService:
                 "annual_income": str(annual_income),
                 "annual_expenses": str(annual_expenses),
                 "annual_profit": str(annual_profit),
+                "income_is_forecast": income_is_forecast,
                 "days_until_contract_end": days_until_end,
                 "has_active_contract": active_contract is not None,
             })

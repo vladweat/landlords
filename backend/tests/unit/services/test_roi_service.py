@@ -104,7 +104,7 @@ class TestCalculateRoi:
         assert result["annual_expenses"] == Decimal("120000")
         assert result["annual_profit"] == Decimal("480000")
         assert result["roi"] == 9.6  # 480000/5000000*100
-
+        assert result["income_is_forecast"] is True
 
 class TestCalculatePortfolioRoi:
     def test_empty_portfolio(self, service):

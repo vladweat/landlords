@@ -48,8 +48,10 @@ class TestCreateContract:
         assert result.rent_amount == Decimal("50000")
         assert result.status == "draft"
 
-    def test_create_conflict_active_contract(self, contract_service, mock_contract_repo):
-        """Конфликт: уже есть активный контракт на объект."""
+    def test_create_draft_allowed_with_active_contract(
+        self, contract_service, mock_contract_repo
+    ):
+        """Draft можно создать даже если на объекте уже есть active/overdue."""
         account_id = uuid4()
         property_id = uuid4()
         start = date.today() + timedelta(days=30)
@@ -60,6 +62,11 @@ class TestCreateContract:
             start_date=start, end_date=end, rent_amount=Decimal("50000"),
             currency="RUB", payment_day=5, status="active",
         )
+        mock_contract_repo.create.return_value = ContractEntity(
+            id=uuid4(), account_id=account_id, property_id=property_id, tenant_id=uuid4(),
+            start_date=start, end_date=end, rent_amount=Decimal("50000"),
+            currency="RUB", payment_day=5, status="draft",
+        )
 
         dto = ContractCreateDTO(
             property_id=property_id, tenant_id=uuid4(),
@@ -67,8 +74,10 @@ class TestCreateContract:
             rent_amount=Decimal("50000"), payment_day=5,
         )
 
-        with pytest.raises(ConflictError, match="already has an active contract"):
-            contract_service.create_contract(account_id, dto)
+        result = contract_service.create_contract(account_id, dto)
+        assert result.status == "draft"
+        mock_contract_repo.create.assert_called_once()
+        mock_contract_repo.get_active_by_property.assert_not_called()
 
     def test_create_invalid_dates(self, contract_service, mock_contract_repo):
         """Ошибка: start_date не раньше end_date."""
@@ -132,7 +141,7 @@ class TestUpdateContract:
         # Мокаем charge_repo
         contract_service.charge_repo = Mock()
 
-        with patch("worker.celery_app.send_task") as mock_task:
+        with patch("app.celery_app.celery_app.send_task") as mock_task:
             dto = ContractUpdateDTO(status="active")
             result = contract_service.update_contract(contract_id, account_id, dto)
             assert result.status == "active"

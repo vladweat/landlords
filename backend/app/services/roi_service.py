@@ -27,8 +27,14 @@ class RoiService:
         self.payment_repo = payment_repo
         self.expense_repo = expense_repo
 
-    def calculate_annual_income(self, property_id: UUID, account_id: UUID) -> Decimal:
-        """Годовой доход: реальные платежи за 12 месяцев по всем контрактам объекта."""
+    def calculate_annual_income(
+        self, property_id: UUID, account_id: UUID
+    ) -> tuple[Decimal, bool]:
+        """Годовой доход: реальные платежи за 12 месяцев по всем контрактам объекта.
+
+        Returns:
+            (amount, income_is_forecast) — forecast=True если подставлен rent×12.
+        """
         today = date.today()
         year_ago = today - timedelta(days=365)
 
@@ -45,9 +51,9 @@ class RoiService:
         if total == Decimal("0"):
             active = self.contract_repo.get_active_for_property(property_id, account_id)
             if active:
-                total = active.rent_amount * 12
+                return active.rent_amount * 12, True
 
-        return total
+        return total, False
 
     def calculate_annual_expenses(self, property_id: UUID, account_id: UUID) -> Decimal:
         """Годовые расходы по объекту за последние 12 месяцев."""
@@ -62,6 +68,7 @@ class RoiService:
         annual_income: Decimal,
         annual_expenses: Decimal,
         purchase_price: Decimal | None,
+        income_is_forecast: bool = False,
     ) -> dict:
         """Собрать ответ ROI: прибыль = доход − расход."""
         annual_profit = annual_income - annual_expenses
@@ -72,6 +79,7 @@ class RoiService:
                 "annual_profit": annual_profit,
                 "roi": None,
                 "payback_years": None,
+                "income_is_forecast": income_is_forecast,
             }
 
         roi = round(float(annual_profit / purchase_price * 100), 1)
@@ -86,6 +94,7 @@ class RoiService:
             "annual_profit": annual_profit,
             "roi": roi,
             "payback_years": payback,
+            "income_is_forecast": income_is_forecast,
         }
 
     def calculate_roi(self, property_id: UUID, account_id: UUID) -> dict:
@@ -98,11 +107,16 @@ class RoiService:
                 "annual_profit": Decimal("0"),
                 "roi": None,
                 "payback_years": None,
+                "income_is_forecast": False,
             }
 
-        annual_income = self.calculate_annual_income(property_id, account_id)
+        annual_income, income_is_forecast = self.calculate_annual_income(
+            property_id, account_id
+        )
         annual_expenses = self.calculate_annual_expenses(property_id, account_id)
-        return self._roi_payload(annual_income, annual_expenses, prop.purchase_price)
+        return self._roi_payload(
+            annual_income, annual_expenses, prop.purchase_price, income_is_forecast
+        )
 
     def calculate_portfolio_roi(self, account_id: UUID) -> dict:
         """Средневзвешенный ROI по портфелю (по чистой прибыли)."""
@@ -113,7 +127,7 @@ class RoiService:
 
         for prop in properties.items:
             if prop.purchase_price and prop.purchase_price > 0:
-                income = self.calculate_annual_income(prop.id, account_id)
+                income, _ = self.calculate_annual_income(prop.id, account_id)
                 expenses = self.calculate_annual_expenses(prop.id, account_id)
                 total_profit += income - expenses
                 total_price += prop.purchase_price
@@ -158,12 +172,16 @@ class RoiService:
                         if p.contract_id == contract_id and p.date_paid >= year_ago:
                             total += p.amount
 
+            income_is_forecast = False
             if total == 0:
                 active = self.contract_repo.get_active_for_property(prop_id, account_id)
                 if active:
                     total = active.rent_amount * 12
+                    income_is_forecast = True
 
             annual_expenses = expenses_by_property.get(prop_id, Decimal("0"))
-            result[prop_id] = self._roi_payload(total, annual_expenses, prop.purchase_price)
+            result[prop_id] = self._roi_payload(
+                total, annual_expenses, prop.purchase_price, income_is_forecast
+            )
 
         return result

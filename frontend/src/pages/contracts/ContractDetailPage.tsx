@@ -10,6 +10,7 @@ import {
   Play,
   RefreshCw,
   Wallet,
+  CalendarPlus,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { showError } from '@/shared/lib/toast';
@@ -124,6 +125,16 @@ export default function ContractDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['contract-ledger', id] });
       setActivateOpen(false);
       toast.success('Договор активирован');
+      if (contract?.auto_generate_charges) {
+        toast.message('Начисления создаются в фоне…');
+        const delays = [800, 2000, 4000];
+        delays.forEach((ms) => {
+          setTimeout(() => {
+            queryClient.invalidateQueries({ queryKey: ['contract-charges', id] });
+            queryClient.invalidateQueries({ queryKey: ['contract-ledger', id] });
+          }, ms);
+        });
+      }
     },
     onError: (error) => showError(error, 'Не удалось активировать'),
   });
@@ -132,10 +143,13 @@ export default function ContractDetailPage() {
     mutationFn: () => contractsApi.generateCharges(id!),
     onSuccess: () => {
       toast.success('Генерация начислений запущена');
-      setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ['contract-charges', id] });
-        queryClient.invalidateQueries({ queryKey: ['contract-ledger', id] });
-      }, 1500);
+      const delays = [800, 2000, 4000];
+      delays.forEach((ms) => {
+        setTimeout(() => {
+          queryClient.invalidateQueries({ queryKey: ['contract-charges', id] });
+          queryClient.invalidateQueries({ queryKey: ['contract-ledger', id] });
+        }, ms);
+      });
     },
     onError: (error) => showError(error, 'Не удалось запустить генерацию'),
   });
@@ -215,6 +229,13 @@ export default function ContractDetailPage() {
   const menuItems = [
     ...(contract.status === 'draft'
       ? [{ label: 'Активировать', icon: <Play className="h-4 w-4" />, onClick: () => setActivateOpen(true) }]
+      : []),
+    ...((contract.status === 'active' || contract.status === 'overdue') && chargeList.length === 0
+      ? [{
+          label: generateMutation.isPending ? 'Генерация…' : 'Сгенерировать начисления',
+          icon: <CalendarPlus className="h-4 w-4" />,
+          onClick: () => generateMutation.mutate(),
+        }]
       : []),
     ...(canRenew
       ? [{ label: 'Продлить', icon: <RefreshCw className="h-4 w-4" />, onClick: () => setRenewOpen(true) }]

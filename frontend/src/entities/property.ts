@@ -11,6 +11,7 @@ export interface ROIData {
   annual_profit: string;
   roi: number | null;
   payback_years: number | null;
+  income_is_forecast?: boolean;
 }
 
 export interface Property {

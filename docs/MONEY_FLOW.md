@@ -3,7 +3,7 @@
 Аудит создания договоров и движения денег (начисления → платежи → ledger → дашборд / ROI).  
 Сентябрь 2026.
 
-Связанные документы: [ROADMAP.md](./ROADMAP.md), [backend/TODO.md](./backend/TODO.md), [frontend/TODO.md](./frontend/TODO.md).
+Связанные документы: [ROADMAP.md](./ROADMAP.md), [backend/TODO.md](../backend/TODO.md), [frontend/TODO.md](../frontend/TODO.md), [use cases договоров и платежей](./use-cases-contracts-payments.md).
 
 Отмечай выполненное: `- [ ]` → `- [x]`.
 
@@ -58,7 +58,7 @@
 | Ledger (касса) | OK |
 | Аванс → покрытие следующих начислений | OK (allocate FIFO) |
 | Статусы charges / дашборд outstanding | OK (остатки − аванс; partial+due → overdue) |
-| Депозит в учёте | Нет (только метаданные) |
+| Депозит в учёте | Нет (только метаданные; вне учёта аренды — явно в UI) |
 
 ---
 
@@ -96,23 +96,23 @@
 
 ### P2 — создание договора и расписание
 
-- [ ] **Prorate** короткого первого/последнего периода в `generate_charge_schedule` (функция `prorate_charge_amount` уже есть для terminate).
+- [x] **Prorate** короткого первого/последнего периода в `generate_charge_schedule` (функция `prorate_charge_amount` уже есть для terminate).
   - `backend/app/domain/rules.py`
 
-- [ ] **`due_date` vs `period_start`** — при старте договора mid-month и раннем `payment_day` due может быть раньше начала периода → ложная просрочка сразу после activate.
+- [x] **`due_date` vs `period_start`** — при старте договора mid-month и раннем `payment_day` due может быть раньше начала периода → ложная просрочка сразу после activate.
 
-- [ ] **UI: ручная генерация charges** — кнопка на детальной странице / после activate (API `generateCharges` уже есть, UI не вызывает); либо toast/poll после активации, пока Celery не создал строки.
+- [x] **UI: ручная генерация charges** — кнопка на детальной странице / после activate (API `generateCharges` уже есть, UI не вызывает); либо toast/poll после активации, пока Celery не создал строки.
 
-- [ ] **Депозит** — решить модель: отдельный charge/payment, или явно «вне учёта аренды» в UI/доках.
+- [x] **Депозит** — вне учёта аренды: поле договора + явная пометка в UI/доках (не charge/payment).
 
 ### P3 — края и качество
 
-- [ ] Terminate: политика для future charges с уже привязанными платежами (`plan_charges_on_terminate`).
-- [ ] Ledger: стабильный sort `(date, type_order, created_at)` для нескольких платежей в один день.
-- [ ] Reminder на ledger-строке: не матчить только по `due_date` при нескольких charges в день.
-- [ ] ROI: не подставлять молча `rent × 12`, если платежей за год 0 — либо пометить как прогноз.
-- [ ] Create: нельзя создать даже draft, пока у объекта active/overdue — мешает готовящемуся следующему договору.
-- [ ] Тест `test_activate_generates_charges`: патч пути Celery должен совпадать с `app.celery_app` (сейчас может не ловить реальный вызов).
+- [x] Terminate: политика для future charges с уже привязанными платежами (`plan_charges_on_terminate`) — unlink → аванс, charge удалить.
+- [x] Ledger: стабильный sort `(date, type_order, created_at)` для нескольких платежей в один день.
+- [x] Reminder на ledger-строке: не матчить только по `due_date` при нескольких charges в день.
+- [x] ROI: не подставлять молча `rent × 12`, если платежей за год 0 — помечать как прогноз (`income_is_forecast`).
+- [x] Create: draft можно создать при active/overdue на объекте; конфликт только при activate/renew.
+- [x] Тест `test_activate_generates_charges`: патч пути Celery совпадает с `app.celery_app`.
 
 ---
 
