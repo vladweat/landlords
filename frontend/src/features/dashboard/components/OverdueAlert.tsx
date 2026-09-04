@@ -31,7 +31,7 @@ export function OverdueAlert({ count, amount }: OverdueAlertProps) {
           </div>
         </div>
         <div className="flex items-center gap-2 ml-4 flex-shrink-0">
-          <Link to="/contracts?status=overdue" className="flex items-center gap-1 text-sm font-medium text-amber-700 hover:text-amber-900 transition-colors">
+          <Link to="/calendar" className="flex items-center gap-1 text-sm font-medium text-amber-700 hover:text-amber-900 transition-colors">
             Просмотреть <ArrowRight className="h-4 w-4" />
           </Link>
           <button

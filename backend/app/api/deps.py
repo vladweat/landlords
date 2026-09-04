@@ -24,6 +24,7 @@ from app.db.repositories.user_repo import UserRepository
 
 # Сервисы
 from app.services.audit_log_service import AuditService
+from app.services.calendar_service import CalendarService
 from app.services.contract_event_service import ContractEventService
 from app.services.contract_service import ContractService
 from app.services.credit_score_service import CreditScoreService
@@ -202,6 +203,17 @@ def get_forecast_service(
     property_repo: PropertyRepository = Depends(get_property_repo),
 ) -> ForecastService:
     return ForecastService(contract_repo, charge_repo, property_repo)
+
+def get_calendar_service(
+    charge_repo: RentChargeRepository = Depends(get_rent_charge_repo),
+    payment_repo: PaymentRepository = Depends(get_payment_repo),
+    contract_repo: ContractRepository = Depends(get_contract_repo),
+    property_repo: PropertyRepository = Depends(get_property_repo),
+    tenant_repo: TenantRepository = Depends(get_tenant_repo),
+) -> CalendarService:
+    return CalendarService(
+        charge_repo, payment_repo, contract_repo, property_repo, tenant_repo
+    )
 
 def get_contract_event_service(
     event_repo: ContractEventRepository = Depends(get_contract_event_repo),

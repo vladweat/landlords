@@ -116,6 +116,7 @@ def create_app() -> FastAPI:
     from app.api.v1.routes.payments import router as payments_router
     from app.api.v1.routes.expenses import router as expenses_router
     from app.api.v1.routes.dashboard import router as dashboard_router
+    from app.api.v1.routes.calendar import router as calendar_router
     from app.api.v1.routes.reminders import router as reminders_router
     from app.api.v1.routes.feedback import router as feedback_router
 
@@ -127,6 +128,7 @@ def create_app() -> FastAPI:
     app.include_router(payments_router)
     app.include_router(expenses_router)
     app.include_router(dashboard_router)
+    app.include_router(calendar_router)
     app.include_router(reminders_router)
     app.include_router(feedback_router)
 
