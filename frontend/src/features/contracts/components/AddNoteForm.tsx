@@ -18,6 +18,7 @@ export function AddNoteForm({ contractId }: AddNoteFormProps) {
     mutationFn: () => contractsApi.createNote(contractId, text.slice(0, 50), text),
     onSuccess: () => {
       setText('');
+      setFocused(false);
       queryClient.invalidateQueries({ queryKey: ['contract-events', contractId] });
     },
     onError: (error) => showError(error, 'Ошибка добавления'),
@@ -26,26 +27,37 @@ export function AddNoteForm({ contractId }: AddNoteFormProps) {
   useEffect(() => {
     if (textareaRef.current && focused) {
       textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
     }
   }, [text, focused]);
 
-  const rows = focused ? 4 : 2;
-
   return (
-    <div className="mb-4">
+    <div className="rounded-xl border border-gray-100 bg-gray-50/60 p-3">
       <textarea
         ref={textareaRef}
-        rows={rows}
+        rows={focused ? 3 : 2}
         value={text}
         onChange={(e) => setText(e.target.value)}
         onFocus={() => setFocused(true)}
-        onBlur={() => { if (!text) setFocused(false); }}
-        placeholder="Добавить заметку..."
-        className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        onBlur={() => {
+          if (!text) setFocused(false);
+        }}
+        placeholder="Добавить заметку…"
+        className="w-full resize-none rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
       />
       {focused && (
-        <div className="flex justify-end mt-2">
+        <div className="mt-2 flex justify-end gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            onClick={() => {
+              setText('');
+              setFocused(false);
+            }}
+          >
+            Отмена
+          </Button>
           <Button
             size="sm"
             onClick={() => mutation.mutate()}

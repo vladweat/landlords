@@ -49,6 +49,7 @@ def mock_payment_repo():
                      date_paid=date.today() - timedelta(days=5),
                      amount=Decimal("30000"), currency="RUB", method="bank"),
     ]
+    repo.get_total_paid_for_charge.return_value = Decimal("0")
     return repo
 
 

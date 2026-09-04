@@ -48,8 +48,11 @@ class LedgerService:
         overdue_days = 0
         today = datetime.now(timezone.utc).date()
         for charge in sorted(charges, key=lambda c: c.due_date):
-            if charge.status != "paid" and charge.due_date < today:
+            paid = self.payment_repo.get_total_paid_for_charge(charge.id, account_id)
+            remaining = charge.amount - paid
+            if remaining > 0 and charge.due_date < today:
                 overdue_days = (today - charge.due_date).days
+                break
 
         # Обогащаем строки ledger reminder_status
         for charge in charges:
