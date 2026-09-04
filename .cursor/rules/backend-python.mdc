@@ -42,7 +42,7 @@ def get_contract_service(repo=Depends(get_contract_repo)) -> ContractService:
 ## API
 
 - Префикс роутеров: `/v1/{resource}` (nginx проксирует `/api/v1/...`).
-- Авторизация: `Depends(get_current_account_id)` — JWT Bearer token.
+- Авторизация: `Depends(get_current_account_id)` — JWT Bearer + проверка membership; mutate — `require_permissions(...)`.
 - Пагинация: `PaginationParams` → `{ items, total, page, per_page, pages }`.
 - Celery-задачи: `app/tasks/`, воркер — `backend/worker.py`.
 

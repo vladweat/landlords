@@ -2,18 +2,25 @@
 
 from uuid import UUID, uuid4
 
-from app.core.exceptions import ConflictError, NotFoundError, UnauthorizedError, ValidationError
+from app.core.exceptions import (
+    ConflictError,
+    ForbiddenError,
+    NotFoundError,
+    UnauthorizedError,
+    ValidationError,
+)
 from app.core.security import create_access_token, hash_password, verify_password, create_reset_token
 from loguru import logger
 from pathlib import Path
 import time
 import smtplib
 from email.message import EmailMessage
-from app.db.repositories.account_repo import AccountRepository
-from app.domain.entities import AccountEntity, UserEntity
-from app.domain.interfaces import IUserRepository
-from app.services.dto.account_dto import AccountCreateDTO, AccountDTO
+from app.domain.entities import AccountEntity, MembershipEntity, UserEntity
+from app.domain.interfaces import IAccountRepository, IMembershipRepository, IUserRepository
+from app.domain.permissions import Role
+from app.services.dto.account_dto import AccountDTO
 from app.services.dto.user_dto import UserCreateDTO, UserDTO
+
 
 class UserService:
     """Сервис управления пользователями и аутентификацией."""
@@ -21,36 +28,45 @@ class UserService:
     def __init__(
         self,
         user_repo: IUserRepository,
-        account_repo: AccountRepository,
+        account_repo: IAccountRepository,
+        membership_repo: IMembershipRepository,
     ) -> None:
         self.user_repo = user_repo
         self.account_repo = account_repo
+        self.membership_repo = membership_repo
 
     def register(self, dto: UserCreateDTO) -> tuple[UserDTO, AccountDTO, str]:
         """Зарегистрировать пользователя и создать аккаунт."""
-        # Проверяем уникальность email
         existing = self.user_repo.get_by_email(dto.email)
         if existing:
             raise ConflictError(f"User with email '{dto.email}' already exists")
 
-        # Создаём пользователя
-        user_entity = UserEntity(
-            id=uuid4(),
-            email=dto.email,
-            password_hash=hash_password(dto.password),
-            full_name=dto.full_name,
+        created_user = self.user_repo.create(
+            UserEntity(
+                id=uuid4(),
+                email=dto.email,
+                password_hash=hash_password(dto.password),
+                full_name=dto.full_name,
+            )
         )
-        created_user = self.user_repo.create(user_entity)
 
-        # Создаём аккаунт
-        account_entity = AccountEntity(
-            id=uuid4(),
-            name=f"{dto.full_name}'s Account",
-            owner_id=created_user.id,
+        created_account = self.account_repo.create(
+            AccountEntity(
+                id=uuid4(),
+                name=f"{dto.full_name}'s Account",
+                owner_id=created_user.id,
+            )
         )
-        created_account = self.account_repo.create(account_entity)
 
-        # Генерируем токен
+        self.membership_repo.create(
+            MembershipEntity(
+                id=uuid4(),
+                account_id=created_account.id,
+                user_id=created_user.id,
+                role=Role.OWNER.value,
+            )
+        )
+
         token = create_access_token(
             user_id=str(created_user.id),
             account_id=str(created_account.id),
@@ -68,39 +84,51 @@ class UserService:
         if not user:
             raise UnauthorizedError("Invalid email or password")
 
+        if not user.is_active:
+            raise UnauthorizedError("User is inactive")
+
         if not verify_password(password, user.password_hash):
             raise UnauthorizedError("Invalid email or password")
 
-        account_entity = self.account_repo.get_by_owner_id(user.id)
-        if not account_entity:
+        membership = self.membership_repo.get_by_user_id(user.id)
+        if not membership or not membership.is_active:
+            raise UnauthorizedError("No active account membership")
+
+        account = self.account_repo.get_by_id(membership.account_id)
+        if not account:
             raise NotFoundError("Account not found")
 
         token = create_access_token(
             user_id=str(user.id),
-            account_id=str(account_entity.id),  # ← было account.id, account — это функция
+            account_id=str(account.id),
         )
 
         return (
             UserDTO.model_validate(user),
-            AccountDTO.model_validate(account_entity),
+            AccountDTO.model_validate(account),
             token,
         )
 
-    def get_me(self, user_id: UUID) -> tuple[UserDTO, AccountDTO]:
-        """Получить текущего пользователя и его аккаунт."""
+    def get_me(self, user_id: UUID) -> tuple[UserDTO, AccountDTO, str]:
+        """Получить текущего пользователя, аккаунт и роль."""
         user = self.user_repo.get_by_id(user_id)
         if not user:
             raise NotFoundError(f"User with id={user_id} not found")
 
-        account = self.account_repo.get_by_owner_id(user_id)
+        membership = self.membership_repo.get_by_user_id(user_id)
+        if not membership or not membership.is_active:
+            raise NotFoundError("Account membership not found")
+
+        account = self.account_repo.get_by_id(membership.account_id)
         if not account:
             raise NotFoundError("Account not found")
 
         return (
             UserDTO.model_validate(user),
             AccountDTO.model_validate(account),
+            membership.role,
         )
-        
+
     def get_user_by_email(self, email: str) -> UserDTO | None:
         """Получить пользователя по email (для публичного использования)."""
         user = self.user_repo.get_by_email(email)
@@ -113,12 +141,10 @@ class UserService:
         """
         user = self.user_repo.get_by_email(email)
         if not user:
-            # Ничего не говорим во внешнем API — резолвим silently
             return
 
         token = create_reset_token(str(user.id))
 
-        # Формируем ссылку для фронтенда
         try:
             from app.core.config import settings
 
@@ -130,12 +156,10 @@ class UserService:
                 msg["Subject"] = "Сброс пароля"
                 msg["From"] = settings.SMTP_FROM or "no-reply@example.com"
                 msg["To"] = user.email
-                # В теле — ссылка. В логах НЕ пишем сам токен/ссылку.
                 msg.set_content(f"Чтобы сбросить пароль, перейдите по ссылке: {reset_link}")
                 try:
                     smtp_port = settings.SMTP_PORT or 25
                     with smtplib.SMTP(settings.SMTP_HOST, smtp_port) as smtp:
-                        # Попробуем поднять TLS если указаны креды
                         if settings.SMTP_USER and settings.SMTP_PASSWORD:
                             try:
                                 smtp.starttls()
@@ -147,7 +171,6 @@ class UserService:
                 except Exception:
                     logger.exception("Failed to send password reset email")
             else:
-                # Для разработки сохраняем ссылку в файл в storage — безопаснее, чем логирование токена.
                 out_dir = Path("storage/password_resets")
                 out_dir.mkdir(parents=True, exist_ok=True)
                 fname = out_dir / f"{user.email}-{int(time.time())}.txt"
@@ -155,7 +178,6 @@ class UserService:
                 logger.info("Password reset link written to storage/password_resets (SMTP unset).")
         except Exception:
             logger.exception("Error while preparing password reset")
-
 
     def reset_password(self, user_id: UUID, new_password: str) -> None:
         """Сбросить пароль пользователя."""
@@ -166,7 +188,7 @@ class UserService:
             raise ValidationError("Пароль должен быть не менее 6 символов")
         user.password_hash = hash_password(new_password)
         self.user_repo.update(user)
-        
+
     def update_profile(
         self,
         user_id: UUID,
@@ -184,7 +206,6 @@ class UserService:
         self.user_repo.update(user)
         return UserDTO.model_validate(user)
 
-
     def change_password(self, user_id: UUID, current_password: str, new_password: str) -> None:
         """Сменить пароль."""
         user = self.user_repo.get_by_id(user_id)
@@ -195,9 +216,14 @@ class UserService:
         user.password_hash = hash_password(new_password)
         self.user_repo.update(user)
 
-
     def delete_account(self, user_id: UUID, confirmation: str) -> None:
-        """Удалить аккаунт."""
+        """Удалить аккаунт (только владелец)."""
         if confirmation != "DELETE":
             raise ValidationError("Для подтверждения введите DELETE")
+
+        membership = self.membership_repo.get_by_user_id(user_id)
+        if not membership or membership.role != Role.OWNER.value:
+            raise ForbiddenError("Только владелец может удалить аккаунт")
+
+        # CASCADE: user → account (owner_id) → memberships + business data
         self.user_repo.delete(user_id)

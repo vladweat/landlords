@@ -4,7 +4,9 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends
 from app.api.mappers import to_dto
-from app.api.deps import get_current_account_id, get_payment_service
+from app.api.deps import get_current_account_id, get_payment_service, require_permissions
+from app.domain.entities import MembershipEntity
+from app.domain.permissions import Permission
 from app.api.v1.schemas.payment_schema import (
     PaymentCreateData,
     PaymentCreateRequest,
@@ -53,6 +55,7 @@ def create_payment(
     body: PaymentCreateRequest,
     account_id: UUID = Depends(get_current_account_id),
     service: PaymentService = Depends(get_payment_service),
+    _: MembershipEntity = Depends(require_permissions(Permission.WRITE_PAYMENTS)),
 ) -> dict:
     """Создать платёж (при автораспределении — все split-строки)."""
     dto = to_dto(body, PaymentCreateDTO)
@@ -72,6 +75,7 @@ def update_payment(
     body: PaymentUpdateRequest,
     account_id: UUID = Depends(get_current_account_id),
     service: PaymentService = Depends(get_payment_service),
+    _: MembershipEntity = Depends(require_permissions(Permission.WRITE_PAYMENTS)),
 ) -> dict:
     """Обновить платёж."""
     # dto = PaymentUpdateDTO(
@@ -94,6 +98,7 @@ def delete_payment(
     payment_id: UUID,
     account_id: UUID = Depends(get_current_account_id),
     service: PaymentService = Depends(get_payment_service),
+    _: MembershipEntity = Depends(require_permissions(Permission.WRITE_PAYMENTS)),
 ) -> None:
     """Удалить платёж."""
     service.delete_payment(payment_id, account_id)

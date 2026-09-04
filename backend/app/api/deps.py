@@ -5,8 +5,10 @@ from uuid import UUID
 from fastapi import Depends, Header
 from sqlalchemy.orm import Session
 
-from app.core.exceptions import UnauthorizedError
+from app.core.exceptions import ForbiddenError, UnauthorizedError
 from app.core.security import decode_access_token
+from app.domain.entities import MembershipEntity
+from app.domain.permissions import Permission, has_permission
 
 # Репозитории
 from app.db.repositories.account_repo import AccountRepository
@@ -14,6 +16,7 @@ from app.db.repositories.contract_event_repo import ContractEventRepository
 from app.db.repositories.contract_repo import ContractRepository
 from app.db.repositories.document_repo import DocumentRepository
 from app.db.repositories.feedback_repo import FeedbackRepository
+from app.db.repositories.membership_repo import MembershipRepository
 from app.db.repositories.payment_repo import PaymentRepository
 from app.db.repositories.property_expense_repo import PropertyExpenseRepository
 from app.db.repositories.property_repo import PropertyRepository
@@ -23,6 +26,7 @@ from app.db.repositories.tenant_repo import TenantRepository
 from app.db.repositories.user_repo import UserRepository
 
 # Сервисы
+from app.services.account_service import AccountService
 from app.services.audit_log_service import AuditService
 from app.services.calendar_service import CalendarService
 from app.services.contract_event_service import ContractEventService
@@ -53,6 +57,9 @@ def get_user_repo(session: Session = Depends(get_db_session)) -> UserRepository:
 
 def get_account_repo(session: Session = Depends(get_db_session)) -> AccountRepository:
     return AccountRepository(session)
+
+def get_membership_repo(session: Session = Depends(get_db_session)) -> MembershipRepository:
+    return MembershipRepository(session)
 
 def get_property_repo(session: Session = Depends(get_db_session)) -> PropertyRepository:
     return PropertyRepository(session)
@@ -95,8 +102,16 @@ def get_audit_service(session: Session = Depends(get_db_session)) -> AuditServic
 def get_user_service(
     user_repo: UserRepository = Depends(get_user_repo),
     account_repo: AccountRepository = Depends(get_account_repo),
+    membership_repo: MembershipRepository = Depends(get_membership_repo),
 ) -> UserService:
-    return UserService(user_repo, account_repo)
+    return UserService(user_repo, account_repo, membership_repo)
+
+def get_account_service(
+    account_repo: AccountRepository = Depends(get_account_repo),
+    membership_repo: MembershipRepository = Depends(get_membership_repo),
+    user_repo: UserRepository = Depends(get_user_repo),
+) -> AccountService:
+    return AccountService(account_repo, membership_repo, user_repo)
 
 def get_property_service(
     repo: PropertyRepository = Depends(get_property_repo),
@@ -249,11 +264,53 @@ def _decode_token(authorization: str) -> dict:
         raise UnauthorizedError("Invalid token") from e
 
 
-def get_current_user_id(authorization: str = Header(...)) -> UUID:
-    """Получить ID текущего пользователя из JWT-токена."""
-    return UUID(_decode_token(authorization)["sub"])
+def get_current_membership(
+    authorization: str = Header(...),
+    membership_repo: MembershipRepository = Depends(get_membership_repo),
+    user_repo: UserRepository = Depends(get_user_repo),
+) -> MembershipEntity:
+    """Проверить JWT и активную membership; role берётся из БД."""
+    payload = _decode_token(authorization)
+    try:
+        user_id = UUID(payload["sub"])
+        account_id = UUID(payload["account_id"])
+    except (KeyError, ValueError, TypeError) as e:
+        raise UnauthorizedError("Invalid token payload") from e
+
+    user = user_repo.get_by_id(user_id)
+    if not user or not user.is_active:
+        raise UnauthorizedError("User is inactive or not found")
+
+    membership = membership_repo.get_by_user_and_account(user_id, account_id)
+    if not membership or not membership.is_active:
+        raise UnauthorizedError("No active account membership")
+
+    return membership
 
 
-def get_current_account_id(authorization: str = Header(...)) -> UUID:
-    """Получить ID аккаунта из JWT-токена."""
-    return UUID(_decode_token(authorization)["account_id"])
+def get_current_user_id(
+    membership: MembershipEntity = Depends(get_current_membership),
+) -> UUID:
+    """Получить ID текущего пользователя из проверенной membership."""
+    return membership.user_id
+
+
+def get_current_account_id(
+    membership: MembershipEntity = Depends(get_current_membership),
+) -> UUID:
+    """Получить ID аккаунта из проверенной membership."""
+    return membership.account_id
+
+
+def require_permissions(*permissions: Permission):
+    """Dependency factory: проверить права текущей роли."""
+
+    def _checker(
+        membership: MembershipEntity = Depends(get_current_membership),
+    ) -> MembershipEntity:
+        for perm in permissions:
+            if not has_permission(membership.role, perm):
+                raise ForbiddenError("Недостаточно прав для этого действия")
+        return membership
+
+    return _checker

@@ -15,6 +15,7 @@ import { Card } from '@/shared/ui/Card';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { TableSkeleton } from '@/shared/ui/Skeleton';
+import { useCan } from '@/features/auth/permissions';
 
 interface AttachmentsSectionProps {
   parentType: 'contract' | 'property';
@@ -30,6 +31,7 @@ function formatSize(bytes: number | null): string {
 
 export function AttachmentsSection({ parentType, parentId }: AttachmentsSectionProps) {
   const queryClient = useQueryClient();
+  const canWrite = useCan('write_documents');
   const fileRef = useRef<HTMLInputElement>(null);
   const [category, setCategory] = useState<UploadDocumentCategory>('other');
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -93,37 +95,39 @@ export function AttachmentsSection({ parentType, parentId }: AttachmentsSectionP
     <Card>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-3">
         <h2 className="text-lg font-medium text-gray-800">Документы</h2>
-        <div className="flex flex-wrap items-center gap-2">
-          <select
-            value={category}
-            onChange={(e) => setCategory(e.target.value as UploadDocumentCategory)}
-            className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {UPLOAD_CATEGORY_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-          <input
-            ref={fileRef}
-            type="file"
-            accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp"
-            className="hidden"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) uploadMutation.mutate(file);
-            }}
-          />
-          <Button
-            size="sm"
-            leftIcon={<Plus className="h-4 w-4" />}
-            onClick={() => fileRef.current?.click()}
-            disabled={uploadMutation.isPending}
-          >
-            {uploadMutation.isPending ? 'Загрузка…' : 'Загрузить'}
-          </Button>
-        </div>
+        {canWrite && (
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value as UploadDocumentCategory)}
+              className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {UPLOAD_CATEGORY_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) uploadMutation.mutate(file);
+              }}
+            />
+            <Button
+              size="sm"
+              leftIcon={<Plus className="h-4 w-4" />}
+              onClick={() => fileRef.current?.click()}
+              disabled={uploadMutation.isPending}
+            >
+              {uploadMutation.isPending ? 'Загрузка…' : 'Загрузить'}
+            </Button>
+          </div>
+        )}
       </div>
 
       {isLoading ? (
@@ -177,7 +181,7 @@ export function AttachmentsSection({ parentType, parentId }: AttachmentsSectionP
                       >
                         <Download className="h-4 w-4" />
                       </button>
-                      {doc.source === 'uploaded' && (
+                      {doc.source === 'uploaded' && canWrite && (
                         <button
                           type="button"
                           onClick={() => setDeletingId(doc.id)}

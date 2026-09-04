@@ -5,7 +5,9 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
 
-from app.api.deps import get_current_account_id, get_property_expense_service
+from app.api.deps import get_current_account_id, get_property_expense_service, require_permissions
+from app.domain.entities import MembershipEntity
+from app.domain.permissions import Permission
 from app.api.mappers import to_dto
 from app.api.v1.schemas.property_expense_schema import (
     PropertyExpenseCreateRequest,
@@ -49,6 +51,7 @@ def create_expense(
     body: PropertyExpenseCreateRequest,
     account_id: UUID = Depends(get_current_account_id),
     service: PropertyExpenseService = Depends(get_property_expense_service),
+    _: MembershipEntity = Depends(require_permissions(Permission.WRITE_EXPENSES)),
 ) -> dict:
     """Создать расход."""
     dto = to_dto(body, PropertyExpenseCreateDTO)
@@ -65,6 +68,7 @@ def update_expense(
     body: PropertyExpenseUpdateRequest,
     account_id: UUID = Depends(get_current_account_id),
     service: PropertyExpenseService = Depends(get_property_expense_service),
+    _: MembershipEntity = Depends(require_permissions(Permission.WRITE_EXPENSES)),
 ) -> dict:
     """Обновить расход."""
     dto = to_dto(body, PropertyExpenseUpdateDTO)
@@ -80,6 +84,7 @@ def delete_expense(
     expense_id: UUID,
     account_id: UUID = Depends(get_current_account_id),
     service: PropertyExpenseService = Depends(get_property_expense_service),
+    _: MembershipEntity = Depends(require_permissions(Permission.WRITE_EXPENSES)),
 ) -> None:
     """Удалить расход."""
     service.delete_expense(expense_id, account_id)

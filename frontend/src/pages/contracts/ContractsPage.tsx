@@ -19,6 +19,7 @@ import { RenewContractWizard } from '@/features/contracts/components/RenewContra
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { useHotkeys } from '@/shared/hooks/useHotkeys';
 import { useDebounce } from '@/shared/hooks/useDebounce';
+import { useCan } from '@/features/auth/permissions';
 import { TableSkeleton } from '@/shared/ui/Skeleton';
 import { shortAddress } from '@/shared/lib/address';
 
@@ -33,6 +34,7 @@ const PER_PAGE = 20;
 
 export default function ContractsPage() {
   const queryClient = useQueryClient();
+  const canWrite = useCan('write_contracts');
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const statusFilter = searchParams.get('status') || 'all';
@@ -47,7 +49,7 @@ export default function ContractsPage() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const debouncedSearch = useDebounce(search, 300);
-  useHotkeys({ n: () => { setEditing(null); setIsModalOpen(true); } });
+  useHotkeys(canWrite ? { n: () => { setEditing(null); setIsModalOpen(true); } } : {});
 
   const { data: paginated, isLoading } = useQuery({
     queryKey: ['contracts', page, statusFilter, debouncedSearch],
@@ -81,7 +83,9 @@ export default function ContractsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-gray-900">Договоры</h1>
-        <Button onClick={() => { setEditing(null); setIsModalOpen(true); }} leftIcon={<Plus className="h-4 w-4" />}>Добавить</Button>
+        {canWrite && (
+          <Button onClick={() => { setEditing(null); setIsModalOpen(true); }} leftIcon={<Plus className="h-4 w-4" />}>Добавить</Button>
+        )}
       </div>
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -94,7 +98,7 @@ export default function ContractsPage() {
         ))}
       </div>
       {isLoading ? <TableSkeleton rows={5} cols={5} /> : contracts.length === 0 ? (
-        <EmptyState icon={FileText} title={statusFilter !== 'all' || search ? 'Ничего не найдено' : 'Нет договоров'} description={statusFilter === 'all' && !search ? 'Создайте договор, чтобы начать учёт начислений и платежей' : 'Измените параметры поиска или фильтра'} action={statusFilter === 'all' && !search ? { label: 'Создать договор', onClick: () => { setEditing(null); setIsModalOpen(true); } } : undefined} />
+        <EmptyState icon={FileText} title={statusFilter !== 'all' || search ? 'Ничего не найдено' : 'Нет договоров'} description={statusFilter === 'all' && !search ? 'Создайте договор, чтобы начать учёт начислений и платежей' : 'Измените параметры поиска или фильтра'} action={statusFilter === 'all' && !search && canWrite ? { label: 'Создать договор', onClick: () => { setEditing(null); setIsModalOpen(true); } } : undefined} />
       ) : (
         <div className="hidden sm:block overflow-hidden rounded-xl border border-gray-100 bg-white"><div className="overflow-x-auto"><table className="w-full"><thead><tr className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
           <th className="py-3 px-4 text-left font-medium">Объект</th><th className="py-3 px-4 text-left font-medium">Арендатор</th><th className="py-3 px-4 text-left font-medium">Сумма</th><th className="py-3 px-4 text-left font-medium">Статус</th><th className="py-3 px-4 text-right font-medium w-10"></th>
@@ -106,14 +110,16 @@ export default function ContractsPage() {
             <td className="py-3 px-4 text-sm text-gray-700">{Number(c.rent_amount).toLocaleString('ru-RU')} {c.currency}</td>
             <td className="py-3 px-4"><span className="inline-flex items-center gap-2 text-sm text-gray-700"><span className={`w-2 h-2 rounded-full ${statusConfig[c.status]?.color || 'bg-gray-400'}`} />{statusConfig[c.status]?.label || c.status}</span></td>
             <td className="py-3 px-4 text-right">
-              <ActionMenu items={[
-                ...(c.status === 'draft' ? [{ label: 'Активировать', icon: changingStatus === c.id ? <Spinner/> : <Play className="h-4 w-4" />, onClick: () => setStatusConfirm({id:c.id,status:'active',label:'Активировать'}) }] : []),
-                ...(c.status === 'active' || c.status === 'overdue' ? [{ label: 'Завершить', icon: changingStatus === c.id ? <Spinner/> : <Check className="h-4 w-4" />, onClick: () => setStatusConfirm({id:c.id,status:'ended',label:'Завершить'}) }] : []),
-                ...(c.status === 'active' || c.status === 'overdue' || c.status === 'ended' ? [{ label: 'Продлить', icon: <RefreshCw className="h-4 w-4" />, onClick: () => setRenewing(c) }] : []),
-                ...(c.status === 'draft' || c.status === 'active' || c.status === 'overdue' ? [{ label: 'Расторгнуть', icon: <XCircle className="h-4 w-4" />, onClick: () => setTerminating(c) }] : []),
-                { label: 'Редактировать', icon: <Pencil className="h-4 w-4" />, onClick: () => { setEditing(c); setIsModalOpen(true); } },
-                { label: 'Удалить', icon: <Trash2 className="h-4 w-4" />, danger: true, onClick: () => setDeleting(c) },
-              ]} />
+              {canWrite && (
+                <ActionMenu items={[
+                  ...(c.status === 'draft' ? [{ label: 'Активировать', icon: changingStatus === c.id ? <Spinner/> : <Play className="h-4 w-4" />, onClick: () => setStatusConfirm({id:c.id,status:'active',label:'Активировать'}) }] : []),
+                  ...(c.status === 'active' || c.status === 'overdue' ? [{ label: 'Завершить', icon: changingStatus === c.id ? <Spinner/> : <Check className="h-4 w-4" />, onClick: () => setStatusConfirm({id:c.id,status:'ended',label:'Завершить'}) }] : []),
+                  ...(c.status === 'active' || c.status === 'overdue' || c.status === 'ended' ? [{ label: 'Продлить', icon: <RefreshCw className="h-4 w-4" />, onClick: () => setRenewing(c) }] : []),
+                  ...(c.status === 'draft' || c.status === 'active' || c.status === 'overdue' ? [{ label: 'Расторгнуть', icon: <XCircle className="h-4 w-4" />, onClick: () => setTerminating(c) }] : []),
+                  { label: 'Редактировать', icon: <Pencil className="h-4 w-4" />, onClick: () => { setEditing(c); setIsModalOpen(true); } },
+                  { label: 'Удалить', icon: <Trash2 className="h-4 w-4" />, danger: true, onClick: () => setDeleting(c) },
+                ]} />
+              )}
             </td>
           </motion.tr>
         ))}</AnimatePresence></tbody></table></div></div>

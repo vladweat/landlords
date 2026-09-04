@@ -30,7 +30,19 @@ class AccountEntity:
     base_currency: str = "RUB"
     timezone: str = "Europe/Moscow"
     created_at: datetime = field(default_factory=_utc_now)
-    
+
+
+@dataclass
+class MembershipEntity:
+    """Участник аккаунта (связь user ↔ account с ролью)."""
+
+    id: UUID
+    account_id: UUID
+    user_id: UUID
+    role: str
+    is_active: bool = True
+    created_at: datetime = field(default_factory=_utc_now)
+
 
 from decimal import Decimal
 

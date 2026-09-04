@@ -14,6 +14,7 @@ import { TenantModal } from './TenantModal';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { useDebounce } from '@/shared/hooks/useDebounce';
 import { useHotkeys } from '@/shared/hooks/useHotkeys';
+import { useCan } from '@/features/auth/permissions';
 import { TableSkeleton } from '@/shared/ui/Skeleton';
 import { CreditScoreBadge } from '@/features/tenants/components/CreditScoreBadge';
 import type { CreditScore } from '@/features/tenants/types';
@@ -26,13 +27,14 @@ interface TenantWithScore extends Tenant {
 
 export default function TenantsPage() {
   const queryClient = useQueryClient();
+  const canWrite = useCan('write_tenants');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editing, setEditing] = useState<Tenant | null>(null);
   const [deleting, setDeleting] = useState<Tenant | null>(null);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const debouncedSearch = useDebounce(search, 300);
-  useHotkeys({ n: () => { setEditing(null); setIsModalOpen(true); } });
+  useHotkeys(canWrite ? { n: () => { setEditing(null); setIsModalOpen(true); } } : {});
 
   const { data: paginated, isLoading } = useQuery({
     queryKey: ['tenants', page, debouncedSearch],
@@ -51,13 +53,15 @@ export default function TenantsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-gray-900">Арендаторы</h1>
-        <Button onClick={() => { setEditing(null); setIsModalOpen(true); }} leftIcon={<Plus className="h-4 w-4" />}>Добавить</Button>
+        {canWrite && (
+          <Button onClick={() => { setEditing(null); setIsModalOpen(true); }} leftIcon={<Plus className="h-4 w-4" />}>Добавить</Button>
+        )}
       </div>
       <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
         <input placeholder="Поиск по имени или email..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} className="w-full rounded-lg border border-gray-300 pl-10 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
       </div>
       {isLoading ? <TableSkeleton rows={5} cols={5} /> : tenants.length === 0 ? (
-        <EmptyState icon={Users} title={search ? 'Ничего не найдено' : 'Нет арендаторов'} description={search ? 'Измените параметры поиска' : 'Добавьте арендатора, чтобы создавать контракты'} action={!search ? { label: 'Добавить арендатора', onClick: () => { setEditing(null); setIsModalOpen(true); } } : undefined} />
+        <EmptyState icon={Users} title={search ? 'Ничего не найдено' : 'Нет арендаторов'} description={search ? 'Измените параметры поиска' : 'Добавьте арендатора, чтобы создавать контракты'} action={!search && canWrite ? { label: 'Добавить арендатора', onClick: () => { setEditing(null); setIsModalOpen(true); } } : undefined} />
       ) : (
         <div className="hidden sm:block overflow-hidden rounded-xl border border-gray-100 bg-white">
           <table className="w-full"><thead><tr className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
@@ -70,10 +74,12 @@ export default function TenantsPage() {
               <td className="py-3 px-4 text-sm text-gray-700">{t.phone}</td>
               <td className="py-3 px-4"><CreditScoreBadge score={t.score?.score} /></td>
               <td className="py-3 px-4 text-right">
-                <ActionMenu items={[
-                  { label: 'Редактировать', icon: <Pencil className="h-4 w-4" />, onClick: () => { setEditing(t); setIsModalOpen(true); } },
-                  { label: 'Удалить', icon: <Trash2 className="h-4 w-4" />, danger: true, onClick: () => setDeleting(t) },
-                ]} />
+                {canWrite && (
+                  <ActionMenu items={[
+                    { label: 'Редактировать', icon: <Pencil className="h-4 w-4" />, onClick: () => { setEditing(t); setIsModalOpen(true); } },
+                    { label: 'Удалить', icon: <Trash2 className="h-4 w-4" />, danger: true, onClick: () => setDeleting(t) },
+                  ]} />
+                )}
               </td>
             </motion.tr>
           ))}</AnimatePresence></tbody></table>

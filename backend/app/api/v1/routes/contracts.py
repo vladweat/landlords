@@ -14,6 +14,7 @@ from app.api.deps import (
     get_ledger_service,
     get_payment_service,
     get_pdf_service,
+    require_permissions,
 )
 from app.api.pagination import PaginationParams
 from app.api.v1.schemas.contract_event_schema import ContractEventResponse, CreateNoteRequest
@@ -29,6 +30,8 @@ from app.api.v1.schemas.contract_schema import (
     ContractLedgerResponse,
     LedgerResponse,
 )
+from app.domain.entities import MembershipEntity
+from app.domain.permissions import Permission
 from app.services.contract_event_service import ContractEventService
 from app.services.contract_service import ContractService
 from app.services.document_service import DocumentService, serialize_document
@@ -71,6 +74,7 @@ def create_contract(
     body: ContractCreateRequest,
     account_id: UUID = Depends(get_current_account_id),
     service: ContractService = Depends(get_contract_service),
+    _: MembershipEntity = Depends(require_permissions(Permission.WRITE_CONTRACTS)),
 ) -> dict:
     """Создать контракт."""
     dto = service.create_contract(account_id, body)
@@ -101,6 +105,7 @@ def update_contract(
     account_id: UUID = Depends(get_current_account_id),
     user_id: UUID = Depends(get_current_user_id),
     service: ContractService = Depends(get_contract_service),
+    _: MembershipEntity = Depends(require_permissions(Permission.WRITE_CONTRACTS)),
 ) -> dict:
     """Обновить контракт."""
     dto = service.update_contract(contract_id, account_id, body, user_id=user_id)
@@ -120,6 +125,7 @@ def terminate_contract(
     account_id: UUID = Depends(get_current_account_id),
     user_id: UUID = Depends(get_current_user_id),
     service: ContractService = Depends(get_contract_service),
+    _: MembershipEntity = Depends(require_permissions(Permission.WRITE_CONTRACTS)),
 ) -> dict:
     """Расторгнуть договор с пересчётом начислений и актом."""
     from app.services.dto.contract_dto import ContractTerminateDTO
@@ -154,6 +160,7 @@ def renew_contract(
     account_id: UUID = Depends(get_current_account_id),
     user_id: UUID = Depends(get_current_user_id),
     service: ContractService = Depends(get_contract_service),
+    _: MembershipEntity = Depends(require_permissions(Permission.WRITE_CONTRACTS)),
 ) -> dict:
     """Продлить договор с генерацией начислений и допсоглашением."""
     from app.services.dto.contract_dto import ContractRenewDTO
@@ -183,6 +190,7 @@ def delete_contract(
     contract_id: UUID,
     account_id: UUID = Depends(get_current_account_id),
     service: ContractService = Depends(get_contract_service),
+    _: MembershipEntity = Depends(require_permissions(Permission.WRITE_CONTRACTS)),
 ) -> None:
     """Удалить контракт."""
     service.delete_contract(contract_id, account_id)
@@ -206,6 +214,7 @@ def get_contract_ledger(
 def generate_charges(
     contract_id: UUID,
     account_id: UUID = Depends(get_current_account_id),
+    _: MembershipEntity = Depends(require_permissions(Permission.WRITE_CHARGES)),
 ) -> dict:
     """Сгенерировать начисления для контракта."""
     from app.celery_app import celery_app
@@ -222,6 +231,7 @@ def allocate_advance(
     contract_id: UUID,
     account_id: UUID = Depends(get_current_account_id),
     service: PaymentService = Depends(get_payment_service),
+    _: MembershipEntity = Depends(require_permissions(Permission.WRITE_PAYMENTS)),
 ) -> dict:
     """Распределить неаллоцированный аванс по неоплаченным начислениям."""
     data = service.allocate_advance(contract_id, account_id)
@@ -233,6 +243,7 @@ def get_contract_document(
     contract_id: UUID,
     account_id: UUID = Depends(get_current_account_id),
     service: PdfService = Depends(get_pdf_service),
+    _: MembershipEntity = Depends(require_permissions(Permission.WRITE_DOCUMENTS)),
 ) -> dict:
     """Сгенерировать и сохранить PDF, вернуть защищённый URL через API."""
     doc = service.generate_and_save(contract_id, account_id)
@@ -259,6 +270,7 @@ async def upload_contract_document(
     file: UploadFile = File(...),
     title: str | None = Form(None),
     category: str = Form("other"),
+    _: MembershipEntity = Depends(require_permissions(Permission.WRITE_DOCUMENTS)),
 ) -> dict:
     """Загрузить вложение к договору."""
     doc = await service.upload_for_contract(
@@ -315,6 +327,7 @@ def create_contract_note(
     account_id: UUID = Depends(get_current_account_id),
     user_id: UUID = Depends(get_current_user_id),
     service: ContractEventService = Depends(get_contract_event_service),
+    _: MembershipEntity = Depends(require_permissions(Permission.WRITE_CONTRACTS)),
 ) -> dict:
     """Добавить заметку."""
     dto = CreateNoteDTO.model_validate(body.model_dump())
@@ -327,6 +340,7 @@ def refresh_contract_status(
     contract_id: UUID,
     account_id: UUID = Depends(get_current_account_id),
     service: ContractService = Depends(get_contract_service),
+    _: MembershipEntity = Depends(require_permissions(Permission.WRITE_CONTRACTS)),
 ) -> dict:
     """Принудительно пересчитать статус контракта."""
     contract = service.refresh_contract_status(contract_id, account_id)

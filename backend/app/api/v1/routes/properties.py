@@ -9,7 +9,10 @@ from app.api.deps import (
     get_document_service,
     get_property_service,
     get_roi_service,
+    require_permissions,
 )
+from app.domain.entities import MembershipEntity
+from app.domain.permissions import Permission
 from app.api.v1.schemas.property_schema import (
     PropertyCreateRequest,
     PropertyListResponse,
@@ -90,6 +93,7 @@ def create_property(
     body: PropertyCreateRequest,
     account_id: UUID = Depends(get_current_account_id),
     service: PropertyService = Depends(get_property_service),
+    _: MembershipEntity = Depends(require_permissions(Permission.WRITE_PROPERTIES)),
 ) -> dict:
     """Создать объект недвижимости."""
     dto = service.create_property(account_id, body)
@@ -104,6 +108,7 @@ def update_property(
     body: PropertyUpdateRequest,
     account_id: UUID = Depends(get_current_account_id),
     service: PropertyService = Depends(get_property_service),
+    _: MembershipEntity = Depends(require_permissions(Permission.WRITE_PROPERTIES)),
 ) -> dict:
     """Обновить объект недвижимости."""
     dto = service.update_property(property_id, account_id, body)
@@ -118,6 +123,7 @@ def delete_property(
     property_id: UUID,
     account_id: UUID = Depends(get_current_account_id),
     service: PropertyService = Depends(get_property_service),
+    _: MembershipEntity = Depends(require_permissions(Permission.WRITE_PROPERTIES)),
 ) -> None:
     """Удалить объект недвижимости."""
     service.delete_property(property_id, account_id)
@@ -142,6 +148,7 @@ async def upload_property_document(
     file: UploadFile = File(...),
     title: str | None = Form(None),
     category: str = Form("other"),
+    _: MembershipEntity = Depends(require_permissions(Permission.WRITE_DOCUMENTS)),
 ) -> dict:
     """Загрузить вложение к объекту."""
     doc = await service.upload_for_property(

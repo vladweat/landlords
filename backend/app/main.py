@@ -109,6 +109,7 @@ def create_app() -> FastAPI:
         return Response(content=data, media_type=CONTENT_TYPE_LATEST)
 
     from app.api.v1.routes.auth import router as auth_router
+    from app.api.v1.routes.account import router as account_router
     from app.api.v1.routes.properties import router as properties_router
     from app.api.v1.routes.tenants import router as tenants_router
     from app.api.v1.routes.contracts import router as contracts_router
@@ -122,6 +123,7 @@ def create_app() -> FastAPI:
     from app.api.v1.routes.feedback import router as feedback_router
 
     app.include_router(auth_router)
+    app.include_router(account_router)
     app.include_router(properties_router)
     app.include_router(tenants_router)
     app.include_router(contracts_router)

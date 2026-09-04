@@ -3,15 +3,16 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
-from loguru import logger
 
 from app.api.deps import get_current_user_id, get_user_service
+from app.api.v1.schemas.account_schema import AccountResponse
 from app.api.v1.schemas.user_schema import (
     AuthResponse,
     ChangePasswordRequest,
     DeleteAccountRequest,
     ForgotPasswordRequest,
     LoginRequest,
+    MeData,
     MeResponse,
     RegisterRequest,
     ResetPasswordRequest,
@@ -23,6 +24,7 @@ from app.core.security import verify_reset_token
 from app.services.user_service import UserService
 
 router = APIRouter(prefix="/v1/auth", tags=["Auth"])
+
 
 @router.post("/register", response_model=AuthResponse)
 def register(
@@ -57,11 +59,15 @@ def get_me(
     user_id: UUID = Depends(get_current_user_id),
     service: UserService = Depends(get_user_service),
 ) -> dict:
-    """Получить текущего пользователя."""
-    user_dto, _ = service.get_me(user_id)
+    """Получить текущего пользователя, аккаунт и роль."""
+    user_dto, account_dto, role = service.get_me(user_id)
     return {
         "status": "success",
-        "user": UserResponse.model_validate(user_dto),
+        "data": MeData(
+            user=UserResponse.model_validate(user_dto),
+            account=AccountResponse.model_validate(account_dto),
+            role=role,
+        ),
     }
 
 
@@ -71,7 +77,6 @@ def forgot_password(
     service: UserService = Depends(get_user_service),
 ) -> dict:
     """Запросить сброс пароля."""
-    # Создаём и отправляем инструкцию на почту, но не логируем токен.
     service.request_password_reset(body.email)
     return {"message": "Если аккаунт с таким email существует, инструкция отправлена на почту."}
 
@@ -117,6 +122,6 @@ def delete_account(
     user_id: UUID = Depends(get_current_user_id),
     service: UserService = Depends(get_user_service),
 ) -> dict:
-    """Удалить аккаунт."""
+    """Удалить аккаунт (только владелец)."""
     service.delete_account(user_id, body.confirmation)
     return {"message": "Аккаунт удалён."}
