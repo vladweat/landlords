@@ -37,7 +37,12 @@ export function PropertiesOverview({ data }: PropertiesOverviewProps) {
                     <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusColors[p.contract_status]}`}>{statusLabels[p.contract_status]}</span>
                   ) : <span className="text-gray-300">—</span>}
                 </td>
-                <td className="py-2 text-right font-medium">{Number(p.monthly_income).toLocaleString('ru-RU')} ₽</td>
+                <td className="py-2 text-right font-medium">
+                  {Number(p.monthly_income).toLocaleString('ru-RU')} ₽
+                  {p.income_is_forecast ? (
+                    <span className="ml-1 text-[11px] font-normal text-amber-600">прогноз</span>
+                  ) : null}
+                </td>
               </motion.tr>
             ))}
           </tbody>

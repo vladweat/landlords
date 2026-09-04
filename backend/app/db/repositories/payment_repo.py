@@ -136,6 +136,7 @@ class PaymentRepository(IPaymentRepository):
         model.amount = entity.amount
         model.method = entity.method
         model.note = entity.note
+        model.rent_charge_id = entity.rent_charge_id
         self.session.flush()
         return model.to_entity()
 

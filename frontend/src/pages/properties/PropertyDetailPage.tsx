@@ -170,7 +170,12 @@ export default function PropertyDetailPage() {
           {roi ? (
             <div className="space-y-3 text-sm">
               <div className="flex justify-between">
-                <span className="text-gray-500">Годовой доход</span>
+                <span className="text-gray-500">
+                  Годовой доход
+                  {roi.income_is_forecast ? (
+                    <span className="ml-1 text-xs text-amber-600">(прогноз)</span>
+                  ) : null}
+                </span>
                 <span>{Number(roi.annual_income).toLocaleString('ru-RU')} ₽</span>
               </div>
               <div className="flex justify-between">

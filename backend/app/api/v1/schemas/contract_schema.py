@@ -116,6 +116,8 @@ class LedgerLineResponse(BaseModel):
     amount: Decimal
     balance: Decimal
     reminder_status: dict | None = None
+    source_id: UUID | None = None
+    created_at: datetime | None = None
 
 
 class LedgerResponse(BaseModel):
@@ -129,7 +131,6 @@ class LedgerResponse(BaseModel):
     lines: list[LedgerLineResponse]
     last_payment_date: date | None = None
     overdue_days: int = 0
-
 
 class ContractLedgerResponse(BaseModel):
     """Полный ответ ledger."""

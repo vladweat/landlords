@@ -240,3 +240,30 @@ class TestGenerateChargeSchedule:
             payment_day=31,
         )
         assert schedule[0]["due_date"] == date(2026, 2, 28)
+
+    def test_prorate_short_last_period(self):
+        """Короткий последний период — сумма пропорциональна дням."""
+        schedule = generate_charge_schedule(
+            start_date=date(2026, 1, 1),
+            end_date=date(2026, 2, 15),
+            rent_amount=Decimal("31000"),
+            payment_day=5,
+        )
+        assert len(schedule) == 2
+        assert schedule[0]["amount"] == Decimal("31000")
+        # Feb 1–15 из Feb 1–Mar 1 (28 дней) → 14/28
+        assert schedule[1]["period_start"] == date(2026, 2, 1)
+        assert schedule[1]["period_end"] == date(2026, 2, 15)
+        assert schedule[1]["amount"] == Decimal("15500.00")
+
+    def test_due_date_not_before_period_start(self):
+        """payment_day раньше mid-month start → due = period_start."""
+        schedule = generate_charge_schedule(
+            start_date=date(2026, 8, 15),
+            end_date=date(2026, 10, 15),
+            rent_amount=Decimal("30000"),
+            payment_day=5,
+        )
+        assert schedule[0]["period_start"] == date(2026, 8, 15)
+        assert schedule[0]["due_date"] == date(2026, 8, 15)
+        assert schedule[0]["amount"] == Decimal("30000")

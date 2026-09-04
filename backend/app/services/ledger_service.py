@@ -71,9 +71,9 @@ class LedgerService:
                     "last_reminder_date": last_date,
                     "total_sent": count,
                 }
-            # Прикрепляем к соответствующей строке ledger
+            # Прикрепляем к соответствующей строке ledger по source_id
             for line in lines:
-                if line.type == "charge" and line.date == charge.due_date:
+                if line.type == "charge" and line.source_id == charge.id:
                     line.reminder_status = reminder_status
                     break
 

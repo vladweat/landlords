@@ -3,7 +3,7 @@
 Идеи следующих функциональных фич поверх текущего ядра:
 объекты, арендаторы, договоры, начисления/платежи, дашборд (ROI/forecast), PDF, напоминания, credit score, onboarding.
 
-Перед крупными фичами желательно закрыть остаток infra из [backend/TODO.md](backend/TODO.md):
+Перед крупными фичами желательно закрыть остаток infra из [backend/TODO.md](../backend/TODO.md):
 reproducible Docker, volume `storage/documents`, полный CI.
 
 ---

@@ -84,12 +84,6 @@ class ContractService:
         _run_rule(validate_contract_dates, dto.start_date, dto.end_date)
         _run_rule(validate_payment_day, dto.payment_day)
 
-        existing = self.repo.get_active_by_property(dto.property_id, account_id)
-        if existing:
-            raise ConflictError(
-                f"Property {dto.property_id} already has an active contract"
-            )
-
         entity = ContractEntity(
             id=uuid4(),
             account_id=account_id,
@@ -390,6 +384,10 @@ class ContractService:
         )
 
         for charge_id in to_delete:
+            # Платежи с future charges → аванс договора
+            for payment in self.payment_repo.list_by_charge(charge_id, account_id):
+                payment.rent_charge_id = None
+                self.payment_repo.update(payment)
             self.charge_repo.delete(charge_id, account_id)
 
         charge_map = {c.id: c for c in charges}
@@ -400,6 +398,15 @@ class ContractService:
             charge.period_end = new_period_end
             charge.status = compute_charge_status(new_amount, paid, charge.due_date)
             self.charge_repo.update(charge)
+
+        if to_delete or to_update:
+            allocate_unlinked_payments(
+                self.charge_repo,
+                self.payment_repo,
+                self.repo,
+                contract_id,
+                account_id,
+            )
 
         return len(to_delete), len(to_update)
 

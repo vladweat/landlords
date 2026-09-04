@@ -76,6 +76,20 @@ class TestProrateAndPlan:
         assert past.id not in to_delete
         assert any(u[0] == current.id for u in to_update)
 
+    def test_plan_terminate_deletes_future_even_if_paid(self):
+        """Future charge с платежами тоже в to_delete (сервис отвяжет → аванс)."""
+        account_id = uuid4()
+        contract_id = uuid4()
+        future = _charge(contract_id, account_id, date(2026, 4, 1), date(2026, 5, 1))
+
+        to_delete, to_update = plan_charges_on_terminate(
+            [future],
+            {future.id: Decimal("30000")},
+            date(2026, 3, 16),
+        )
+        assert future.id in to_delete
+        assert to_update == []
+
     def test_plan_renew_appends(self):
         account_id = uuid4()
         contract_id = uuid4()
@@ -115,7 +129,10 @@ class TestTerminateRenewService:
         contract_repo.get_by_id.return_value = contract
         contract_repo.update.side_effect = lambda e: e
         charge_repo.list_by_contract.return_value = [current, future]
+        charge_repo.list_unpaid_for_contract_for_update.return_value = []
         payment_repo.get_total_paid_for_charge.return_value = Decimal("0")
+        payment_repo.list_by_charge.return_value = []
+        payment_repo.list_unlinked_for_contract_for_update.return_value = []
 
         service = ContractService(
             contract_repo, charge_repo, payment_repo, event_repo, pdf_service=None
@@ -135,6 +152,56 @@ class TestTerminateRenewService:
         charge_repo.delete.assert_called_once_with(future.id, contract.account_id)
         event_repo.create.assert_called_once()
 
+    def test_terminate_unlinks_payments_on_future_charges(self, repos):
+        """Платежи с future charge отвязываются в аванс перед удалением."""
+        from app.domain.entities import PaymentEntity
+
+        contract_repo, charge_repo, payment_repo, event_repo = repos
+        contract = _contract()
+        future = _charge(
+            contract.id, contract.account_id, date(2026, 6, 1), date(2026, 7, 1)
+        )
+        current = _charge(
+            contract.id, contract.account_id, date(2026, 3, 1), date(2026, 4, 1)
+        )
+        linked = PaymentEntity(
+            id=uuid4(),
+            account_id=contract.account_id,
+            contract_id=contract.id,
+            rent_charge_id=future.id,
+            date_paid=date(2026, 3, 1),
+            amount=Decimal("30000"),
+            currency="RUB",
+            method="transfer",
+        )
+        contract_repo.get_by_id.return_value = contract
+        contract_repo.update.side_effect = lambda e: e
+        charge_repo.list_by_contract.return_value = [current, future]
+        charge_repo.list_unpaid_for_contract_for_update.return_value = [current]
+        payment_repo.get_total_paid_for_charge.side_effect = (
+            lambda cid, _aid: Decimal("30000") if cid == future.id else Decimal("0")
+        )
+        payment_repo.list_by_charge.return_value = [linked]
+        payment_repo.list_unlinked_for_contract_for_update.return_value = []
+        payment_repo.update.side_effect = lambda e: e
+
+        service = ContractService(
+            contract_repo, charge_repo, payment_repo, event_repo, pdf_service=None
+        )
+        result = service.terminate_contract(
+            contract.id,
+            contract.account_id,
+            ContractTerminateDTO(
+                effective_date=date(2026, 3, 15),
+                termination_reason="test",
+                generate_act=False,
+            ),
+        )
+        assert result.charges_deleted == 1
+        payment_repo.update.assert_called()
+        updated_payment = payment_repo.update.call_args[0][0]
+        assert updated_payment.rent_charge_id is None
+        charge_repo.delete.assert_called_once_with(future.id, contract.account_id)
     def test_terminate_invalid_status(self, repos):
         contract_repo, charge_repo, payment_repo, event_repo = repos
         contract = _contract(status="ended")

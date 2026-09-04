@@ -161,6 +161,8 @@ class LedgerLine:
     amount: Decimal  # положительное для charge, отрицательное для payment
     balance: Decimal  # накопительный баланс
     reminder_status: dict | None = None
+    source_id: UUID | None = None
+    created_at: datetime | None = None
     
 @dataclass
 class ReminderEntity:

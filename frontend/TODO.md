@@ -4,7 +4,7 @@
 Стек: React 19, Vite, TanStack Query, Zustand (auth), Tailwind 4, FSD-подобная структура.
 
 **Сборка сейчас ломается:** `npx tsc --noEmit` ≈ **44 ошибки**.  
-Продуктовые фичи — отдельно: [ROADMAP.md](../ROADMAP.md).
+Продуктовые фичи — отдельно: [ROADMAP.md](../docs/ROADMAP.md).
 
 Отмечай выполненное: `- [ ]` → `- [x]`.
 

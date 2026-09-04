@@ -146,6 +146,7 @@ def generate_charge_schedule(
 
     Returns:
         Список словарей с due_date, period_start, period_end, amount.
+        Короткий первый/последний период — prorate; due_date не раньше period_start.
     """
     months = {"monthly": 1, "quarterly": 3, "yearly": 12}.get(billing_period, 1)
     charges = []
@@ -153,18 +154,28 @@ def generate_charge_schedule(
 
     while current < end_date:
         period_start = current
-        period_end = period_start + relativedelta(months=months)
+        full_period_end = period_start + relativedelta(months=months)
+        period_end = full_period_end if full_period_end <= end_date else end_date
 
-        if period_end > end_date:
-            period_end = end_date
+        if period_end < full_period_end:
+            amount = prorate_charge_amount(
+                rent_amount, period_start, full_period_end, period_end
+            )
+        else:
+            amount = rent_amount
 
-        due_date = date(period_start.year, period_start.month, min(payment_day, 28))
+        if amount <= 0:
+            current = period_end
+            continue
+
+        raw_due = date(period_start.year, period_start.month, min(payment_day, 28))
+        due_date = max(raw_due, period_start)
 
         charges.append({
             "due_date": due_date,
             "period_start": period_start,
             "period_end": period_end,
-            "amount": rent_amount,
+            "amount": amount,
         })
 
         current = period_end
@@ -200,35 +211,41 @@ def compute_ledger_lines(
     """Построить построчный ledger с running balance.
 
     Объединяет начисления и платежи в один список,
-    сортирует по дате, считает накопительный баланс.
+    сортирует по (date, type_order, created_at, source_id), считает накопительный баланс.
     """
     lines: list[LedgerLine] = []
     balance = Decimal("0")
 
-    # Добавляем charges
     for charge in charges:
         lines.append(LedgerLine(
             date=charge.due_date,
             type="charge",
             description=f"Начисление за период {charge.period_start} — {charge.period_end}",
             amount=charge.amount,
-            balance=Decimal("0"),  # будет пересчитано
+            balance=Decimal("0"),
+            source_id=charge.id,
+            created_at=charge.created_at,
         ))
 
-    # Добавляем payments
     for payment in payments:
         lines.append(LedgerLine(
             date=payment.date_paid,
             type="payment",
             description=f"Платёж ({payment.method})",
-            amount=-payment.amount,  # отрицательное
+            amount=-payment.amount,
             balance=Decimal("0"),
+            source_id=payment.id,
+            created_at=payment.created_at,
         ))
 
-    # Сортируем по дате
-    lines.sort(key=lambda x: x.date)
+    def _sort_key(line: LedgerLine) -> tuple:
+        type_order = 0 if line.type == "charge" else 1
+        created = line.created_at or datetime.min.replace(tzinfo=timezone.utc)
+        source = str(line.source_id) if line.source_id else ""
+        return (line.date, type_order, created, source)
 
-    # Считаем running balance
+    lines.sort(key=_sort_key)
+
     for line in lines:
         balance += line.amount
         line.balance = balance
@@ -281,10 +298,9 @@ def plan_charges_on_terminate(
     for charge in charges:
         paid = paid_by_charge.get(charge.id, Decimal("0"))
 
-        # Будущие периоды — удаляем, если нет платежей
+        # Будущие периоды — удаляем (платежи отвязываются в сервисе → аванс)
         if charge.period_start >= effective_date:
-            if paid == 0:
-                to_delete.append(charge.id)
+            to_delete.append(charge.id)
             continue
 
         # Текущий период, пересекающий дату расторжения
