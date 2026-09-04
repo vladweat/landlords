@@ -1,7 +1,7 @@
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, FileX, RefreshCw } from 'lucide-react';
+import { ArrowLeft, ChevronDown, ChevronUp, FileX, RefreshCw } from 'lucide-react';
 import { contractsApi } from '@/features/contracts/api';
 import { propertiesApi } from '@/features/properties/api';
 import { tenantsApi } from '@/features/tenants/api';
@@ -18,6 +18,15 @@ import { ContractTimeline } from '@/features/contracts/components/ContractTimeli
 import { copyToClipboard } from '@/shared/lib/clipboard';
 import { formatDate } from '@/shared/lib/utils';
 
+function operationsLabel(count: number): string {
+  const n = Math.abs(count) % 100;
+  const n1 = n % 10;
+  if (n > 10 && n < 20) return `${count} операций`;
+  if (n1 === 1) return `${count} операция`;
+  if (n1 >= 2 && n1 <= 4) return `${count} операции`;
+  return `${count} операций`;
+}
+
 const statusLabels: Record<string, string> = {
   draft: 'Черновик', active: 'Активен', ended: 'Завершён', overdue: 'Просрочен', terminated: 'Расторгнут',
 };
@@ -32,6 +41,7 @@ export default function ContractDetailPage() {
   const queryClient = useQueryClient();
   const [terminateOpen, setTerminateOpen] = useState(false);
   const [renewOpen, setRenewOpen] = useState(false);
+  const [ledgerExpanded, setLedgerExpanded] = useState(false);
 
   const { data: contract, isLoading: contractLoading } = useQuery({ queryKey: ['contract', id], queryFn: () => contractsApi.getById(id!), enabled: !!id });
   const { data: propertiesData, isLoading: propsLoading } = useQuery({ queryKey: ['properties'], queryFn: () => propertiesApi.getAll({ per_page: 100 }) });
@@ -101,7 +111,12 @@ export default function ContractDetailPage() {
         <Card>
           <h2 className="text-lg font-medium text-gray-800 mb-3">Детали</h2>
           <div className="space-y-2 text-sm">
-            <div className="flex justify-between"><span className="text-gray-500">Объект</span><span>{property?.address||contract.property_id}</span></div>
+            <div className="flex justify-between gap-4">
+              <span className="text-gray-500 shrink-0">Объект</span>
+              <Link to={`/properties/${contract.property_id}`} className="text-right text-blue-600 hover:text-blue-800">
+                {property?.address || contract.property_id}
+              </Link>
+            </div>
             <div className="flex justify-between"><span className="text-gray-500">Арендатор</span><span>{tenant?.full_name||contract.tenant_id}</span></div>
             <div className="flex justify-between"><span className="text-gray-500">Сумма</span><span>{Number(contract.rent_amount).toLocaleString('ru-RU')} {contract.currency}</span></div>
             <div className="flex justify-between"><span className="text-gray-500">Период</span><span>{contract.start_date} — {contract.end_date}</span></div>
@@ -150,7 +165,24 @@ export default function ContractDetailPage() {
       </Card>
 
       {ledger?.lines && ledger.lines.length > 0 && (
-        <Card><h2 className="text-lg font-medium text-gray-800 mb-3">История операций</h2><LedgerTable lines={ledger.lines} currency={contract.currency} /></Card>
+        <Card>
+          <button
+            type="button"
+            onClick={() => setLedgerExpanded((v) => !v)}
+            className="flex w-full items-center justify-between gap-2 text-left"
+          >
+            <h2 className="text-lg font-medium text-gray-800">История операций</h2>
+            <span className="inline-flex items-center gap-1 text-sm text-gray-500">
+              {operationsLabel(ledger.lines.length)}
+              {ledgerExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </span>
+          </button>
+          {ledgerExpanded && (
+            <div className="mt-3">
+              <LedgerTable lines={ledger.lines} currency={contract.currency} />
+            </div>
+          )}
+        </Card>
       )}
 
       <TerminateContractWizard isOpen={terminateOpen} onClose={() => setTerminateOpen(false)} contract={contract} />

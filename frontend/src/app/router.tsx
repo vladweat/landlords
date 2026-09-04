@@ -10,6 +10,7 @@ const ResetPasswordPage = lazy(() => import('@/pages/reset-password/ResetPasswor
 const AppLayout = lazy(() => import('@/pages/layout/AppLayout'));
 const DashboardPage = lazy(() => import('@/pages/dashboard/DashboardPage'));
 const PropertiesPage = lazy(() => import('@/pages/properties/PropertiesPage'));
+const PropertyDetailPage = lazy(() => import('@/pages/properties/PropertyDetailPage'));
 const TenantsPage = lazy(() => import('@/pages/tenants/TenantsPage'));
 const ContractsPage = lazy(() => import('@/pages/contracts/ContractsPage'));
 const ContractDetailPage = lazy(() => import('@/pages/contracts/ContractDetailPage'));
@@ -45,6 +46,7 @@ export function AppRouter() {
           <Route element={<AppLayout />}>
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/properties" element={<PropertiesPage />} />
+            <Route path="/properties/:id" element={<PropertyDetailPage />} />
             <Route path="/tenants" element={<TenantsPage />} />
             <Route path="/contracts" element={<ContractsPage />} />
             <Route path="/contracts/:id" element={<ContractDetailPage />} />

@@ -46,7 +46,12 @@ export function PropertyModal({ isOpen, onClose, property }: PropertyModalProps)
 
   const updateMutation = useMutation({
     mutationFn: (data: PropertyFormData) => property ? propertiesApi.update(property.id, data) : Promise.reject(),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['properties'] }); toast.success('Объект обновлён'); onClose(); },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['properties'] });
+      if (property) queryClient.invalidateQueries({ queryKey: ['property', property.id] });
+      toast.success('Объект обновлён');
+      onClose();
+    },
     onError: (error) => showError(error, 'Ошибка обновления'),
   });
 
