@@ -1,11 +1,9 @@
 """Тесты Celery-задач."""
 
+import inspect
 from unittest.mock import Mock, patch
-from datetime import datetime
 
-import pytest
-
-from app.tasks.charge_tasks import generate_charges_for_contract
+from app.tasks.charge_tasks import generate_charges_for_contract, update_overdue_charges
 
 
 class TestGenerateCharges:
@@ -13,11 +11,11 @@ class TestGenerateCharges:
         """Задача возвращает success (с моком)."""
         with patch(
             "app.tasks.charge_tasks.SessionLocal"
-        ) as mock_session, patch(
+        ), patch(
             "app.tasks.charge_tasks.RentChargeRepository"
         ) as mock_charge_repo, patch(
             "app.tasks.charge_tasks.PaymentRepository"
-        ), patch(
+        ) as mock_payment_repo, patch(
             "app.tasks.charge_tasks.ContractRepository"
         ) as mock_contract_repo:
             from app.domain.entities import ContractEntity
@@ -33,6 +31,8 @@ class TestGenerateCharges:
             )
             mock_charge_repo.return_value.list_by_contract.return_value = []
             mock_charge_repo.return_value.create.return_value = Mock()
+            mock_charge_repo.return_value.list_unpaid_for_contract_for_update.return_value = []
+            mock_payment_repo.return_value.list_unlinked_for_contract_for_update.return_value = []
 
             result = generate_charges_for_contract(
                 account_id="00000000-0000-0000-0000-000000000001",
@@ -40,3 +40,11 @@ class TestGenerateCharges:
             )
             assert result["status"] == "success"
             assert "charges_created" in result
+
+
+class TestUpdateOverdueCharges:
+    def test_includes_partially_paid_in_bulk_update(self):
+        """Bulk-update переводит и partially_paid при просрочке."""
+        source = inspect.getsource(update_overdue_charges)
+        assert "partially_paid" in source
+        assert '("pending", "partially_paid")' in source or "('pending', 'partially_paid')" in source

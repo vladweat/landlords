@@ -59,12 +59,11 @@ def compute_charge_status(charge_amount: Decimal, total_paid: Decimal, due_date:
 
     if total_paid >= charge_amount:
         return "paid"
-    elif total_paid > 0:
-        return "partially_paid"
-    elif due_date < today:
+    if due_date < today:
         return "overdue"
-    else:
-        return "pending"
+    if total_paid > 0:
+        return "partially_paid"
+    return "pending"
     
     
 def compute_ledger(

@@ -125,21 +125,67 @@ class RentChargeRepository(IRentChargeRepository):
 
 
     def get_total_outstanding(self, account_id: UUID) -> Decimal:
-        """Общая сумма неоплаченных начислений (status != 'paid')."""
-        result = (
-            self.session.query(func.coalesce(func.sum(RentChargeModel.amount), 0))
+        """Сколько ещё ждать: Σ max(0, amount − paid) − авансы, не ниже 0."""
+        from app.db.models.payment_model import PaymentModel
+
+        paid_subq = (
+            self.session.query(
+                PaymentModel.rent_charge_id.label("charge_id"),
+                func.coalesce(func.sum(PaymentModel.amount), 0).label("paid"),
+            )
             .filter(
-                RentChargeModel.account_id == account_id,
-                RentChargeModel.status != "paid",
+                PaymentModel.account_id == account_id,
+                PaymentModel.rent_charge_id.isnot(None),
+            )
+            .group_by(PaymentModel.rent_charge_id)
+            .subquery()
+        )
+        remainder = func.greatest(
+            RentChargeModel.amount - func.coalesce(paid_subq.c.paid, 0),
+            0,
+        )
+        total_remainders = (
+            self.session.query(func.coalesce(func.sum(remainder), 0))
+            .select_from(RentChargeModel)
+            .outerjoin(paid_subq, paid_subq.c.charge_id == RentChargeModel.id)
+            .filter(RentChargeModel.account_id == account_id)
+            .scalar()
+        )
+        advances = (
+            self.session.query(func.coalesce(func.sum(PaymentModel.amount), 0))
+            .filter(
+                PaymentModel.account_id == account_id,
+                PaymentModel.rent_charge_id.is_(None),
             )
             .scalar()
         )
-        return Decimal(str(result))
-    
+        result = Decimal(str(total_remainders)) - Decimal(str(advances))
+        return max(result, Decimal("0"))
+
     def get_overdue_total_amount(self, account_id: UUID) -> Decimal:
-        """Общая сумма просроченных начислений."""
+        """Сумма остатков по просроченным начислениям (не полные amount)."""
+        from app.db.models.payment_model import PaymentModel
+
+        paid_subq = (
+            self.session.query(
+                PaymentModel.rent_charge_id.label("charge_id"),
+                func.coalesce(func.sum(PaymentModel.amount), 0).label("paid"),
+            )
+            .filter(
+                PaymentModel.account_id == account_id,
+                PaymentModel.rent_charge_id.isnot(None),
+            )
+            .group_by(PaymentModel.rent_charge_id)
+            .subquery()
+        )
+        remainder = func.greatest(
+            RentChargeModel.amount - func.coalesce(paid_subq.c.paid, 0),
+            0,
+        )
         result = (
-            self.session.query(func.coalesce(func.sum(RentChargeModel.amount), 0))
+            self.session.query(func.coalesce(func.sum(remainder), 0))
+            .select_from(RentChargeModel)
+            .outerjoin(paid_subq, paid_subq.c.charge_id == RentChargeModel.id)
             .filter(
                 RentChargeModel.account_id == account_id,
                 RentChargeModel.status == "overdue",

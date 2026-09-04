@@ -35,6 +35,20 @@ const statusDots: Record<string, string> = {
   draft: 'bg-gray-400', active: 'bg-emerald-500', ended: 'bg-blue-500', overdue: 'bg-red-500', terminated: 'bg-amber-500',
 };
 
+const chargeStatusLabels: Record<string, string> = {
+  paid: 'Оплачен',
+  overdue: 'Просрочен',
+  partially_paid: 'Частично',
+  pending: 'Ожидает',
+};
+
+const chargeStatusDots: Record<string, string> = {
+  paid: 'bg-emerald-500',
+  overdue: 'bg-red-500',
+  partially_paid: 'bg-amber-500',
+  pending: 'bg-gray-400',
+};
+
 export default function ContractDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -138,7 +152,27 @@ export default function ContractDetailPage() {
           {ledger ? <div className="space-y-3 text-sm">
             <div className="flex justify-between"><span className="text-gray-500">Начислено</span><span>{Number(ledger.total_expected||0).toLocaleString('ru-RU')} {contract.currency}</span></div>
             <div className="flex justify-between"><span className="text-gray-500">Оплачено</span><span className="text-emerald-600">{Number(ledger.total_paid||0).toLocaleString('ru-RU')} {contract.currency}</span></div>
-            <div className="border-t pt-2 flex justify-between"><span className="font-medium">Ожидает оплаты</span><span className={`font-semibold ${Number(ledger.outstanding_balance||0)>0?'text-red-600':'text-emerald-600'}`}>{Number(ledger.outstanding_balance||0).toLocaleString('ru-RU')} {contract.currency}</span></div>
+            {(() => {
+              const outstanding = Number(ledger.outstanding_balance || 0);
+              if (outstanding < 0) {
+                return (
+                  <div className="border-t pt-2 flex justify-between">
+                    <span className="font-medium">Аванс</span>
+                    <span className="font-semibold text-blue-600">
+                      {Math.abs(outstanding).toLocaleString('ru-RU')} {contract.currency}
+                    </span>
+                  </div>
+                );
+              }
+              return (
+                <div className="border-t pt-2 flex justify-between">
+                  <span className="font-medium">Ожидает оплаты</span>
+                  <span className={`font-semibold ${outstanding > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                    {outstanding.toLocaleString('ru-RU')} {contract.currency}
+                  </span>
+                </div>
+              );
+            })()}
             {ledger.last_payment_date && <div className="flex justify-between"><span className="text-gray-500">Последний платёж</span><span>{formatDate(ledger.last_payment_date)}</span></div>}
             {ledger.overdue_days > 0 && <div className="flex justify-between"><span className="text-gray-500">Просрочка</span><span className={ledger.overdue_days > 60 ? 'text-red-600 font-medium' : 'text-orange-600'}>{ledger.overdue_days} дн.</span></div>}
           </div> : <p className="text-sm text-gray-500">Нет данных</p>}
@@ -151,7 +185,7 @@ export default function ContractDetailPage() {
             return (
               <tr key={c.id} className="border-b last:border-0">
                 <td className="py-2">{c.due_date}</td><td className="py-2 text-gray-500">{c.period_start} — {c.period_end}</td><td className="py-2">{Number(c.amount).toLocaleString('ru-RU')} {contract.currency}</td>
-                <td className="py-2"><span className="inline-flex items-center gap-2 text-sm text-gray-700"><span className={`w-2 h-2 rounded-full ${c.status==='paid'?'bg-emerald-500':c.status==='overdue'?'bg-red-500':'bg-gray-400'}`} />{c.status==='paid'?'Оплачен':c.status==='overdue'?'Просрочен':'Ожидает'}</span></td>
+                <td className="py-2"><span className="inline-flex items-center gap-2 text-sm text-gray-700"><span className={`w-2 h-2 rounded-full ${chargeStatusDots[c.status] || 'bg-gray-400'}`} />{chargeStatusLabels[c.status] || c.status}</span></td>
                 <td className="py-2">{c.status === 'overdue' && <ReminderButton chargeId={c.id} chargeStatus={c.status} />}</td>
               </tr>
             );

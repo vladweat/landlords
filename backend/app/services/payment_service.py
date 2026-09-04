@@ -3,7 +3,7 @@
 from uuid import UUID, uuid4
 from datetime import date
 
-from app.core.exceptions import ConflictError, NotFoundError, ValidationError
+from app.core.exceptions import NotFoundError, ValidationError
 from app.domain.entities import PaymentEntity
 from app.domain.interfaces import (
     IContractEventRepository,
@@ -11,10 +11,16 @@ from app.domain.interfaces import (
     IPaymentRepository,
     IRentChargeRepository,
 )
-from app.services.dto.payment_dto import PaymentCreateDTO, PaymentDTO, PaymentUpdateDTO
+from app.services.dto.payment_dto import (
+    PaymentCreateDTO,
+    PaymentCreateResultDTO,
+    PaymentDTO,
+    PaymentUpdateDTO,
+)
 from app.domain.rules import compute_charge_status
 from app.domain.entities import ContractEventEntity
 from app.services.contract_status import check_and_update_contract_status
+from app.services.payment_allocation import allocate_unlinked_payments
 
 
 class PaymentService:
@@ -61,7 +67,7 @@ class PaymentService:
 
     def create_payment(
         self, account_id: UUID, dto: PaymentCreateDTO
-    ) -> PaymentDTO:
+    ) -> PaymentCreateResultDTO:
         """Создать платёж с автоматическим распределением по charges."""
         contract = self.contract_repo.get_by_id(dto.contract_id, account_id)
         if not contract:
@@ -70,52 +76,111 @@ class PaymentService:
         if dto.amount <= 0:
             raise ValidationError("Payment amount must be greater than 0")
 
-        # Если не указан rent_charge_id — автоматически распределяем
         if not dto.rent_charge_id:
             return self._auto_distribute(account_id, dto, contract)
 
-        # Если rent_charge_id указан — блокируем строку charge
+        return self._create_linked_payment(account_id, dto, contract)
+
+    def allocate_advance(self, contract_id: UUID, account_id: UUID) -> dict:
+        """По запросу распределить аванс по неоплаченным начислениям."""
+        contract = self.contract_repo.get_by_id(contract_id, account_id)
+        if not contract:
+            raise NotFoundError(f"Contract with id={contract_id} not found")
+
+        allocated_count = allocate_unlinked_payments(
+            self.charge_repo, self.payment_repo, self.contract_repo,
+            contract_id, account_id,
+        )
+        return {"allocated_count": allocated_count}
+
+    def _create_linked_payment(
+        self, account_id: UUID, dto: PaymentCreateDTO, contract
+    ) -> PaymentCreateResultDTO:
+        """Платёж с явным rent_charge_id: остаток charge, избыток → аванс."""
         charge = self.charge_repo.get_by_id_for_update(dto.rent_charge_id, account_id)
         if not charge:
             raise NotFoundError(f"RentCharge with id={dto.rent_charge_id} not found")
 
-        entity = PaymentEntity(
-            id=uuid4(),
-            account_id=account_id,
-            contract_id=dto.contract_id,
-            rent_charge_id=dto.rent_charge_id,
-            date_paid=dto.date_paid,
-            amount=dto.amount,
-            currency=contract.currency,
-            method=dto.method,
-            note=dto.note,
+        if charge.contract_id != dto.contract_id:
+            raise ValidationError("Charge does not belong to this contract")
+
+        total_paid = self.payment_repo.get_total_paid_for_charge(charge.id, account_id)
+        charge_remaining = charge.amount - total_paid
+        if charge_remaining <= 0:
+            raise ValidationError("Charge is already fully paid")
+
+        linked_amount = min(dto.amount, charge_remaining)
+        advance_amount = dto.amount - linked_amount
+        created_payments: list[PaymentEntity] = []
+
+        linked = self.payment_repo.create(
+            PaymentEntity(
+                id=uuid4(),
+                account_id=account_id,
+                contract_id=dto.contract_id,
+                rent_charge_id=charge.id,
+                date_paid=dto.date_paid,
+                amount=linked_amount,
+                currency=contract.currency,
+                method=dto.method,
+                note=dto.note,
+            )
         )
-        created = self.payment_repo.create(entity)
+        created_payments.append(linked)
 
-        # Логирование события
+        if advance_amount > 0:
+            advance = self.payment_repo.create(
+                PaymentEntity(
+                    id=uuid4(),
+                    account_id=account_id,
+                    contract_id=dto.contract_id,
+                    rent_charge_id=None,
+                    date_paid=dto.date_paid,
+                    amount=advance_amount,
+                    currency=contract.currency,
+                    method=dto.method,
+                    note=f"{dto.note} (аванс)" if dto.note else "Аванс",
+                )
+            )
+            created_payments.append(advance)
+
         if self.event_repo:
-            self.event_repo.create(ContractEventEntity(
-                id=uuid4(), account_id=account_id, contract_id=dto.contract_id,
-                event_type="payment",
-                title=f"Платёж: {dto.amount} {contract.currency}",
-                event_metadata={"payment_id": str(created.id), "amount": float(dto.amount)},
-            ))
+            self.event_repo.create(
+                ContractEventEntity(
+                    id=uuid4(),
+                    account_id=account_id,
+                    contract_id=dto.contract_id,
+                    event_type="payment",
+                    title=f"Платёж: {dto.amount} {contract.currency}",
+                    event_metadata={
+                        "payment_id": str(linked.id),
+                        "amount": float(dto.amount),
+                    },
+                )
+            )
 
-        total_paid = self.payment_repo.get_total_paid_for_charge(dto.rent_charge_id, account_id)
-        new_status = compute_charge_status(charge.amount, total_paid, charge.due_date)
-        self.charge_repo.update_status(dto.rent_charge_id, account_id, new_status)
+        new_total = self.payment_repo.get_total_paid_for_charge(charge.id, account_id)
+        new_status = compute_charge_status(charge.amount, new_total, charge.due_date)
+        self.charge_repo.update_status(charge.id, account_id, new_status)
 
         check_and_update_contract_status(
             self.charge_repo, self.payment_repo, self.contract_repo,
             dto.contract_id, account_id,
         )
 
-        return PaymentDTO.model_validate(created)
+        allocate_unlinked_payments(
+            self.charge_repo, self.payment_repo, self.contract_repo,
+            dto.contract_id, account_id,
+        )
 
+        return PaymentCreateResultDTO(
+            payments=[PaymentDTO.model_validate(p) for p in created_payments],
+            total_amount=dto.amount,
+        )
 
     def _auto_distribute(
         self, account_id: UUID, dto: PaymentCreateDTO, contract
-    ) -> PaymentDTO:
+    ) -> PaymentCreateResultDTO:
         """Автоматически распределить платёж по неоплаченным charges."""
         charges = self.charge_repo.list_unpaid_for_contract_for_update(
             dto.contract_id, account_id
@@ -124,7 +189,7 @@ class PaymentService:
         unpaid.sort(key=lambda c: c.due_date)
 
         remaining = dto.amount
-        created_payments = []
+        created_payments: list[PaymentEntity] = []
 
         for charge in unpaid:
             if remaining <= 0:
@@ -179,9 +244,15 @@ class PaymentService:
             dto.contract_id, account_id,
         )
 
-        return PaymentDTO.model_validate(created_payments[0])
+        allocate_unlinked_payments(
+            self.charge_repo, self.payment_repo, self.contract_repo,
+            dto.contract_id, account_id,
+        )
 
-
+        return PaymentCreateResultDTO(
+            payments=[PaymentDTO.model_validate(p) for p in created_payments],
+            total_amount=dto.amount,
+        )
 
     def update_payment(
         self, payment_id: UUID, account_id: UUID, dto: PaymentUpdateDTO

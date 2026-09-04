@@ -8,7 +8,7 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError as PydanticValidationError
 
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import NotFoundError, ValidationError
 from app.domain.entities import ContractEntity, PaymentEntity, RentChargeEntity
 from app.services.dto.payment_dto import PaymentCreateDTO, PaymentUpdateDTO
 from app.services.payment_service import PaymentService
@@ -21,7 +21,8 @@ def mock_payment_repo():
         id=uuid4(), account_id=uuid4(), contract_id=uuid4(),
         date_paid=date.today(), amount=Decimal("1000"), currency="RUB", method="bank",
     )
-    repo.get_total_paid_for_charge.return_value = Decimal("500")
+    repo.get_total_paid_for_charge.return_value = Decimal("0")
+    repo.list_unlinked_for_contract_for_update.return_value = []
     return repo
 
 
@@ -82,28 +83,143 @@ class TestCreatePayment:
             amount=Decimal("1000"), method="bank",
         )
         result = payment_service.create_payment(uuid4(), dto)
-        assert result.amount == Decimal("1000")
-        assert result.currency == "RUB"
+        assert result.total_amount == Decimal("1000")
+        assert len(result.payments) == 1
+        assert result.payments[0].amount == Decimal("1000")
 
-    def test_success_with_charge(self, payment_service, mock_payment_repo, mock_charge_repo):
+    def test_success_with_charge(
+        self, payment_service, mock_payment_repo, mock_charge_repo, mock_contract_repo
+    ):
         """Успешное создание платежа с привязкой к charge."""
+        contract_id = uuid4()
         charge_id = uuid4()
+        mock_contract_repo.get_by_id.return_value = ContractEntity(
+            id=contract_id, account_id=uuid4(), property_id=uuid4(), tenant_id=uuid4(),
+            start_date=date.today(), end_date=date.today(), rent_amount=Decimal("1000"),
+            currency="RUB", payment_day=5, status="active",
+        )
         mock_charge_repo.get_by_id_for_update.return_value = RentChargeEntity(
-            id=charge_id, account_id=uuid4(), contract_id=uuid4(),
+            id=charge_id, account_id=uuid4(), contract_id=contract_id,
             due_date=date.today(), period_start=date.today(), period_end=date.today(),
             amount=Decimal("1000"), currency="RUB", status="pending",
         )
         mock_payment_repo.create.return_value = PaymentEntity(
-            id=uuid4(), account_id=uuid4(), contract_id=uuid4(),
+            id=uuid4(), account_id=uuid4(), contract_id=contract_id,
             rent_charge_id=charge_id, date_paid=date.today(),
             amount=Decimal("500"), currency="RUB", method="cash",
         )
         dto = PaymentCreateDTO(
-            contract_id=uuid4(), date_paid=date.today(),
+            contract_id=contract_id, date_paid=date.today(),
             amount=Decimal("500"), method="cash", rent_charge_id=charge_id,
         )
         result = payment_service.create_payment(uuid4(), dto)
-        assert result.rent_charge_id == charge_id
+        assert len(result.payments) == 1
+        assert result.payments[0].rent_charge_id == charge_id
+
+    def test_linked_excess_goes_to_advance(
+        self, payment_service, mock_payment_repo, mock_charge_repo, mock_contract_repo
+    ):
+        """Избыток сверх остатка charge уходит в аванс."""
+        contract_id = uuid4()
+        charge_id = uuid4()
+        mock_contract_repo.get_by_id.return_value = ContractEntity(
+            id=contract_id, account_id=uuid4(), property_id=uuid4(), tenant_id=uuid4(),
+            start_date=date.today(), end_date=date.today(), rent_amount=Decimal("1000"),
+            currency="RUB", payment_day=5, status="active",
+        )
+        mock_charge_repo.get_by_id_for_update.return_value = RentChargeEntity(
+            id=charge_id, account_id=uuid4(), contract_id=contract_id,
+            due_date=date.today(), period_start=date.today(), period_end=date.today(),
+            amount=Decimal("1000"), currency="RUB", status="partially_paid",
+        )
+        mock_payment_repo.get_total_paid_for_charge.return_value = Decimal("400")
+
+        created = []
+
+        def create_side_effect(entity):
+            created.append(entity)
+            return entity
+
+        mock_payment_repo.create.side_effect = create_side_effect
+
+        dto = PaymentCreateDTO(
+            contract_id=contract_id, date_paid=date.today(),
+            amount=Decimal("800"), method="transfer", rent_charge_id=charge_id,
+        )
+        result = payment_service.create_payment(uuid4(), dto)
+        assert result.total_amount == Decimal("800")
+        assert len(result.payments) == 2
+        assert created[0].amount == Decimal("600")
+        assert created[0].rent_charge_id == charge_id
+        assert created[1].amount == Decimal("200")
+        assert created[1].rent_charge_id is None
+
+    def test_charge_wrong_contract(
+        self, payment_service, mock_charge_repo, mock_contract_repo
+    ):
+        """Charge от другого договора — ошибка."""
+        contract_id = uuid4()
+        mock_contract_repo.get_by_id.return_value = ContractEntity(
+            id=contract_id, account_id=uuid4(), property_id=uuid4(), tenant_id=uuid4(),
+            start_date=date.today(), end_date=date.today(), rent_amount=Decimal("1000"),
+            currency="RUB", payment_day=5, status="active",
+        )
+        mock_charge_repo.get_by_id_for_update.return_value = RentChargeEntity(
+            id=uuid4(), account_id=uuid4(), contract_id=uuid4(),
+            due_date=date.today(), period_start=date.today(), period_end=date.today(),
+            amount=Decimal("1000"), currency="RUB", status="pending",
+        )
+        dto = PaymentCreateDTO(
+            contract_id=contract_id, date_paid=date.today(),
+            amount=Decimal("500"), method="cash", rent_charge_id=uuid4(),
+        )
+        with pytest.raises(ValidationError, match="does not belong"):
+            payment_service.create_payment(uuid4(), dto)
+
+    def test_auto_distribute_returns_all_splits(
+        self, payment_service, mock_payment_repo, mock_charge_repo, mock_contract_repo
+    ):
+        """Автораспределение возвращает все split-платежи."""
+        contract_id = uuid4()
+        mock_contract_repo.get_by_id.return_value = ContractEntity(
+            id=contract_id, account_id=uuid4(), property_id=uuid4(), tenant_id=uuid4(),
+            start_date=date.today(), end_date=date.today(), rent_amount=Decimal("1000"),
+            currency="RUB", payment_day=5, status="active",
+        )
+        c1 = RentChargeEntity(
+            id=uuid4(), account_id=uuid4(), contract_id=contract_id,
+            due_date=date(2026, 1, 5), period_start=date(2026, 1, 1),
+            period_end=date(2026, 1, 31), amount=Decimal("1000"),
+            currency="RUB", status="pending",
+        )
+        c2 = RentChargeEntity(
+            id=uuid4(), account_id=uuid4(), contract_id=contract_id,
+            due_date=date(2026, 2, 5), period_start=date(2026, 2, 1),
+            period_end=date(2026, 2, 28), amount=Decimal("1000"),
+            currency="RUB", status="pending",
+        )
+        mock_charge_repo.list_unpaid_for_contract_for_update.return_value = [c1, c2]
+        mock_payment_repo.get_total_paid_for_charge.return_value = Decimal("0")
+
+        created = []
+
+        def create_side_effect(entity):
+            created.append(entity)
+            return entity
+
+        mock_payment_repo.create.side_effect = create_side_effect
+
+        dto = PaymentCreateDTO(
+            contract_id=contract_id, date_paid=date.today(),
+            amount=Decimal("2500"), method="transfer",
+        )
+        result = payment_service.create_payment(uuid4(), dto)
+        assert result.total_amount == Decimal("2500")
+        assert len(result.payments) == 3
+        assert created[0].amount == Decimal("1000")
+        assert created[1].amount == Decimal("1000")
+        assert created[2].amount == Decimal("500")
+        assert created[2].rent_charge_id is None
 
     def test_contract_not_found(self, payment_service, mock_contract_repo):
         """Контракт не найден."""

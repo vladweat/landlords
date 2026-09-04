@@ -23,6 +23,7 @@ from app.domain.rules import (
 )
 from app.services.audit_log_service import AuditService
 from app.services.contract_status import check_and_update_contract_status
+from app.services.payment_allocation import allocate_unlinked_payments
 from app.services.dto.contract_dto import (
     ContractCreateDTO,
     ContractDTO,
@@ -439,6 +440,12 @@ class ContractService:
                 status="pending",
             )
             self.charge_repo.create(entity)
+
+        if schedule and self.payment_repo is not None:
+            allocate_unlinked_payments(
+                self.charge_repo, self.payment_repo, self.repo,
+                contract.id, account_id,
+            )
 
         return len(schedule)
 

@@ -90,6 +90,32 @@ class PaymentRepository(IPaymentRepository):
         )
         return Decimal(str(result))
 
+    def list_unlinked_for_contract_for_update(
+        self, contract_id: UUID, account_id: UUID
+    ) -> list[PaymentEntity]:
+        """Авансы по контракту с блокировкой строк (FIFO по date_paid, created_at)."""
+        models = (
+            self.session.query(PaymentModel)
+            .filter_by(contract_id=contract_id, account_id=account_id)
+            .filter(PaymentModel.rent_charge_id.is_(None))
+            .order_by(PaymentModel.date_paid.asc(), PaymentModel.created_at.asc())
+            .with_for_update()
+            .all()
+        )
+        return [m.to_entity() for m in models]
+
+    def get_total_unallocated_for_account(self, account_id: UUID) -> Decimal:
+        """Сумма неаллоцированных платежей (авансов) по аккаунту."""
+        result = (
+            self.session.query(func.coalesce(func.sum(PaymentModel.amount), 0))
+            .filter(
+                PaymentModel.account_id == account_id,
+                PaymentModel.rent_charge_id.is_(None),
+            )
+            .scalar()
+        )
+        return Decimal(str(result))
+
     def create(self, entity: PaymentEntity) -> PaymentEntity:
         """Создать платёж."""
         model = PaymentModel.from_entity(entity)

@@ -15,12 +15,17 @@ from app.services.rent_charge_service import RentChargeService
 
 @pytest.fixture
 def mock_charge_repo():
-    return Mock()
+    repo = Mock()
+    repo.list_unpaid_for_contract_for_update.return_value = []
+    return repo
 
 
 @pytest.fixture
 def mock_payment_repo():
-    return Mock()
+    repo = Mock()
+    repo.list_unlinked_for_contract_for_update.return_value = []
+    repo.get_total_paid_for_charge.return_value = Decimal("0")
+    return repo
 
 
 @pytest.fixture

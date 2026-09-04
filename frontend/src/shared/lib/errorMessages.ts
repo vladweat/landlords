@@ -1,6 +1,8 @@
 const ERROR_MAP: Record<string, string> = {
   'Contract with this property already active': 'На этот объект уже есть активный контракт',
   'Payment amount exceeds charge remaining': 'Сумма платежа превышает остаток по начислению',
+  'Charge does not belong to this contract': 'Начисление не принадлежит выбранному договору',
+  'Charge is already fully paid': 'Начисление уже полностью оплачено',
   'Cannot delete contract with payments': 'Нельзя удалить контракт, по которому есть платежи',
   'Invalid credentials': 'Неверный email или пароль',
   'Account already exists': 'Пользователь с таким email уже зарегистрирован',

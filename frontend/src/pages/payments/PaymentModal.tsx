@@ -17,6 +17,22 @@ import { Button } from '@/shared/ui/Button';
 import { Input } from '@/shared/ui/Input';
 import { z } from 'zod';
 
+const UNPAID_STATUSES = new Set(['pending', 'overdue', 'partially_paid']);
+
+type ChargeOption = {
+  id: string;
+  due_date: string;
+  amount: string;
+  amount_paid?: string;
+  status: string;
+};
+
+function chargeRemaining(charge: ChargeOption): number {
+  const amount = Number(charge.amount);
+  const paid = Number(charge.amount_paid || 0);
+  return Math.max(0, amount - paid);
+}
+
 const paymentSchema = z.object({
   contract_id: z.string().min(1, 'Выберите договор'),
   amount: z
@@ -48,7 +64,10 @@ export function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
   const tenants = tenantsData?.items || [];
 
   const activeContracts = useMemo(() => contracts.filter((c) => c.status === 'active' || c.status === 'draft' || c.status === 'overdue'), [contracts]);
-  const pendingCharges = useMemo(() => (charges || []).filter((c: { status: string }) => c.status === 'pending' || c.status === 'overdue'), [charges]);
+  const unpaidCharges = useMemo(
+    () => ((charges || []) as ChargeOption[]).filter((c) => UNPAID_STATUSES.has(c.status)),
+    [charges],
+  );
 
   const { register, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm<PaymentFormData>({
     resolver: zodResolver(paymentSchema),
@@ -65,11 +84,14 @@ export function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
   }, [contractId, setValue]);
 
   useEffect(() => {
-    if (selectedChargeId && pendingCharges.length > 0) {
-      const charge = pendingCharges.find((c: { id: string; amount: string }) => c.id === selectedChargeId);
-      if (charge) setValue('amount', charge.amount);
+    if (selectedChargeId && unpaidCharges.length > 0) {
+      const charge = unpaidCharges.find((c) => c.id === selectedChargeId);
+      if (charge) {
+        const remaining = chargeRemaining(charge);
+        if (remaining > 0) setValue('amount', String(remaining));
+      }
     }
-  }, [selectedChargeId, pendingCharges, setValue]);
+  }, [selectedChargeId, unpaidCharges, setValue]);
 
   useEffect(() => {
     if (!isOpen) reset({ contract_id: '', amount: '', date_paid: '', method: 'transfer', note: '', rent_charge_id: '' });
@@ -77,22 +99,42 @@ export function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
 
   const createMutation = useMutation({
     mutationFn: paymentsApi.create,
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['payments'] }); queryClient.invalidateQueries({ queryKey: ['charges', selectedContract] }); scrollToTop(); toast.success("Платёж добавлен"); onClose(); },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['payments'] });
+      queryClient.invalidateQueries({ queryKey: ['charges', selectedContract] });
+      queryClient.invalidateQueries({ queryKey: ['contract-charges', selectedContract] });
+      queryClient.invalidateQueries({ queryKey: ['contract-ledger', selectedContract] });
+      queryClient.invalidateQueries({ queryKey: ['contract', selectedContract] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-last-payments'] });
+      scrollToTop();
+      if (result.payments.length > 1) {
+        toast.success(`Платёж распределён на ${result.payments.length} записи`);
+      } else {
+        toast.success('Платёж добавлен');
+      }
+      onClose();
+    },
     onError: (error) => showError(error, 'Ошибка создания'),
   });
 
-  const maxAmount = selectedChargeId
-    ? Number(pendingCharges.find((c: { id: string; amount: string }) => c.id === selectedChargeId)?.amount || 0)
-    : undefined;
+  const selectedCharge = unpaidCharges.find((c) => c.id === selectedChargeId);
+  const maxAmount = selectedCharge ? chargeRemaining(selectedCharge) : undefined;
 
-  const onSubmit = (data: PaymentFormData) => createMutation.mutate({
-    contract_id: data.contract_id,
-    amount: data.amount,
-    date_paid: data.date_paid,
-    method: data.method,
-    note: data.note || undefined,
-    rent_charge_id: data.rent_charge_id || undefined,
-  });
+  const onSubmit = (data: PaymentFormData) => {
+    if (maxAmount !== undefined && Number(data.amount) > maxAmount) {
+      toast.error(`Сумма не должна превышать остаток ${maxAmount.toLocaleString('ru-RU')} ₽`);
+      return;
+    }
+    createMutation.mutate({
+      contract_id: data.contract_id,
+      amount: data.amount,
+      date_paid: data.date_paid,
+      method: data.method,
+      note: data.note || undefined,
+      rent_charge_id: data.rent_charge_id || undefined,
+    });
+  };
 
   return (
     <AnimatePresence>
@@ -114,18 +156,30 @@ export function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
                   </select>
                   {errors.contract_id && <p className="mt-1 text-sm text-red-600">{errors.contract_id.message}</p>}
                 </div>
-                {pendingCharges.length > 0 && (
+                {unpaidCharges.length > 0 && (
                   <div className="w-full">
                     <label className="block text-sm font-medium text-gray-700 mb-1">Начисление (необязательно)</label>
                     <select className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" {...register('rent_charge_id')}>
-                      <option value="">Без привязки</option>
-                      {pendingCharges.map((c: { id: string; due_date: string; amount: string }) => (
-                        <option key={c.id} value={c.id}>{c.due_date} — {Number(c.amount).toLocaleString('ru-RU')} ₽</option>
-                      ))}
+                      <option value="">Без привязки (автораспределение)</option>
+                      {unpaidCharges.map((c) => {
+                        const remaining = chargeRemaining(c);
+                        const partial = c.status === 'partially_paid' || Number(c.amount_paid || 0) > 0;
+                        const label = partial
+                          ? `${c.due_date} — остаток ${remaining.toLocaleString('ru-RU')} ₽ (частично)`
+                          : `${c.due_date} — ${remaining.toLocaleString('ru-RU')} ₽`;
+                        return <option key={c.id} value={c.id}>{label}</option>;
+                      })}
                     </select>
                   </div>
                 )}
-                <Input label={`Сумма${maxAmount ? ` (макс. ${maxAmount.toLocaleString('ru-RU')} ₽)` : ''}`} type="number" error={errors.amount?.message} {...register('amount')} />
+                <Input
+                  label={`Сумма${maxAmount !== undefined ? ` (макс. ${maxAmount.toLocaleString('ru-RU')} ₽)` : ''}`}
+                  type="number"
+                  step="0.01"
+                  max={maxAmount}
+                  error={errors.amount?.message}
+                  {...register('amount')}
+                />
                 <Input label="Дата платежа" type="date" error={errors.date_paid?.message} {...register('date_paid')} />
                 <div className="w-full">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Способ оплаты</label>
