@@ -4,7 +4,14 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends
 
-from app.api.deps import get_current_account_id, get_tenant_service, get_credit_score_service
+from app.api.deps import (
+    get_current_account_id,
+    get_tenant_service,
+    get_credit_score_service,
+    require_permissions,
+)
+from app.domain.entities import MembershipEntity
+from app.domain.permissions import Permission
 from app.api.v1.schemas.tenant_schema import (
     TenantCreateRequest,
     TenantListResponse,
@@ -56,6 +63,7 @@ def create_tenant(
     body: TenantCreateRequest,
     account_id: UUID = Depends(get_current_account_id),
     service: TenantService = Depends(get_tenant_service),
+    _: MembershipEntity = Depends(require_permissions(Permission.WRITE_TENANTS)),
 ) -> dict:
     """Создать арендатора."""
     dto = service.create_tenant(account_id, body)
@@ -79,6 +87,7 @@ def update_tenant(
     body: TenantUpdateRequest,
     account_id: UUID = Depends(get_current_account_id),
     service: TenantService = Depends(get_tenant_service),
+    _: MembershipEntity = Depends(require_permissions(Permission.WRITE_TENANTS)),
 ) -> dict:
     """Обновить арендатора."""
     dto = service.update_tenant(tenant_id, account_id, body)
@@ -90,6 +99,7 @@ def delete_tenant(
     tenant_id: UUID,
     account_id: UUID = Depends(get_current_account_id),
     service: TenantService = Depends(get_tenant_service),
+    _: MembershipEntity = Depends(require_permissions(Permission.WRITE_TENANTS)),
 ) -> None:
     """Удалить арендатора."""
     service.delete_tenant(tenant_id, account_id)

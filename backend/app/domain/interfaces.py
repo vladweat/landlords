@@ -8,8 +8,9 @@ from datetime import date
 
 from app.domain.entities import (
     AccountEntity, ContractEntity, ContractEventEntity, DocumentEntity,
-    FeedbackEntity, PaymentEntity, PropertyEntity, PropertyExpenseEntity,
-    ReminderEntity, RentChargeEntity, TenantEntity, UserEntity,
+    FeedbackEntity, MembershipEntity, PaymentEntity, PropertyEntity,
+    PropertyExpenseEntity, ReminderEntity, RentChargeEntity, TenantEntity,
+    UserEntity,
 )
 
 from app.domain.pagination import PaginatedResult
@@ -61,6 +62,53 @@ class IAccountRepository(ABC):
     def create(self, entity: AccountEntity) -> AccountEntity:
         """Создать аккаунт."""
         ...
+
+    @abstractmethod
+    def update(self, entity: AccountEntity) -> AccountEntity:
+        """Обновить аккаунт."""
+        ...
+
+
+class IMembershipRepository(ABC):
+    """Интерфейс репозитория memberships."""
+
+    @abstractmethod
+    def get_by_id(self, membership_id: UUID) -> MembershipEntity | None:
+        """Получить membership по ID."""
+        ...
+
+    @abstractmethod
+    def get_by_user_id(self, user_id: UUID) -> MembershipEntity | None:
+        """Получить активную membership пользователя (v1: один аккаунт)."""
+        ...
+
+    @abstractmethod
+    def get_by_user_and_account(
+        self, user_id: UUID, account_id: UUID
+    ) -> MembershipEntity | None:
+        """Получить membership по user и account."""
+        ...
+
+    @abstractmethod
+    def list_by_account(self, account_id: UUID) -> Sequence[MembershipEntity]:
+        """Список участников аккаунта."""
+        ...
+
+    @abstractmethod
+    def create(self, entity: MembershipEntity) -> MembershipEntity:
+        """Создать membership."""
+        ...
+
+    @abstractmethod
+    def update(self, entity: MembershipEntity) -> MembershipEntity:
+        """Обновить membership."""
+        ...
+
+    @abstractmethod
+    def delete(self, membership_id: UUID) -> None:
+        """Удалить membership."""
+        ...
+
 
 class IPropertyRepository(ABC):
     """Интерфейс репозитория объектов недвижимости."""

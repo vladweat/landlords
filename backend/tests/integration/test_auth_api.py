@@ -93,7 +93,9 @@ class TestAuthMe:
         assert resp.status_code == 200
         data = resp.json()
         assert data["status"] == "success"
-        assert data["user"]["email"] == "test@example.com"
+        assert data["data"]["user"]["email"] == "test@example.com"
+        assert data["data"]["role"] == "owner"
+        assert "id" in data["data"]["account"]
 
     def test_me_no_token(self, client: TestClient):
         resp = client.get("/v1/auth/me")

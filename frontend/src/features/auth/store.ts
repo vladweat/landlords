@@ -1,10 +1,13 @@
 import { create } from 'zustand';
 import type { User } from '@/entities/user';
+import type { Account, Role } from '@/entities/account';
 import { authApi } from './api';
 import { queryClient } from '@/app/providers';
 
 interface AuthState {
   user: User | null;
+  account: Account | null;
+  role: Role | null;
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
@@ -16,6 +19,8 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
+  account: null,
+  role: null,
   token: null,
   isAuthenticated: false,
   isLoading: false,
@@ -28,7 +33,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   logout: () => {
     localStorage.removeItem('access_token');
     queryClient.clear();
-    set({ user: null, token: null, isAuthenticated: false, isLoading: false });
+    set({
+      user: null,
+      account: null,
+      role: null,
+      token: null,
+      isAuthenticated: false,
+      isLoading: false,
+    });
   },
 
   loadFromStorage: () => {
@@ -43,7 +55,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ isLoading: true });
     try {
       const response = await authApi.getMe();
-      set({ user: response.user, isLoading: false });
+      set({
+        user: response.data.user,
+        account: response.data.account,
+        role: response.data.role,
+        isLoading: false,
+      });
     } catch {
       get().logout();
     }

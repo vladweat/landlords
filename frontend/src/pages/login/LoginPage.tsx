@@ -25,8 +25,9 @@ export default function LoginPage() {
 
   const loginMutation = useMutation({
     mutationFn: authApi.login,
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       setAuth(data.user, data.token);
+      await useAuthStore.getState().fetchUser();
       toast.success('Вход выполнен');
       navigate('/dashboard');
     },

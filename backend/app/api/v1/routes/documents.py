@@ -4,7 +4,9 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, Response, UploadFile
 
-from app.api.deps import get_current_account_id, get_document_service
+from app.api.deps import get_current_account_id, get_document_service, require_permissions
+from app.domain.entities import MembershipEntity
+from app.domain.permissions import Permission
 from app.services.document_service import DocumentService, serialize_document
 
 router = APIRouter(prefix="/v1/documents", tags=["Documents"])
@@ -32,6 +34,7 @@ def delete_document(
     doc_id: UUID,
     account_id: UUID = Depends(get_current_account_id),
     service: DocumentService = Depends(get_document_service),
+    _: MembershipEntity = Depends(require_permissions(Permission.WRITE_DOCUMENTS)),
 ) -> dict:
     """Удалить вложение (файл + запись)."""
     service.delete(doc_id, account_id)

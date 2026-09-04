@@ -1,5 +1,7 @@
 import { apiClient } from '@/shared/api/client';
 import type { LoginFormData } from './schema';
+import type { Account, Role } from '@/entities/account';
+import type { User } from '@/entities/user';
 
 export interface RegisterRequest {
   email: string;
@@ -10,22 +12,15 @@ export interface RegisterRequest {
 export interface AuthResponse {
   status: string;
   token: string;
-  user: {
-    id: string;
-    email: string;
-    full_name: string;
-    phone?: string | null;
-  };
+  user: User;
 }
 
 export interface MeResponse {
   status: string;
-  user: {
-    id: string;
-    email: string;
-    full_name: string;
-    phone?: string | null;
-    is_active: boolean;
+  data: {
+    user: User & { is_active: boolean };
+    account: Account;
+    role: Role;
   };
 }
 
@@ -43,13 +38,16 @@ export const authApi = {
     return response.data;
   },
 
-  getMe: async () => {
+  getMe: async (): Promise<MeResponse> => {
     const response = await apiClient.get<MeResponse>('/auth/me');
     return response.data;
   },
 
   updateProfile: async (data: { full_name?: string; phone?: string }) => {
-    const response = await apiClient.put<{ status: string; data: { id: string; email: string; full_name: string; phone?: string | null; is_active: boolean } }>('/auth/me', data);
+    const response = await apiClient.put<{
+      status: string;
+      data: User & { is_active: boolean };
+    }>('/auth/me', data);
     return response.data;
   },
 
@@ -69,7 +67,9 @@ export const authApi = {
   },
 
   deleteAccount: async () => {
-    const response = await apiClient.delete<{ message: string }>('/auth/me', { data: { confirmation: 'DELETE' } });
+    const response = await apiClient.delete<{ message: string }>('/auth/me', {
+      data: { confirmation: 'DELETE' },
+    });
     return response.data;
   },
 };

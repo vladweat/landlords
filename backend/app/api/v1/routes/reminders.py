@@ -4,8 +4,10 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends
 
-from app.api.deps import get_current_account_id, get_reminder_service
+from app.api.deps import get_current_account_id, get_reminder_service, require_permissions
 from app.api.v1.schemas.reminder_schema import ReminderCreateRequest, ReminderListResponse, ReminderResponse
+from app.domain.entities import MembershipEntity
+from app.domain.permissions import Permission
 from app.services.dto.reminder_dto import ReminderCreateDTO
 from app.services.reminder_service import ReminderService
 
@@ -17,6 +19,7 @@ def create_reminder(
     body: ReminderCreateRequest,
     account_id: UUID = Depends(get_current_account_id),
     service: ReminderService = Depends(get_reminder_service),
+    _: MembershipEntity = Depends(require_permissions(Permission.WRITE_REMINDERS)),
 ) -> dict:
     dto = ReminderCreateDTO(charge_id=body.charge_id, reminder_type=body.reminder_type)
     result = service.create_reminder(account_id, dto)

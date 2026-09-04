@@ -18,16 +18,18 @@ import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { useHotkeys } from '@/shared/hooks/useHotkeys';
 import { useSort } from '@/shared/hooks/useSort';
 import { useDebounce } from '@/shared/hooks/useDebounce';
+import { useCan } from '@/features/auth/permissions';
 import { TableSkeleton } from '@/shared/ui/Skeleton';
 import { shortAddress } from '@/shared/lib/address';
 
 export default function ExpensesPage() {
   const queryClient = useQueryClient();
+  const canWrite = useCan('write_expenses');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [deleting, setDeleting] = useState<PropertyExpense | null>(null);
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);
-  useHotkeys({ n: () => setIsModalOpen(true) });
+  useHotkeys(canWrite ? { n: () => setIsModalOpen(true) } : {});
 
   const { data: expenses, isLoading } = useQuery({
     queryKey: ['expenses'],
@@ -78,9 +80,11 @@ export default function ExpensesPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-gray-900">Расходы</h1>
-        <Button onClick={() => setIsModalOpen(true)} leftIcon={<Plus className="h-4 w-4" />}>
-          Добавить
-        </Button>
+        {canWrite && (
+          <Button onClick={() => setIsModalOpen(true)} leftIcon={<Plus className="h-4 w-4" />}>
+            Добавить
+          </Button>
+        )}
       </div>
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -146,16 +150,18 @@ export default function ExpensesPage() {
                     </td>
                     <td className="py-3 px-4 text-sm text-gray-700">{formatDate(e.date_incurred)}</td>
                     <td className="py-3 px-4 text-right">
-                      <ActionMenu
-                        items={[
-                          {
-                            label: 'Удалить',
-                            icon: <Trash2 className="h-4 w-4" />,
-                            danger: true,
-                            onClick: () => setDeleting(e),
-                          },
-                        ]}
-                      />
+                      {canWrite && (
+                        <ActionMenu
+                          items={[
+                            {
+                              label: 'Удалить',
+                              icon: <Trash2 className="h-4 w-4" />,
+                              danger: true,
+                              onClick: () => setDeleting(e),
+                            },
+                          ]}
+                        />
+                      )}
                     </td>
                   </motion.tr>
                 ))}
@@ -164,7 +170,7 @@ export default function ExpensesPage() {
           </table>
         </div>
       )}
-      <ExpenseModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
+      {canWrite && <ExpenseModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />}
       <ConfirmDialog
         isOpen={!!deleting}
         onClose={() => setDeleting(null)}

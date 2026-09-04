@@ -20,6 +20,7 @@ import { ROIBadge } from '@/features/properties/components/ROIBadge';
 import { ExpenseModal } from '@/pages/expenses/ExpenseModal';
 import { PropertyModal } from './PropertyModal';
 import { AttachmentsSection } from '@/features/documents/components/AttachmentsSection';
+import { useCan } from '@/features/auth/permissions';
 
 const typeLabels: Record<string, string> = {
   apartment: 'Квартира',
@@ -41,6 +42,8 @@ export default function PropertyDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const canWriteProperty = useCan('write_properties');
+  const canWriteExpenses = useCan('write_expenses');
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [deleting, setDeleting] = useState<PropertyExpense | null>(null);
@@ -109,13 +112,15 @@ export default function PropertyDetailPage() {
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-semibold text-gray-900">{property.address}</h1>
-        <Button
-          variant="secondary"
-          leftIcon={<Pencil className="h-4 w-4" />}
-          onClick={() => setIsEditOpen(true)}
-        >
-          Редактировать
-        </Button>
+        {canWriteProperty && (
+          <Button
+            variant="secondary"
+            leftIcon={<Pencil className="h-4 w-4" />}
+            onClick={() => setIsEditOpen(true)}
+          >
+            Редактировать
+          </Button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -207,13 +212,15 @@ export default function PropertyDetailPage() {
       <Card>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-medium text-gray-800">Расходы</h2>
-          <Button
-            size="sm"
-            leftIcon={<Plus className="h-4 w-4" />}
-            onClick={() => setIsExpenseModalOpen(true)}
-          >
-            Добавить
-          </Button>
+          {canWriteExpenses && (
+            <Button
+              size="sm"
+              leftIcon={<Plus className="h-4 w-4" />}
+              onClick={() => setIsExpenseModalOpen(true)}
+            >
+              Добавить
+            </Button>
+          )}
         </div>
 
         {expensesLoading ? (
@@ -254,16 +261,18 @@ export default function PropertyDetailPage() {
                       <td className="py-2 text-gray-600">{formatDate(e.date_incurred)}</td>
                       <td className="py-2 text-gray-500 hidden sm:table-cell">{e.note || '—'}</td>
                       <td className="py-2 text-right">
-                        <ActionMenu
-                          items={[
-                            {
-                              label: 'Удалить',
-                              icon: <Trash2 className="h-4 w-4" />,
-                              danger: true,
-                              onClick: () => setDeleting(e),
-                            },
-                          ]}
-                        />
+                        {canWriteExpenses && (
+                          <ActionMenu
+                            items={[
+                              {
+                                label: 'Удалить',
+                                icon: <Trash2 className="h-4 w-4" />,
+                                danger: true,
+                                onClick: () => setDeleting(e),
+                              },
+                            ]}
+                          />
+                        )}
                       </td>
                     </motion.tr>
                   ))}
@@ -276,16 +285,20 @@ export default function PropertyDetailPage() {
 
       <AttachmentsSection parentType="property" parentId={property.id} />
 
-      <ExpenseModal
-        isOpen={isExpenseModalOpen}
-        onClose={() => setIsExpenseModalOpen(false)}
-        defaultPropertyId={property.id}
-      />
-      <PropertyModal
-        isOpen={isEditOpen}
-        onClose={() => setIsEditOpen(false)}
-        property={property}
-      />
+      {canWriteExpenses && (
+        <ExpenseModal
+          isOpen={isExpenseModalOpen}
+          onClose={() => setIsExpenseModalOpen(false)}
+          defaultPropertyId={property.id}
+        />
+      )}
+      {canWriteProperty && (
+        <PropertyModal
+          isOpen={isEditOpen}
+          onClose={() => setIsEditOpen(false)}
+          property={property}
+        />
+      )}
       <ConfirmDialog
         isOpen={!!deleting}
         onClose={() => setDeleting(null)}

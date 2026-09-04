@@ -16,6 +16,7 @@ import { PropertyModal } from './PropertyModal';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { useDebounce } from '@/shared/hooks/useDebounce';
 import { useHotkeys } from '@/shared/hooks/useHotkeys';
+import { useCan } from '@/features/auth/permissions';
 import { TableSkeleton } from '@/shared/ui/Skeleton';
 import { exportCSV } from '@/shared/lib/exportCSV';
 import { ROIBadge } from '@/features/properties/components/ROIBadge';
@@ -25,6 +26,7 @@ const PER_PAGE = 20;
 
 export default function PropertiesPage() {
   const queryClient = useQueryClient();
+  const canWrite = useCan('write_properties');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editing, setEditing] = useState<Property | null>(null);
   const [deleting, setDeleting] = useState<Property | null>(null);
@@ -32,7 +34,7 @@ export default function PropertiesPage() {
   const [typeFilter, setTypeFilter] = useState('all');
   const [page, setPage] = useState(1);
   const debouncedSearch = useDebounce(search, 300);
-  useHotkeys({ n: () => { setEditing(null); setIsModalOpen(true); } });
+  useHotkeys(canWrite ? { n: () => { setEditing(null); setIsModalOpen(true); } } : {});
 
   const { data: paginated, isLoading } = useQuery({
     queryKey: ['properties', page, debouncedSearch, typeFilter],
@@ -61,7 +63,9 @@ export default function PropertiesPage() {
         <h1 className="text-2xl font-semibold text-gray-900">Объекты</h1>
         <div className="flex items-center gap-2">
           <button onClick={() => exportCSV(properties, 'objects', ['Адрес','Тип','Площадь'], ['address','type','size_m2'])} className="rounded-lg p-2 text-gray-400 hover:bg-gray-100" title="Экспорт CSV"><Download className="h-4 w-4" /></button>
-          <Button onClick={() => { setEditing(null); setIsModalOpen(true); }} leftIcon={<Plus className="h-4 w-4" />}>Добавить</Button>
+          {canWrite && (
+            <Button onClick={() => { setEditing(null); setIsModalOpen(true); }} leftIcon={<Plus className="h-4 w-4" />}>Добавить</Button>
+          )}
         </div>
       </div>
       <div className="flex flex-col sm:flex-row gap-3">
@@ -73,7 +77,7 @@ export default function PropertiesPage() {
         </select>
       </div>
       {isLoading ? <TableSkeleton rows={5} cols={5} /> : properties.length === 0 ? (
-        <EmptyState icon={Building2} title={search || typeFilter !== 'all' ? 'Ничего не найдено' : 'Нет объектов'} description={search || typeFilter !== 'all' ? 'Измените параметры поиска' : 'Добавьте первый объект'} action={!search && typeFilter === 'all' ? { label: 'Добавить объект', onClick: () => { setEditing(null); setIsModalOpen(true); } } : undefined} />
+        <EmptyState icon={Building2} title={search || typeFilter !== 'all' ? 'Ничего не найдено' : 'Нет объектов'} description={search || typeFilter !== 'all' ? 'Измените параметры поиска' : 'Добавьте первый объект'} action={!search && typeFilter === 'all' && canWrite ? { label: 'Добавить объект', onClick: () => { setEditing(null); setIsModalOpen(true); } } : undefined} />
       ) : (
         <div className="hidden sm:block overflow-hidden rounded-xl border border-gray-100 bg-white">
           <table className="w-full"><thead><tr className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
@@ -97,10 +101,12 @@ export default function PropertiesPage() {
                 <td className="py-3 px-4 text-sm text-gray-700">{p.size_m2} м²</td>
                 <td className="py-3 px-4 hidden lg:table-cell"><ROIBadge roi={p.roi?.roi ?? null} /></td>
                 <td className="py-3 px-4 text-right">
-                  <ActionMenu items={[
-                    { label: 'Редактировать', icon: <Pencil className="h-4 w-4" />, onClick: () => { setEditing(p); setIsModalOpen(true); } },
-                    { label: 'Удалить', icon: <Trash2 className="h-4 w-4" />, danger: true, onClick: () => setDeleting(p) },
-                  ]} />
+                  {canWrite && (
+                    <ActionMenu items={[
+                      { label: 'Редактировать', icon: <Pencil className="h-4 w-4" />, onClick: () => { setEditing(p); setIsModalOpen(true); } },
+                      { label: 'Удалить', icon: <Trash2 className="h-4 w-4" />, danger: true, onClick: () => setDeleting(p) },
+                    ]} />
+                  )}
                 </td>
               </motion.tr>
             );

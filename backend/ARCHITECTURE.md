@@ -81,8 +81,11 @@ Routes не должны инстанцировать repos напрямую (е
 ### Multi-tenancy
 
 - JWT: `sub` (user_id) + `account_id` (`app/core/security.py`).
-- Routes: `Depends(get_current_account_id)`.
+- Membership: таблица `account_memberships` (user ↔ account + role: owner/manager/accountant).
+- Routes: `Depends(get_current_account_id)` — проверяет активную membership в БД; роль берётся из БД.
+- Mutating routes: `Depends(require_permissions(...))` → `ForbiddenError` при отсутствии права.
 - Repositories: фильтрация по `account_id` на всех read/write/delete.
+- Команда: `POST/PATCH/DELETE /v1/account/members` (только owner); участник создаётся с email + паролем.
 
 ### API
 

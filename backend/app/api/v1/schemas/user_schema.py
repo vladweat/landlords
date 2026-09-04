@@ -4,6 +4,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr
 
+from app.api.v1.schemas.account_schema import AccountResponse
+
 
 class UserResponse(BaseModel):
     """Ответ с данными пользователя."""
@@ -38,12 +40,23 @@ class AuthResponse(BaseModel):
     status: str = "success"
     token: str
     user: UserResponse
-    
+
+
+class MeData(BaseModel):
+    """Данные текущего пользователя, аккаунта и роли."""
+
+    user: UserResponse
+    account: AccountResponse
+    role: str
+
+
 class MeResponse(BaseModel):
     """Ответ для /auth/me."""
+
     status: str = "success"
-    user: UserResponse
-    
+    data: MeData
+
+
 class ForgotPasswordRequest(BaseModel):
     email: str
 

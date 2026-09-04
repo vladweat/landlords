@@ -29,3 +29,14 @@ class AccountRepository(IAccountRepository):
         self.session.add(model)
         self.session.flush()
         return model.to_entity()
+
+    def update(self, entity: AccountEntity) -> AccountEntity:
+        """Обновить аккаунт."""
+        model = self.session.query(AccountModel).filter_by(id=entity.id).first()
+        if not model:
+            raise ValueError("Account not found")
+        model.name = entity.name
+        model.base_currency = entity.base_currency
+        model.timezone = entity.timezone
+        self.session.flush()
+        return model.to_entity()

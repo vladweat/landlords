@@ -19,6 +19,7 @@ import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { useHotkeys } from '@/shared/hooks/useHotkeys';
 import { useSort } from '@/shared/hooks/useSort';
 import { useDebounce } from '@/shared/hooks/useDebounce';
+import { useCan } from '@/features/auth/permissions';
 import { TableSkeleton } from '@/shared/ui/Skeleton';
 import { shortAddress } from '@/shared/lib/address';
 
@@ -26,11 +27,12 @@ const methodLabels: Record<string, string> = { transfer: 'Перевод', cash:
 
 export default function PaymentsPage() {
   const queryClient = useQueryClient();
+  const canWrite = useCan('write_payments');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [deleting, setDeleting] = useState<Payment | null>(null);
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);
-  useHotkeys({ n: () => { setIsModalOpen(true); } });
+  useHotkeys(canWrite ? { n: () => { setIsModalOpen(true); } } : {});
 
   const { data: payments, isLoading } = useQuery({ queryKey: ['payments'], queryFn: paymentsApi.getAll });
   const { data: contractsData } = useQuery({ queryKey: ['contracts'], queryFn: () => contractsApi.getAll({ per_page: 100 }), staleTime: 10*60*1000 });
@@ -66,7 +68,9 @@ export default function PaymentsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-gray-900">Платежи</h1>
-        <Button onClick={() => setIsModalOpen(true)} leftIcon={<Plus className="h-4 w-4" />}>Добавить</Button>
+        {canWrite && (
+          <Button onClick={() => setIsModalOpen(true)} leftIcon={<Plus className="h-4 w-4" />}>Добавить</Button>
+        )}
       </div>
       <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
         <input placeholder="Поиск по договору..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full rounded-lg border border-gray-300 pl-10 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
@@ -88,14 +92,16 @@ export default function PaymentsPage() {
             <td className="py-3 px-4 text-sm text-gray-700">{methodLabels[p.method]||p.method}</td>
             <td className="py-3 px-4 text-sm text-gray-700">{formatDate(p.date_paid)}</td>
             <td className="py-3 px-4 text-right">
-              <ActionMenu items={[
-                { label: 'Удалить', icon: <Trash2 className="h-4 w-4" />, danger: true, onClick: () => setDeleting(p) },
-              ]} />
+              {canWrite && (
+                <ActionMenu items={[
+                  { label: 'Удалить', icon: <Trash2 className="h-4 w-4" />, danger: true, onClick: () => setDeleting(p) },
+                ]} />
+              )}
             </td>
           </motion.tr>
         ))}</AnimatePresence></tbody></table></div>
       )}
-      <PaymentModal isOpen={isModalOpen} onClose={()=>setIsModalOpen(false)}/>
+      {canWrite && <PaymentModal isOpen={isModalOpen} onClose={()=>setIsModalOpen(false)}/>}
       <ConfirmDialog isOpen={!!deleting} onClose={()=>setDeleting(null)} onConfirm={()=>deleting&&deleteMutation.mutate(deleting.id)} title="Удалить платёж?" message={`Удалить платёж на ${deleting?Number(deleting.amount).toLocaleString('ru-RU'):''} ${deleting?.currency||''}?`} isLoading={deleteMutation.isPending}/>
     </div>
   );

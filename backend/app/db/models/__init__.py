@@ -1,6 +1,7 @@
 from app.db.models.account_model import AccountModel
 from app.db.models.base import Base
 from app.db.models.contract_model import ContractModel
+from app.db.models.membership_model import MembershipModel
 from app.db.models.payment_model import PaymentModel
 from app.db.models.property_expense_model import PropertyExpenseModel
 from app.db.models.property_model import PropertyModel
@@ -17,6 +18,7 @@ __all__ = [
     "Base",
     "UserModel",
     "AccountModel",
+    "MembershipModel",
     "PropertyModel",
     "TenantModel",
     "ContractModel",

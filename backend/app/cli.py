@@ -11,6 +11,7 @@ from uuid import UUID
 
 from app.core.exceptions import ConflictError
 from app.db.repositories.account_repo import AccountRepository
+from app.db.repositories.membership_repo import MembershipRepository
 from app.db.repositories.property_repo import PropertyRepository
 from app.db.repositories.tenant_repo import TenantRepository
 from app.db.repositories.user_repo import UserRepository
@@ -24,7 +25,11 @@ from app.services.user_service import UserService
 
 
 def _build_user_service(session) -> UserService:
-    return UserService(UserRepository(session), AccountRepository(session))
+    return UserService(
+        UserRepository(session),
+        AccountRepository(session),
+        MembershipRepository(session),
+    )
 
 
 def cmd_create_user(args: argparse.Namespace) -> int:
