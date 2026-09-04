@@ -3,307 +3,1144 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Landlords — Управление арендой без головной боли</title>
+  <title>Landlords — порядок в аренде без Excel</title>
+  <meta name="description" content="Landlords — учёт объектов, договоров и платежей для частных рантье и микро-УК. Оставьте заявку на ранний доступ.">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: system-ui, -apple-system, sans-serif; color: #111827; background: #fff; line-height: 1.6; }
-    .container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
-    
-    /* Nav */
-    .nav { position: fixed; top: 0; width: 100%; background: rgba(255,255,255,0.9); backdrop-filter: blur(8px); border-bottom: 1px solid #e5e7eb; z-index: 50; }
-    .nav-inner { display: flex; justify-content: space-between; align-items: center; height: 64px; }
-    .nav-logo { font-size: 20px; font-weight: 700; color: #2563eb; text-decoration: none; }
-    .nav-links { display: flex; align-items: center; gap: 16px; }
-    .btn-outline { color: #4b5563; text-decoration: none; font-size: 14px; padding: 8px 16px; border-radius: 8px; }
-    .btn-primary { background: #2563eb; color: #fff; text-decoration: none; font-size: 14px; font-weight: 500; padding: 10px 20px; border-radius: 12px; display: inline-block; }
-    .btn-primary:hover { background: #1d4ed8; }
-    .btn-white { background: #fff; color: #2563eb; text-decoration: none; font-weight: 600; padding: 16px 32px; border-radius: 12px; font-size: 18px; display: inline-block; box-shadow: 0 4px 24px rgba(37,99,235,0.2); }
-    .btn-white:hover { background: #eff6ff; }
-    
-    /* Hero */
-    .hero { padding: 128px 0 80px; background: linear-gradient(135deg, #f8fafc, #eff6ff, #eef2ff); }
-    .hero-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: center; }
-    .hero-badge { display: inline-flex; align-items: center; gap: 8px; background: #dbeafe; color: #1d4ed8; font-size: 14px; font-weight: 500; padding: 6px 16px; border-radius: 999px; margin-bottom: 24px; }
-    .hero h1 { font-size: 48px; font-weight: 800; line-height: 1.15; margin-bottom: 24px; }
-    .hero h1 span { background: linear-gradient(135deg, #2563eb, #7c3aed); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-    .hero p { font-size: 18px; color: #6b7280; margin-bottom: 32px; max-width: 500px; }
-    .hero-cta { display: flex; align-items: center; gap: 16px; margin-bottom: 32px; }
-    .hero-meta { display: flex; gap: 24px; font-size: 14px; color: #9ca3af; }
-    
-    /* Dashboard preview */
-    .dash-preview { background: #fff; border-radius: 16px; box-shadow: 0 25px 50px rgba(0,0,0,0.1); border: 1px solid #e5e7eb; overflow: hidden; }
-    .dash-header { background: #f9fafb; padding: 12px 20px; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; gap: 8px; }
-    .dash-dot { width: 12px; height: 12px; border-radius: 50%; }
-    .dash-body { padding: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    .dash-card { padding: 14px; border-radius: 12px; }
-    .dash-card .label { font-size: 12px; font-weight: 500; margin-bottom: 4px; }
-    .dash-card .value { font-size: 24px; font-weight: 700; }
-    .dash-chart { grid-column: span 2; background: #f9fafb; border-radius: 12px; padding: 14px; }
-    .dash-chart .label { font-size: 12px; color: #9ca3af; margin-bottom: 8px; }
-    .dash-bars { display: flex; align-items: flex-end; gap: 8px; height: 64px; }
-    .bar { border-radius: 4px 4px 0 0; }
-    
-    /* Sections */
-    section { padding: 96px 0; }
-    .section-title { text-align: center; margin-bottom: 64px; }
-    .section-title h2 { font-size: 36px; font-weight: 700; margin-bottom: 12px; }
-    .section-title p { color: #6b7280; max-width: 500px; margin: 0 auto; }
-    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; }
-    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; }
-    
-    /* Cards */
-    .card { background: #fff; border-radius: 16px; padding: 32px; border: 1px solid #f3f4f6; transition: box-shadow 0.2s, border-color 0.2s; }
-    .card:hover { box-shadow: 0 4px 24px rgba(0,0,0,0.06); border-color: #dbeafe; }
-    .card-icon { width: 56px; height: 56px; border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 24px; margin-bottom: 20px; }
-    .card h3 { font-weight: 600; font-size: 18px; margin-bottom: 12px; }
-    .card p { color: #6b7280; font-size: 14px; }
-    
-    .step-num { width: 64px; height: 64px; border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 700; margin: 0 auto 16px; }
-    .step h4 { font-weight: 600; margin-bottom: 4px; }
-    .step p { color: #9ca3af; font-size: 14px; }
-    
-    /* Feature list */
-    .feature-item { display: flex; align-items: flex-start; gap: 16px; background: #f9fafb; border-radius: 16px; padding: 24px; transition: background 0.2s; }
-    .feature-item:hover { background: #eff6ff; }
-    .feature-icon { font-size: 24px; flex-shrink: 0; margin-top: 2px; }
-    .feature-item h3 { font-weight: 600; margin-bottom: 4px; }
-    .feature-item p { color: #6b7280; font-size: 14px; }
-    
-    /* Pricing */
-    .pricing-card { background: #fff; border-radius: 16px; padding: 32px; border: 1px solid #e5e7eb; text-align: center; }
-    .pricing-card.featured { background: #2563eb; color: #fff; transform: scale(1.05); box-shadow: 0 25px 50px rgba(37,99,235,0.2); position: relative; }
-    .pricing-card h3 { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
-    .pricing-card .price { font-size: 48px; font-weight: 800; margin-bottom: 24px; }
-    .pricing-card .price span { font-size: 18px; font-weight: 400; opacity: 0.7; }
-    .pricing-card ul { list-style: none; margin-bottom: 32px; text-align: left; }
-    .pricing-card li { padding: 6px 0; font-size: 14px; }
-    .pricing-card .btn { display: block; width: 100%; padding: 12px; border-radius: 12px; font-weight: 600; text-decoration: none; }
-    .badge { position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: #4ade80; color: #14532d; font-size: 12px; font-weight: 700; padding: 4px 12px; border-radius: 999px; }
-    
-    /* Stats */
-    .stat-num { font-size: 48px; font-weight: 800; color: #2563eb; }
-    .stat-label { color: #6b7280; margin-top: 8px; }
-    
-    /* FAQ */
-    details { background: #fff; border-radius: 16px; padding: 24px; border: 1px solid #f3f4f6; margin-bottom: 12px; }
-    summary { font-weight: 600; cursor: pointer; }
-    summary:hover { color: #2563eb; }
-    details p { margin-top: 12px; color: #6b7280; font-size: 14px; }
-    
-    /* CTA */
-    .cta { background: linear-gradient(135deg, #2563eb, #4f46e5); color: #fff; text-align: center; }
-    .cta h2 { font-size: 36px; font-weight: 700; margin-bottom: 16px; }
-    .cta p { opacity: 0.85; margin-bottom: 32px; font-size: 18px; }
-    .cta .btn-white { background: #fff; color: #2563eb; padding: 16px 40px; font-size: 18px; font-weight: 600; border-radius: 12px; text-decoration: none; display: inline-block; box-shadow: 0 4px 24px rgba(0,0,0,0.2); }
-    
-    /* Footer */
-    footer { background: #111827; color: #9ca3af; padding: 40px 0; font-size: 14px; }
-    footer a { color: #9ca3af; text-decoration: none; }
-    footer a:hover { color: #fff; }
-    
-    /* Responsive */
-    @media (max-width: 768px) {
-      .hero-grid, .grid-3, .grid-4 { grid-template-columns: 1fr; }
-      .hero h1 { font-size: 36px; }
-      .pricing-card.featured { transform: none; }
-      .nav-links .btn-outline { display: none; }
+    :root {
+      --ink: #1a2332;
+      --ink-soft: #2c3a4d;
+      --paper: #f4f6f8;
+      --paper-elevated: #ffffff;
+      --accent: #1f6b4a;
+      --accent-hover: #18553a;
+      --accent-soft: #e6f2ec;
+      --muted: #5c6b7a;
+      --line: #d8e0e8;
+      --font-display: "Fraunces", Georgia, serif;
+      --font-body: "Manrope", system-ui, sans-serif;
+      --max: 1080px;
+      --nav-h: 72px;
+      --ease: cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html {
+      overflow-x: clip;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+      scroll-padding-top: var(--nav-h);
+    }
+
+    html::-webkit-scrollbar {
+      width: 0;
+      height: 0;
+      display: none;
+    }
+
+    body {
+      font-family: var(--font-body);
+      color: var(--ink);
+      background: var(--paper);
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: clip;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+
+    body::-webkit-scrollbar {
+      width: 0;
+      height: 0;
+      display: none;
+    }
+
+    a { color: inherit; }
+
+    .container {
+      width: min(100% - 48px, var(--max));
+      margin-inline: auto;
+    }
+
+    /* —— Nav: всегда читаемый, без transparent-прыжков —— */
+    .nav {
+      position: fixed;
+      inset: 0 0 auto;
+      z-index: 100;
+      height: var(--nav-h);
+      background: rgba(255, 255, 255, 0.92);
+      border-bottom: 1px solid var(--line);
+      transition: background 0.25s var(--ease), box-shadow 0.25s var(--ease);
+    }
+
+    .nav.is-top {
+      background: transparent;
+      border-bottom-color: transparent;
+    }
+
+    .nav.is-top .nav-brand { color: #fff; }
+    .nav.is-top .nav-anchor { color: rgba(255, 255, 255, 0.75); }
+    .nav.is-top .nav-anchor:hover { color: #fff; background: rgba(255, 255, 255, 0.1); }
+    .nav.is-top .nav-anchor.is-active {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.14);
+    }
+    .nav.is-top .btn-ghost { color: rgba(255, 255, 255, 0.85); }
+    .nav.is-top .btn-ghost:hover { color: #fff; }
+
+    .nav:not(.is-top) {
+      box-shadow: 0 1px 0 rgba(26, 35, 50, 0.04);
+    }
+
+    .nav-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: var(--nav-h);
+      gap: 16px;
+    }
+
+    .nav-brand {
+      font-family: var(--font-display);
+      font-size: 1.25rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      text-decoration: none;
+      color: var(--ink);
+      transition: color 0.2s;
+      flex-shrink: 0;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      min-width: 0;
+    }
+
+    .nav-anchor {
+      display: none;
+      text-decoration: none;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      color: var(--muted);
+      padding: 8px 12px;
+      border-radius: 4px;
+      transition: color 0.2s, background 0.2s;
+      white-space: nowrap;
+    }
+
+    .nav-anchor:hover {
+      color: var(--ink);
+      background: rgba(26, 35, 50, 0.04);
+    }
+
+    .nav-anchor.is-active {
+      color: var(--accent);
+      background: var(--accent-soft);
+    }
+
+    @media (min-width: 900px) {
+      .nav-anchor { display: inline-block; }
+    }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-body);
+      font-weight: 600;
+      font-size: 0.875rem;
+      text-decoration: none;
+      border: none;
+      cursor: pointer;
+      border-radius: 4px;
+      padding: 11px 20px;
+      transition: background 0.2s, color 0.2s, border-color 0.2s, transform 0.15s;
+      white-space: nowrap;
+    }
+
+    .btn:active { transform: translateY(1px); }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--muted);
+      padding: 10px 12px;
+    }
+
+    .btn-ghost:hover { color: var(--ink); }
+
+    .btn-accent {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .btn-accent:hover { background: var(--accent-hover); }
+
+    .btn-outline-light {
+      background: transparent;
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.4);
+    }
+
+    .btn-outline-light:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.65);
+    }
+
+    .btn-lg {
+      padding: 14px 26px;
+      font-size: 0.9375rem;
+    }
+
+    @media (max-width: 520px) {
+      .nav-actions .btn-ghost { display: none; }
+      .nav-actions .btn-accent { padding: 10px 14px; font-size: 0.8125rem; }
+    }
+
+    /* —— Sections —— */
+    .section {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      min-height: 100svh;
+      padding: calc(var(--nav-h) + 48px) 0 64px;
+      overflow: hidden;
+      scroll-margin-top: var(--nav-h);
+    }
+
+    .section-label {
+      font-size: 0.6875rem;
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 12px;
+    }
+
+    .section-title {
+      font-family: var(--font-display);
+      font-size: clamp(1.65rem, 2.8vw, 2.35rem);
+      font-weight: 600;
+      letter-spacing: -0.025em;
+      line-height: 1.18;
+      margin-bottom: 12px;
+      color: var(--ink);
+    }
+
+    .section-lead {
+      font-size: 1rem;
+      color: var(--muted);
+      max-width: 40ch;
+    }
+
+    .reveal {
+      opacity: 0;
+      transform: translateY(18px);
+      transition: opacity 0.65s var(--ease), transform 0.65s var(--ease);
+    }
+
+    .reveal.is-visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* —— Hero —— */
+    .hero {
+      color: #fff;
+      background: #121a24;
+      justify-content: center;
+      padding-bottom: 72px;
+    }
+
+    .hero-bg {
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 70% 55% at 88% 18%, rgba(31, 107, 74, 0.32), transparent 55%),
+        radial-gradient(ellipse 50% 40% at 8% 88%, rgba(44, 72, 98, 0.4), transparent 50%),
+        linear-gradient(165deg, #0f1620 0%, #1a2838 42%, #152a28 100%);
+    }
+
+    .hero-grid {
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+      background-size: 72px 72px;
+      opacity: 0.45;
+      pointer-events: none;
+    }
+
+    .hero-ring {
+      position: absolute;
+      width: min(58vw, 520px);
+      height: min(58vw, 520px);
+      right: -4%;
+      top: 10%;
+      border-radius: 50%;
+      border: 1px solid rgba(125, 186, 154, 0.16);
+      box-shadow:
+        0 0 0 40px rgba(125, 186, 154, 0.035),
+        0 0 0 96px rgba(125, 186, 154, 0.02);
+      pointer-events: none;
+    }
+
+    .hero-content {
+      position: relative;
+      z-index: 1;
+      max-width: 620px;
+      animation: hero-rise 0.9s var(--ease) 0.1s both;
+    }
+
+    @keyframes hero-rise {
+      from { opacity: 0; transform: translateY(22px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .hero-brand {
+      font-family: var(--font-display);
+      font-size: clamp(3rem, 8vw, 5.25rem);
+      font-weight: 600;
+      letter-spacing: -0.035em;
+      line-height: 0.95;
+      margin-bottom: 24px;
+    }
+
+    .hero h1 {
+      font-family: var(--font-display);
+      font-size: clamp(1.45rem, 2.8vw, 2.05rem);
+      font-weight: 500;
+      letter-spacing: -0.02em;
+      line-height: 1.28;
+      margin-bottom: 14px;
+      max-width: 20ch;
+    }
+
+    .hero-lead {
+      font-size: 1.015rem;
+      color: rgba(255, 255, 255, 0.74);
+      max-width: 38ch;
+      margin-bottom: 32px;
+    }
+
+    .hero-cta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    /* —— Promise —— */
+    .promise {
+      background: var(--paper-elevated);
+    }
+
+    .promise-grid {
+      display: grid;
+      gap: 40px;
+      align-items: center;
+    }
+
+    @media (min-width: 860px) {
+      .promise-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 64px;
+      }
+    }
+
+    .promise-list { list-style: none; }
+
+    .promise-list li {
+      padding: 18px 0;
+      border-bottom: 1px solid var(--line);
+      display: grid;
+      grid-template-columns: 26px 1fr;
+      gap: 14px;
+      align-items: start;
+    }
+
+    .promise-list li:first-child { border-top: 1px solid var(--line); }
+
+    .promise-mark {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: var(--accent-soft);
+      color: var(--accent);
+      display: grid;
+      place-items: center;
+      font-size: 0.6875rem;
+      font-weight: 700;
+      margin-top: 1px;
+    }
+
+    .promise-list strong {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 2px;
+      font-size: 0.975rem;
+    }
+
+    .promise-list span {
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+
+    /* —— Features —— */
+    .features-head {
+      margin-bottom: 20px;
+      max-width: 34rem;
+    }
+
+    .feature-rows {
+      display: flex;
+      flex-direction: column;
+      border-top: 1px solid var(--line);
+    }
+
+    .feature-row {
+      display: grid;
+      gap: 4px;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    @media (min-width: 760px) {
+      .feature-row {
+        grid-template-columns: 200px 1fr;
+        gap: 36px;
+        align-items: baseline;
+        padding: 14px 0;
+      }
+    }
+
+    .feature-row h3 {
+      font-family: var(--font-display);
+      font-size: 1.15rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+
+    .feature-row p {
+      color: var(--muted);
+      font-size: 0.9375rem;
+      max-width: 52ch;
+    }
+
+    /* —— How —— */
+    .how {
+      background: var(--ink);
+      color: #fff;
+      overflow: hidden;
+    }
+
+    .how .section-label { color: #7dba9a; }
+    .how .section-title { color: #fff; }
+    .how .section-lead { color: rgba(255, 255, 255, 0.62); }
+
+    .how-orb {
+      position: absolute;
+      width: 480px;
+      height: 480px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(31, 107, 74, 0.28), transparent 70%);
+      right: -120px;
+      top: 20%;
+      pointer-events: none;
+    }
+
+    .how-head { margin-bottom: 40px; position: relative; z-index: 1; }
+
+    .steps {
+      display: grid;
+      gap: 32px;
+      position: relative;
+      z-index: 1;
+    }
+
+    @media (min-width: 800px) {
+      .steps {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 40px;
+      }
+      .how-head { margin-bottom: 48px; }
+    }
+
+    .step-num {
+      font-family: var(--font-display);
+      font-size: 2.5rem;
+      font-weight: 600;
+      color: #7dba9a;
+      letter-spacing: -0.03em;
+      line-height: 1;
+      margin-bottom: 14px;
+    }
+
+    .step h3 {
+      font-size: 1.05rem;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .step p {
+      font-size: 0.9rem;
+      color: rgba(255, 255, 255, 0.58);
+      max-width: 28ch;
+    }
+
+    /* —— Waitlist —— */
+    .waitlist-grid {
+      display: grid;
+      gap: 36px;
+      align-items: center;
+    }
+
+    @media (min-width: 900px) {
+      .waitlist-grid {
+        grid-template-columns: 1fr 1.05fr;
+        gap: 56px;
+      }
+    }
+
+    .contacts {
+      display: flex;
+      flex-direction: column;
+      margin-top: 24px;
+    }
+
+    .contact-link {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      text-decoration: none;
+      padding: 14px 0;
+      border-top: 1px solid var(--line);
+    }
+
+    .contact-link:last-child { border-bottom: 1px solid var(--line); }
+
+    .contact-link .label {
+      font-size: 0.6875rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .contact-link .value {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: var(--ink);
+      transition: color 0.2s;
+    }
+
+    .contact-link:hover .value { color: var(--accent); }
+
+    .form-card {
+      background: var(--paper-elevated);
+      border: 1px solid var(--line);
+      padding: 28px 26px;
+    }
+
+    .form-card h3 {
+      font-family: var(--font-display);
+      font-size: 1.35rem;
+      font-weight: 600;
+      margin-bottom: 4px;
+      letter-spacing: -0.02em;
+    }
+
+    .form-card > p {
+      color: var(--muted);
+      font-size: 0.875rem;
+      margin-bottom: 20px;
+    }
+
+    .field { margin-bottom: 14px; }
+
+    .field label {
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      margin-bottom: 5px;
+      color: var(--ink-soft);
+    }
+
+    .field .hint {
+      font-weight: 400;
+      color: var(--muted);
+    }
+
+    .field input,
+    .field textarea,
+    .field select {
+      width: 100%;
+      font-family: var(--font-body);
+      font-size: 0.9375rem;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      background: #fff;
+      color: var(--ink);
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .field input:focus,
+    .field textarea:focus,
+    .field select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft);
+    }
+
+    .field textarea {
+      min-height: 72px;
+      resize: vertical;
+    }
+
+    .form-row {
+      display: grid;
+      gap: 14px;
+    }
+
+    @media (min-width: 520px) {
+      .form-row { grid-template-columns: 1fr 1fr; }
+    }
+
+    .form-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 4px;
+    }
+
+    .form-note {
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+
+    .form-note a {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .form-note a:hover { text-decoration: underline; }
+
+    .form-success {
+      display: none;
+      padding: 14px 16px;
+      background: var(--accent-soft);
+      color: var(--accent-hover);
+      font-size: 0.875rem;
+      border-radius: 4px;
+      margin-bottom: 14px;
+    }
+
+    .form-success.is-shown { display: block; }
+
+    /* —— FAQ —— */
+    .faq {
+      background: var(--paper-elevated);
+      border-top: 1px solid var(--line);
+    }
+
+    .faq-layout { max-width: 680px; }
+
+    .faq-head { margin-bottom: 20px; }
+
+    details {
+      border-bottom: 1px solid var(--line);
+      padding: 14px 0;
+    }
+
+    details:first-of-type { border-top: 1px solid var(--line); }
+
+    summary {
+      font-weight: 600;
+      cursor: pointer;
+      list-style: none;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      font-size: 0.975rem;
+    }
+
+    summary::-webkit-details-marker { display: none; }
+
+    summary::after {
+      content: "+";
+      font-family: var(--font-display);
+      font-size: 1.35rem;
+      font-weight: 500;
+      color: var(--accent);
+      line-height: 1;
+      flex-shrink: 0;
+    }
+
+    details[open] summary::after { content: "−"; }
+
+    details p {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 0.9rem;
+      max-width: 58ch;
+      padding-right: 28px;
+    }
+
+    /* —— Footer —— */
+    footer {
+      background: var(--ink);
+      color: rgba(255, 255, 255, 0.5);
+      padding: 28px 0;
+      font-size: 0.8125rem;
+    }
+
+    .footer-inner {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .footer-brand {
+      font-family: var(--font-display);
+      color: #fff;
+      font-weight: 600;
+      font-size: 1rem;
+      margin-right: 10px;
+    }
+
+    .footer-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 18px;
+    }
+
+    .footer-links a {
+      text-decoration: none;
+      color: rgba(255, 255, 255, 0.5);
+      transition: color 0.2s;
+    }
+
+    .footer-links a:hover { color: #fff; }
+
+    @media (max-width: 640px) {
+      :root { --nav-h: 64px; }
+      .section {
+        padding: calc(var(--nav-h) + 32px) 0 48px;
+        min-height: auto;
+      }
+      .hero { min-height: 100svh; }
+      .hero-brand { margin-bottom: 18px; }
+      .form-card { padding: 22px 18px; }
+      .container { width: min(100% - 32px, var(--max)); }
+      .feature-row { padding: 10px 0; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .reveal { opacity: 1; transform: none; transition: none; }
+      .hero-content { animation: none; }
     }
   </style>
 </head>
 <body>
 
-<nav class="nav">
-  <div class="container nav-inner">
-    <a href="/" class="nav-logo">Landlords</a>
-    <div class="nav-links">
-      <a href="/login" class="btn-outline">Войти</a>
-      <a href="/login" class="btn-primary">Попробовать бесплатно</a>
+  <nav class="nav is-top" id="nav">
+    <div class="container nav-inner">
+      <a href="#top" class="nav-brand" data-scroll>Landlords</a>
+      <div class="nav-links">
+        <a href="#features" class="nav-anchor" data-scroll data-section="features">Возможности</a>
+        <a href="#how" class="nav-anchor" data-scroll data-section="how">Как работает</a>
+        <a href="#waitlist" class="nav-anchor" data-scroll data-section="waitlist">Заявка</a>
+      </div>
+      <div class="nav-actions">
+        <a href="/login" class="btn btn-ghost">Войти</a>
+        <a href="#waitlist" class="btn btn-accent" data-scroll>Оставить заявку</a>
+      </div>
     </div>
-  </div>
-</nav>
+  </nav>
 
-<section class="hero">
-  <div class="container hero-grid">
-    <div>
-      <div class="hero-badge">🚀 Запустились в 2026</div>
-      <h1>Управляйте арендой <span>без Excel и головной боли</span></h1>
-      <p>Landlords — учёт объектов, арендаторов, платежей и налогов для частных рантье и микро-УК. Всё в одном окне.</p>
+  <header class="section hero" id="top" data-section>
+    <div class="hero-bg" id="hero-bg" aria-hidden="true"></div>
+    <div class="hero-grid" id="hero-grid" aria-hidden="true"></div>
+    <div class="hero-ring" id="hero-ring" aria-hidden="true"></div>
+    <div class="container hero-content" id="hero-content">
+      <p class="hero-brand">Landlords</p>
+      <h1>Порядок в аренде без Excel и забытых платежей</h1>
+      <p class="hero-lead">
+        Объекты, договоры и платежи в одном месте — для частных рантье и небольших УК.
+      </p>
       <div class="hero-cta">
-        <a href="/login" class="btn-white">Попробовать бесплатно →</a>
-      </div>
-      <p style="color:#9ca3af;font-size:14px;margin-bottom:16px;">Без карты. Free — навсегда бесплатно</p>
-      <div class="hero-meta">
-        <span>✓ 1 520+ пользователей</span>
-        <span>✓ 4.9 ★ рейтинг</span>
-        <span>✓ РФ-сервер</span>
+        <a href="#waitlist" class="btn btn-accent btn-lg" data-scroll>Оставить заявку</a>
+        <a href="https://t.me/landlords_ru" class="btn btn-outline-light btn-lg" id="tg-hero" target="_blank" rel="noopener noreferrer">Написать в Telegram</a>
       </div>
     </div>
-    <div class="dash-preview">
-      <div class="dash-header">
-        <div class="dash-dot" style="background:#ef4444"></div>
-        <div class="dash-dot" style="background:#f59e0b"></div>
-        <div class="dash-dot" style="background:#22c55e"></div>
-        <span style="font-size:12px;color:#9ca3af;margin-left:12px;">Дашборд Landlords</span>
+  </header>
+
+  <section class="section promise" id="promise" data-section>
+    <div class="container promise-grid reveal">
+      <div class="promise-copy">
+        <p class="section-label">Знакомо</p>
+        <h2 class="section-title">Аренда в таблицах и переписке — легко потерять контроль</h2>
+        <p class="section-lead">
+          Landlords собирает учёт в одном окне: кто должен, что просрочено и какая квартира реально приносит деньги.
+        </p>
       </div>
-      <div class="dash-body">
-        <div class="dash-card" style="background:#eff6ff"><div class="label" style="color:#6b7280">Активные объекты</div><div class="value">4</div></div>
-        <div class="dash-card" style="background:#f0fdf4"><div class="label" style="color:#6b7280">Договоры</div><div class="value">4</div></div>
-        <div class="dash-card" style="background:#fef2f2"><div class="label" style="color:#6b7280">Просрочки</div><div class="value">0</div></div>
-        <div class="dash-card" style="background:#fff7ed"><div class="label" style="color:#6b7280">Доход</div><div class="value">1.1M ₽</div></div>
-        <div class="dash-chart">
-          <div class="label">Сравнение доходов</div>
-          <div class="dash-bars">
-            <div class="bar" style="width:33%;height:40px;background:#93c5fd"></div>
-            <div class="bar" style="width:33%;height:56px;background:#3b82f6"></div>
-            <div class="bar" style="width:33%;height:32px;background:#f97316"></div>
+      <ul class="promise-list">
+        <li>
+          <span class="promise-mark" aria-hidden="true">1</span>
+          <div>
+            <strong>Просрочки видны сразу</strong>
+            <span>Календарь платежей и напоминания — без ручного обхода чатов.</span>
           </div>
+        </li>
+        <li>
+          <span class="promise-mark" aria-hidden="true">2</span>
+          <div>
+            <strong>Доходность по каждому объекту</strong>
+            <span>Дашборд с доходом, расходами и ROI — портфель как на ладони.</span>
+          </div>
+        </li>
+        <li>
+          <span class="promise-mark" aria-hidden="true">3</span>
+          <div>
+            <strong>Договоры и платежи рядом</strong>
+            <span>Контракт, начисления и история оплат связаны, а не разбросаны по файлам.</span>
+          </div>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="section" id="features" data-section>
+    <div class="container">
+      <div class="features-head reveal">
+        <p class="section-label">Возможности</p>
+        <h2 class="section-title">То, что нужно рантье каждый месяц</h2>
+        <p class="section-lead">Без лишнего: объекты, люди, деньги и документы.</p>
+      </div>
+      <div class="feature-rows reveal">
+        <article class="feature-row">
+          <h3>Объекты</h3>
+          <p>Квартиры, дома и коммерция в одном списке — адрес, статус и привязка к договорам.</p>
+        </article>
+        <article class="feature-row">
+          <h3>Договоры и PDF</h3>
+          <p>Срок, сумма, арендатор. PDF с автозаполнением — скачал и на подпись.</p>
+        </article>
+        <article class="feature-row">
+          <h3>Начисления и платежи</h3>
+          <p>Автоначисления, история оплат и баланс по договору без свода в Excel.</p>
+        </article>
+        <article class="feature-row">
+          <h3>Календарь и напоминания</h3>
+          <p>Due dates, просрочки и продления. Напоминание арендатору — в один клик.</p>
+        </article>
+        <article class="feature-row">
+          <h3>Дашборд ROI</h3>
+          <p>Доход, расходы и доходность портфеля — чтобы видеть, что реально работает.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section how" id="how" data-section>
+    <div class="how-orb" id="how-orb" aria-hidden="true"></div>
+    <div class="container">
+      <div class="how-head reveal">
+        <p class="section-label">Как работает</p>
+        <h2 class="section-title">Три шага до контроля</h2>
+        <p class="section-lead">Завели объект — оформили договор — следите за платежами.</p>
+      </div>
+      <div class="steps reveal">
+        <div class="step">
+          <div class="step-num">01</div>
+          <h3>Добавьте объект</h3>
+          <p>Адрес и тип недвижимости. Можно сразу привязать расходы.</p>
+        </div>
+        <div class="step">
+          <div class="step-num">02</div>
+          <h3>Оформите договор</h3>
+          <p>Арендатор, сумма, срок. PDF готов из ваших данных.</p>
+        </div>
+        <div class="step">
+          <div class="step-num">03</div>
+          <h3>Контролируйте платежи</h3>
+          <p>Начисления, календарь, напоминания и ROI на дашборде.</p>
         </div>
       </div>
     </div>
-  </div>
-</section>
+  </section>
 
-<section>
-  <div class="container">
-    <div class="section-title"><h2>Знакомо?</h2><p>Типичные проблемы, с которыми сталкивается каждый рантье</p></div>
-    <div class="grid-3">
-      <div class="card"><div class="card-icon" style="background:#fef2f2">📅</div><h3>Забываете, кто и когда должен заплатить?</h3><p>Платёжный календарь с напоминаниями. Один клик — и арендатор получает сообщение.</p></div>
-      <div class="card"><div class="card-icon" style="background:#fffbeb">📊</div><h3>Не знаете, какая квартира приносит прибыль?</h3><p>ROI каждого объекта и доходность портфеля на дашборде. Видите реальную картину.</p></div>
-      <div class="card"><div class="card-icon" style="background:#f5f3ff">📝</div><h3>Боитесь налоговой?</h3><p>Автоматический учёт доходов для самозанятых и ИП. Прозрачно, легально, без штрафов.</p></div>
-    </div>
-  </div>
-</section>
+  <section class="section" id="waitlist" data-section>
+    <div class="container waitlist-grid">
+      <div class="reveal">
+        <p class="section-label">Ранний доступ</p>
+        <h2 class="section-title">Оставьте заявку — откроем доступ</h2>
+        <p class="section-lead">
+          Набираем первых пользователей. Укажите, сколько объектов сдаёте — приоритет тем, кому продукт нужен сейчас.
+        </p>
+        <div class="contacts">
+          <a class="contact-link" href="mailto:hello@landlords.ru">
+            <span class="label">Email</span>
+            <span class="value">hello@landlords.ru</span>
+          </a>
+          <a class="contact-link" href="https://t.me/landlords_ru" id="tg-contact" target="_blank" rel="noopener noreferrer">
+            <span class="label">Telegram</span>
+            <span class="value">@landlords_ru</span>
+          </a>
+        </div>
+      </div>
 
-<section style="background:#f9fafb">
-  <div class="container">
-    <div class="section-title"><h2>Запустите за 5 минут</h2><p>Четыре простых шага до полного контроля</p></div>
-    <div class="grid-4">
-      <div class="step" style="text-align:center">
-        <div class="step-num" style="background:#eff6ff;color:#2563eb">1</div>
-        <h4>Добавьте объект</h4>
-        <p>Адрес, тип, площадь — 30 секунд</p>
-      </div>
-      <div class="step" style="text-align:center">
-        <div class="step-num" style="background:#f0fdf4;color:#16a34a">2</div>
-        <h4>Добавьте арендатора</h4>
-        <p>Имя и контакты для договора</p>
-      </div>
-      <div class="step" style="text-align:center">
-        <div class="step-num" style="background:#f5f3ff;color:#7c3aed">3</div>
-        <h4>Создайте контракт</h4>
-        <p>Сумма, срок — автозаполнение PDF</p>
-      </div>
-      <div class="step" style="text-align:center">
-        <div class="step-num" style="background:#fff7ed;color:#ea580c">4</div>
-        <h4>Следите за доходностью</h4>
-        <p>Дашборд, ROI, налоги</p>
-      </div>
-    </div>
-  </div>
-</section>
-
-<section>
-  <div class="container">
-    <div class="section-title"><h2>Всё, что нужно рантье</h2><p>Ни одной лишней кнопки. Только то, что реально экономит время и деньги.</p></div>
-    <div class="grid-3">
-      <div class="feature-item"><span class="feature-icon">🏠</span><div><h3>Учёт объектов</h3><p>Квартиры, дома, коммерция — все адреса в одном списке со статусом</p></div></div>
-      <div class="feature-item"><span class="feature-icon">💰</span><div><h3>Начисления и платежи</h3><p>Автоматические начисления, история платежей, ledger по каждому контракту</p></div></div>
-      <div class="feature-item"><span class="feature-icon">🔔</span><div><h3>Напоминания</h3><p>Один клик — и арендатор получает сообщение. Три уровня жёсткости.</p></div></div>
-      <div class="feature-item"><span class="feature-icon">📄</span><div><h3>PDF-договоры</h3><p>Автозаполнение из данных контракта. Скачайте, распечатайте, подпишите.</p></div></div>
-      <div class="feature-item"><span class="feature-icon">⭐</span><div><h3>Credit Score</h3><p>Рейтинг на основе истории платежей. Выбирайте надёжных жильцов.</p></div></div>
-      <div class="feature-item"><span class="feature-icon">📈</span><div><h3>ROI объектов</h3><p>Годовой доход, доходность, срок окупаемости. Портфель как на ладони.</p></div></div>
-    </div>
-  </div>
-</section>
-
-<section style="background:#f9fafb">
-  <div class="container">
-    <div class="section-title"><h2>Честные тарифы</h2><p>Free — навсегда бесплатный. Pro и Enterprise — для растущего бизнеса.</p></div>
-    <div class="grid-3" style="align-items:start">
-      <div class="pricing-card">
-        <h3>Free</h3>
-        <div class="price">0 ₽</div>
-        <ul>
-          <li>✓ 2 объекта</li>
-          <li>✓ 1 контракт</li>
-          <li>✓ Базовый учёт</li>
-          <li style="color:#d1d5db">✗ ROI и Credit Score</li>
-          <li style="color:#d1d5db">✗ PDF-договоры</li>
-        </ul>
-        <a href="/login" class="btn" style="background:#f3f4f6;color:#374151">Начать бесплатно</a>
-      </div>
-      <div class="pricing-card featured">
-        <div class="badge">РЕКОМЕНДУЕМ</div>
-        <h3 style="margin-top:8px">Pro</h3>
-        <div class="price">499 ₽<span>/мес</span></div>
-        <ul>
-          <li>✓ 20 объектов</li>
-          <li>✓ Все функции Free</li>
-          <li>✓ ROI и Credit Score</li>
-          <li>✓ PDF-договоры</li>
-          <li>✓ Напоминания</li>
-        </ul>
-        <a href="/login" class="btn" style="background:#fff;color:#2563eb">Попробовать 14 дней</a>
-        <p style="font-size:12px;opacity:0.7;margin-top:8px">Без карты в первые 14 дней</p>
-      </div>
-      <div class="pricing-card">
-        <h3>Enterprise</h3>
-        <div class="price">1 999 ₽<span>/мес</span></div>
-        <ul>
-          <li>✓ Безлимит</li>
-          <li>✓ Все функции Pro</li>
-          <li>✓ Приоритетная поддержка</li>
-          <li>✓ Кастомные шаблоны</li>
-          <li>✓ Персональный менеджер</li>
-        </ul>
-        <a href="mailto:hello@landlords.ru" class="btn" style="background:#f3f4f6;color:#374151">Связаться с нами</a>
+      <div class="form-card reveal">
+        <h3>Заявка</h3>
+        <p>Ответим на почту или в Telegram. Без спама.</p>
+        <div class="form-success" id="form-success" role="status">
+          Спасибо. Откроется почтовый клиент с вашей заявкой — отправьте письмо, и мы свяжемся.
+        </div>
+        <form id="waitlist-form" novalidate>
+          <div class="form-row">
+            <div class="field">
+              <label for="name">Имя</label>
+              <input id="name" name="name" type="text" autocomplete="name" required placeholder="Как к вам обращаться">
+            </div>
+            <div class="field">
+              <label for="email">Email</label>
+              <input id="email" name="email" type="email" autocomplete="email" required placeholder="you@example.com">
+            </div>
+          </div>
+          <div class="field">
+            <label for="properties">Сколько объектов <span class="hint">(необязательно)</span></label>
+            <select id="properties" name="properties">
+              <option value="">Пока не скажу</option>
+              <option value="1">1</option>
+              <option value="2-5">2–5</option>
+              <option value="6-20">6–20</option>
+              <option value="20+">Больше 20</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="comment">Комментарий <span class="hint">(необязательно)</span></label>
+            <textarea id="comment" name="comment" placeholder="Что важно учесть"></textarea>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-accent btn-lg">Отправить заявку</button>
+            <p class="form-note">
+              Или напишите на
+              <a href="mailto:hello@landlords.ru">hello@landlords.ru</a>
+              /
+              <a href="https://t.me/landlords_ru" id="tg-note" target="_blank" rel="noopener noreferrer">Telegram</a>.
+            </p>
+          </div>
+        </form>
       </div>
     </div>
-  </div>
-</section>
+  </section>
 
-<section>
-  <div class="container" style="text-align:center">
-    <h2 style="font-size:36px;font-weight:700;margin-bottom:48px">Нам доверяют</h2>
-    <div class="grid-3">
-      <div><div class="stat-num">1 520+</div><div class="stat-label">активных пользователей</div></div>
-      <div><div class="stat-num">3 800+</div><div class="stat-label">объектов под управлением</div></div>
-      <div><div class="stat-num">4.9 ★</div><div class="stat-label">средняя оценка</div></div>
+  <section class="section faq" id="faq" data-section>
+    <div class="container faq-layout">
+      <div class="faq-head reveal">
+        <p class="section-label">FAQ</p>
+        <h2 class="section-title">Частые вопросы</h2>
+      </div>
+      <div class="reveal">
+        <details>
+          <summary>Как попасть в доступ?</summary>
+          <p>Оставьте заявку на этой странице или напишите на hello@landlords.ru / в Telegram. Мы открываем доступ постепенно и свяжемся с вами.</p>
+        </details>
+        <details>
+          <summary>Для кого Landlords?</summary>
+          <p>Для частных рантье и небольших УК, которые сдают жильё или коммерцию и хотят держать объекты, договоры и платежи в одном месте.</p>
+        </details>
+        <details>
+          <summary>Нужно ли что-то устанавливать?</summary>
+          <p>Нет. Landlords работает в браузере — на компьютере, планшете или телефоне.</p>
+        </details>
+        <details>
+          <summary>Где хранятся данные?</summary>
+          <p>На сервере в РФ. Доступ только у вас и приглашённых участников аккаунта. Мы не продаём и не передаём данные третьим лицам.</p>
+        </details>
+      </div>
     </div>
-  </div>
-</section>
+  </section>
 
-<section style="background:#f9fafb">
-  <div class="container" style="max-width:768px">
-    <h2 style="font-size:36px;font-weight:700;text-align:center;margin-bottom:48px">Частые вопросы</h2>
-    <details><summary>Бесплатно ли это?</summary><p>Да, тариф Free навсегда бесплатный. Вы можете вести учёт 2 объектов без ограничений по времени.</p></details>
-    <details><summary>Мои данные в безопасности?</summary><p>Все данные хранятся на сервере в РФ. Доступ есть только у вас. Мы не передаём данные третьим лицам.</p></details>
-    <details><summary>Нужно ли устанавливать что-то?</summary><p>Нет. Landlords работает в браузере. Откройте на компьютере, планшете или телефоне.</p></details>
-    <details><summary>Можно ли скачать договор?</summary><p>Да, PDF-договор с автозаполнением формируется из данных контракта в один клик. Доступно на тарифе Pro.</p></details>
-    <details><summary>Кто я как пользователь?</summary><p>Частный рантье с 1-5 квартирами или микро-УК. Если вы сдаёте больше — тариф Enterprise для вас.</p></details>
-  </div>
-</section>
-
-<section class="cta">
-  <div class="container">
-    <h2>Готовы навести порядок в аренде?</h2>
-    <p>Присоединяйтесь к 1 500+ рантье, которые уже используют Landlords</p>
-    <a href="/login" class="btn-white">Начать бесплатно →</a>
-    <p style="opacity:0.7;font-size:14px;margin-top:16px">Free — навсегда бесплатно. Без карты.</p>
-  </div>
-</section>
-
-<footer>
-  <div class="container" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px">
-    <span>© 2026 Landlords. Сделано в РФ 🇷🇺</span>
-    <div style="display:flex;gap:24px">
-      <a href="/privacy">Политика конфиденциальности</a>
-      <a href="/terms">Условия использования</a>
-      <a href="mailto:hello@landlords.ru">hello@landlords.ru</a>
+  <footer>
+    <div class="container footer-inner">
+      <div>
+        <span class="footer-brand">Landlords</span>
+        <span>© 2026</span>
+      </div>
+      <div class="footer-links">
+        <a href="/privacy">Конфиденциальность</a>
+        <a href="/terms">Условия</a>
+        <a href="mailto:hello@landlords.ru">hello@landlords.ru</a>
+        <a href="https://t.me/landlords_ru" id="tg-footer" target="_blank" rel="noopener noreferrer">Telegram</a>
+        <a href="/login">Войти</a>
+      </div>
     </div>
-  </div>
-</footer>
+  </footer>
 
+  <script>
+    (function () {
+      var TELEGRAM_HANDLE = "landlords_ru";
+      var CONTACT_EMAIL = "hello@landlords.ru";
+
+      var tgUrl = "https://t.me/" + TELEGRAM_HANDLE;
+      var tgLabel = "@" + TELEGRAM_HANDLE;
+      ["tg-hero", "tg-contact", "tg-note", "tg-footer"].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        el.href = tgUrl;
+        if (id === "tg-contact") {
+          var value = el.querySelector(".value");
+          if (value) value.textContent = tgLabel;
+        }
+      });
+
+      var nav = document.getElementById("nav");
+      var hero = document.getElementById("top");
+      var how = document.getElementById("how");
+      var sections = Array.prototype.slice.call(document.querySelectorAll("[data-section]"));
+      var navAnchors = Array.prototype.slice.call(document.querySelectorAll(".nav-anchor[data-section]"));
+      var lastNavKey = "";
+      var scrollQueued = false;
+      var navH = function () {
+        return nav.offsetHeight || 72;
+      };
+
+      document.querySelectorAll("[data-scroll]").forEach(function (link) {
+        link.addEventListener("click", function (e) {
+          var href = link.getAttribute("href") || "";
+          if (!href.startsWith("#")) return;
+          var el = document.getElementById(href.slice(1));
+          if (!el) return;
+          e.preventDefault();
+          var top = el.getBoundingClientRect().top + window.pageYOffset - navH() + 1;
+          window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+          if (history.replaceState) history.replaceState(null, "", href);
+        });
+      });
+
+      function sectionAtNav() {
+        var y = window.pageYOffset + navH() / 2;
+        for (var i = 0; i < sections.length; i++) {
+          var top = sections[i].offsetTop;
+          var bottom = top + sections[i].offsetHeight;
+          if (y >= top && y < bottom) return sections[i];
+        }
+        return sections[0] || null;
+      }
+
+      function updateNav() {
+        scrollQueued = false;
+        var y = window.pageYOffset;
+        var under = sectionAtNav();
+        var underId = under ? under.id : "top";
+        // Прозрачный только в самом верху hero
+        var isTop = underId === "top" && y < 24;
+
+        var midY = y + window.innerHeight * 0.35;
+        var activeId = "top";
+        for (var i = 0; i < sections.length; i++) {
+          var top = sections[i].offsetTop;
+          var bottom = top + sections[i].offsetHeight;
+          if (midY >= top && midY < bottom) {
+            activeId = sections[i].id;
+            break;
+          }
+        }
+
+        var key = (isTop ? "1" : "0") + activeId;
+        if (key === lastNavKey) return;
+        lastNavKey = key;
+        nav.classList.toggle("is-top", isTop);
+        navAnchors.forEach(function (a) {
+          a.classList.toggle("is-active", a.getAttribute("data-section") === activeId);
+        });
+      }
+
+      window.addEventListener(
+        "scroll",
+        function () {
+          if (scrollQueued) return;
+          scrollQueued = true;
+          requestAnimationFrame(updateNav);
+        },
+        { passive: true }
+      );
+      window.addEventListener("resize", updateNav);
+      updateNav();
+
+      if ("IntersectionObserver" in window) {
+        var revealIo = new IntersectionObserver(
+          function (entries) {
+            entries.forEach(function (entry) {
+              if (entry.isIntersecting) {
+                entry.target.classList.add("is-visible");
+                revealIo.unobserve(entry.target);
+              }
+            });
+          },
+          { rootMargin: "0px 0px -8% 0px", threshold: 0.08 }
+        );
+        document.querySelectorAll(".reveal").forEach(function (el) {
+          revealIo.observe(el);
+        });
+      } else {
+        document.querySelectorAll(".reveal").forEach(function (el) {
+          el.classList.add("is-visible");
+        });
+      }
+
+      var form = document.getElementById("waitlist-form");
+      var success = document.getElementById("form-success");
+      form.addEventListener("submit", function (e) {
+        e.preventDefault();
+        var name = (document.getElementById("name").value || "").trim();
+        var email = (document.getElementById("email").value || "").trim();
+        var properties = document.getElementById("properties").value;
+        var comment = (document.getElementById("comment").value || "").trim();
+
+        if (!name || !email) {
+          form.reportValidity();
+          return;
+        }
+
+        var body = [
+          "Имя: " + name,
+          "Email: " + email,
+          "Объектов: " + (properties || "не указано"),
+          "",
+          comment || "(без комментария)"
+        ].join("\n");
+
+        window.location.href =
+          "mailto:" +
+          CONTACT_EMAIL +
+          "?subject=" +
+          encodeURIComponent("Заявка Landlords — " + name) +
+          "&body=" +
+          encodeURIComponent(body);
+
+        success.classList.add("is-shown");
+      });
+    })();
+  </script>
 </body>
 </html>
