@@ -15,6 +15,7 @@ const TenantsPage = lazy(() => import('@/pages/tenants/TenantsPage'));
 const ContractsPage = lazy(() => import('@/pages/contracts/ContractsPage'));
 const ContractDetailPage = lazy(() => import('@/pages/contracts/ContractDetailPage'));
 const PaymentsPage = lazy(() => import('@/pages/payments/PaymentsPage'));
+const CalendarPage = lazy(() => import('@/pages/calendar/CalendarPage'));
 const ExpensesPage = lazy(() => import('@/pages/expenses/ExpensesPage'));
 const SettingsPage = lazy(() => import('@/pages/settings/SettingsPage'));
 const NotFound = lazy(() => import('@/pages/NotFound'));
@@ -51,6 +52,7 @@ export function AppRouter() {
             <Route path="/contracts" element={<ContractsPage />} />
             <Route path="/contracts/:id" element={<ContractDetailPage />} />
             <Route path="/payments" element={<PaymentsPage />} />
+            <Route path="/calendar" element={<CalendarPage />} />
             <Route path="/expenses" element={<ExpensesPage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Route>

@@ -7,6 +7,7 @@ import { dashboardApi } from '@/features/dashboard/api';
 import { AnalyticsWidget } from '@/features/dashboard/components/AnalyticsWidget';
 import { PropertiesOverview } from '@/features/dashboard/components/PropertiesOverview';
 import { OverdueAlert } from '@/features/dashboard/components/OverdueAlert';
+import { UpcomingEventsWidget } from '@/features/dashboard/components/UpcomingEventsWidget';
 import { OnboardingWizard } from '@/features/onboarding/OnboardingWizard';
 import { Card } from '@/shared/ui/Card';
 import { Skeleton } from '@/shared/ui/Skeleton';
@@ -103,6 +104,8 @@ export default function DashboardPage() {
 
       {showOnboardingNow && <motion.div variants={fadeUp}><OnboardingWizard onComplete={() => setShowOnboarding(false)} /></motion.div>}
       <motion.div variants={fadeUp}><OverdueAlert count={overdueCount} amount={summary.overdue_total_amount || '0'} /></motion.div>
+
+      <motion.div variants={fadeUp}><UpcomingEventsWidget /></motion.div>
 
       <motion.div variants={fadeUp}><AnalyticsWidget /></motion.div>
       <motion.div variants={fadeUp}><PropertiesOverview data={summary.properties_overview || []} /></motion.div>

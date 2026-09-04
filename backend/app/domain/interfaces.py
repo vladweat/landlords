@@ -261,6 +261,13 @@ class IRentChargeRepository(ABC):
         """Получить charge с блокировкой строки."""
         ...
 
+    @abstractmethod
+    def list_for_calendar(
+        self, account_id: UUID, date_to: date
+    ) -> Sequence[RentChargeEntity]:
+        """Неоплаченные начисления с due_date <= date_to (просрочки + окно календаря)."""
+        ...
+
 
 class IPaymentRepository(ABC):
     """Интерфейс репозитория платежей."""

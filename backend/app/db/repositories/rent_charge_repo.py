@@ -217,3 +217,19 @@ class RentChargeRepository(IRentChargeRepository):
             .first()
         )
         return model.to_entity() if model else None
+
+    def list_for_calendar(
+        self, account_id: UUID, date_to: date
+    ) -> list[RentChargeEntity]:
+        """Неоплаченные начисления с due_date <= date_to."""
+        models = (
+            self.session.query(RentChargeModel)
+            .filter(
+                RentChargeModel.account_id == account_id,
+                RentChargeModel.status != "paid",
+                RentChargeModel.due_date <= date_to,
+            )
+            .order_by(RentChargeModel.due_date)
+            .all()
+        )
+        return [m.to_entity() for m in models]
