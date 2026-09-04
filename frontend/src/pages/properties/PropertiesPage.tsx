@@ -83,7 +83,9 @@ export default function PropertiesPage() {
             const contract = contractByProperty[p.id];
             return (
               <motion.tr key={p.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="hover:bg-gray-50 transition-colors">
-                <td className="py-3 px-4 text-sm font-medium">{p.address}</td>
+                <td className="py-3 px-4 text-sm font-medium">
+                  <Link to={`/properties/${p.id}`} className="hover:text-blue-600">{p.address}</Link>
+                </td>
                 <td className="py-3 px-4">
                   {contract ? (
                     <Link to={`/contracts/${contract.id}`} className="inline-flex items-center gap-2 text-sm text-gray-700 hover:text-blue-600">

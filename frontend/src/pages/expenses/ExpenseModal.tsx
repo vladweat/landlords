@@ -34,16 +34,18 @@ type ExpenseFormData = z.infer<typeof expenseSchema>;
 interface ExpenseModalProps {
   isOpen: boolean;
   onClose: () => void;
+  /** Если задан — объект зафиксирован, селект скрыт */
+  defaultPropertyId?: string;
 }
 
-export function ExpenseModal({ isOpen, onClose }: ExpenseModalProps) {
+export function ExpenseModal({ isOpen, onClose, defaultPropertyId }: ExpenseModalProps) {
   const queryClient = useQueryClient();
   useEscapeKey(onClose);
 
   const { data: propertiesData } = useQuery({
     queryKey: ['properties'],
     queryFn: () => propertiesApi.getAll({ per_page: 100 }),
-    enabled: isOpen,
+    enabled: isOpen && !defaultPropertyId,
   });
   const properties = propertiesData?.items || [];
 
@@ -55,7 +57,7 @@ export function ExpenseModal({ isOpen, onClose }: ExpenseModalProps) {
   } = useForm<ExpenseFormData>({
     resolver: zodResolver(expenseSchema),
     defaultValues: {
-      property_id: '',
+      property_id: defaultPropertyId || '',
       category: 'utilities',
       amount: '',
       date_incurred: '',
@@ -64,22 +66,23 @@ export function ExpenseModal({ isOpen, onClose }: ExpenseModalProps) {
   });
 
   useEffect(() => {
-    if (!isOpen) {
+    if (isOpen) {
       reset({
-        property_id: '',
+        property_id: defaultPropertyId || '',
         category: 'utilities',
         amount: '',
         date_incurred: '',
         note: '',
       });
     }
-  }, [isOpen, reset]);
+  }, [isOpen, defaultPropertyId, reset]);
 
   const createMutation = useMutation({
     mutationFn: expensesApi.create,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['expenses'] });
       queryClient.invalidateQueries({ queryKey: ['properties'] });
+      queryClient.invalidateQueries({ queryKey: ['property'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
       scrollToTop();
       toast.success('Расход добавлен');
@@ -122,23 +125,27 @@ export function ExpenseModal({ isOpen, onClose }: ExpenseModalProps) {
                 </button>
               </div>
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-                <div className="w-full">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Объект</label>
-                  <select
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-                    {...register('property_id')}
-                  >
-                    <option value="">Выберите объект</option>
-                    {properties.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {shortAddress(p.address)}
-                      </option>
-                    ))}
-                  </select>
-                  {errors.property_id && (
-                    <p className="mt-1 text-sm text-red-600">{errors.property_id.message}</p>
-                  )}
-                </div>
+                {defaultPropertyId ? (
+                  <input type="hidden" {...register('property_id')} />
+                ) : (
+                  <div className="w-full">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Объект</label>
+                    <select
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                      {...register('property_id')}
+                    >
+                      <option value="">Выберите объект</option>
+                      {properties.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {shortAddress(p.address)}
+                        </option>
+                      ))}
+                    </select>
+                    {errors.property_id && (
+                      <p className="mt-1 text-sm text-red-600">{errors.property_id.message}</p>
+                    )}
+                  </div>
+                )}
                 <div className="w-full">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Категория</label>
                   <select
