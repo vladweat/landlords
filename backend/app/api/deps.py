@@ -14,10 +14,14 @@ from app.domain.permissions import Permission, has_permission
 from app.db.repositories.account_repo import AccountRepository
 from app.db.repositories.contract_event_repo import ContractEventRepository
 from app.db.repositories.contract_repo import ContractRepository
+from app.db.repositories.contract_template_repo import ContractTemplateRepository
 from app.db.repositories.document_repo import DocumentRepository
 from app.db.repositories.feedback_repo import FeedbackRepository
 from app.db.repositories.invoice_repo import InvoiceRepository
 from app.db.repositories.membership_repo import MembershipRepository
+from app.db.repositories.notification_dismissal_repo import (
+    NotificationDismissalRepository,
+)
 from app.db.repositories.payment_repo import PaymentRepository
 from app.db.repositories.property_expense_repo import PropertyExpenseRepository
 from app.db.repositories.property_repo import PropertyRepository
@@ -32,6 +36,7 @@ from app.services.audit_log_service import AuditService
 from app.services.calendar_service import CalendarService
 from app.services.contract_event_service import ContractEventService
 from app.services.contract_service import ContractService
+from app.services.contract_template_service import ContractTemplateService
 from app.services.credit_score_service import CreditScoreService
 from app.services.dashboard_service import DashboardService
 from app.services.document_service import DocumentService
@@ -39,12 +44,14 @@ from app.services.feedback_service import FeedbackService
 from app.services.forecast_service import ForecastService
 from app.services.invoice_service import InvoiceService
 from app.services.ledger_service import LedgerService
+from app.services.notification_service import NotificationService
 from app.services.payment_service import PaymentService
 from app.services.pdf_service import PdfService
 from app.services.property_expense_service import PropertyExpenseService
 from app.services.property_service import PropertyService
 from app.services.reminder_service import ReminderService
 from app.services.rent_charge_service import RentChargeService
+from app.services.report_export_service import ReportExportService
 from app.services.roi_service import RoiService
 from app.services.tenant_service import TenantService
 from app.services.user_service import UserService
@@ -72,6 +79,11 @@ def get_tenant_repo(session: Session = Depends(get_db_session)) -> TenantReposit
 def get_contract_repo(session: Session = Depends(get_db_session)) -> ContractRepository:
     return ContractRepository(session)
 
+def get_contract_template_repo(
+    session: Session = Depends(get_db_session),
+) -> ContractTemplateRepository:
+    return ContractTemplateRepository(session)
+
 def get_rent_charge_repo(session: Session = Depends(get_db_session)) -> RentChargeRepository:
     return RentChargeRepository(session)
 
@@ -97,6 +109,11 @@ def get_feedback_repo(session: Session = Depends(get_db_session)) -> FeedbackRep
 
 def get_invoice_repo(session: Session = Depends(get_db_session)) -> InvoiceRepository:
     return InvoiceRepository(session)
+
+def get_notification_dismissal_repo(
+    session: Session = Depends(get_db_session),
+) -> NotificationDismissalRepository:
+    return NotificationDismissalRepository(session)
 
 def get_audit_service(session: Session = Depends(get_db_session)) -> AuditService:
     return AuditService(session)
@@ -132,13 +149,29 @@ def get_tenant_service(
 ) -> TenantService:
     return TenantService(repo, contract_repo, property_repo)
 
+def get_contract_template_service(
+    template_repo: ContractTemplateRepository = Depends(get_contract_template_repo),
+) -> ContractTemplateService:
+    return ContractTemplateService(template_repo)
+
 def get_pdf_service(
     contract_repo: ContractRepository = Depends(get_contract_repo),
     property_repo: PropertyRepository = Depends(get_property_repo),
     tenant_repo: TenantRepository = Depends(get_tenant_repo),
     document_repo: DocumentRepository = Depends(get_document_repo),
+    template_service: ContractTemplateService = Depends(get_contract_template_service),
+    account_repo: AccountRepository = Depends(get_account_repo),
+    user_repo: UserRepository = Depends(get_user_repo),
 ) -> PdfService:
-    return PdfService(contract_repo, property_repo, tenant_repo, document_repo)
+    return PdfService(
+        contract_repo,
+        property_repo,
+        tenant_repo,
+        document_repo,
+        template_service,
+        account_repo,
+        user_repo,
+    )
 
 
 def get_document_service(
@@ -281,6 +314,31 @@ def get_feedback_service(
     feedback_repo: FeedbackRepository = Depends(get_feedback_repo),
 ) -> FeedbackService:
     return FeedbackService(feedback_repo)
+
+def get_notification_service(
+    calendar_service: CalendarService = Depends(get_calendar_service),
+    dismissal_repo: NotificationDismissalRepository = Depends(
+        get_notification_dismissal_repo
+    ),
+) -> NotificationService:
+    return NotificationService(calendar_service, dismissal_repo)
+
+def get_report_export_service(
+    payment_repo: PaymentRepository = Depends(get_payment_repo),
+    charge_repo: RentChargeRepository = Depends(get_rent_charge_repo),
+    expense_repo: PropertyExpenseRepository = Depends(get_property_expense_repo),
+    contract_repo: ContractRepository = Depends(get_contract_repo),
+    property_repo: PropertyRepository = Depends(get_property_repo),
+    tenant_repo: TenantRepository = Depends(get_tenant_repo),
+) -> ReportExportService:
+    return ReportExportService(
+        payment_repo,
+        charge_repo,
+        expense_repo,
+        contract_repo,
+        property_repo,
+        tenant_repo,
+    )
 
 
 # ==================== АУТЕНТИФИКАЦИЯ ====================

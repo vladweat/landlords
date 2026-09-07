@@ -47,7 +47,7 @@ class PaymentRepository(IPaymentRepository):
         contract_id: UUID | None = None,
         start_date: date | None = None,
         end_date: date | None = None,
-        limit: int = 100,
+        limit: int | None = 100,
         offset: int = 0,
     ) -> list[PaymentEntity]:
         """Список платежей аккаунта с фильтрацией."""
@@ -64,7 +64,11 @@ class PaymentRepository(IPaymentRepository):
         if end_date:
             query = query.filter(PaymentModel.date_paid <= end_date)
 
-        models = query.offset(offset).limit(limit).all()
+        if offset:
+            query = query.offset(offset)
+        if limit is not None:
+            query = query.limit(limit)
+        models = query.all()
         return [m.to_entity() for m in models]
 
     def list_by_charge(

@@ -14,6 +14,8 @@ from app.db.models.document_model import DocumentModel
 from app.db.models.feedback_model import FeedbackModel
 from app.db.models.contract_event_model import ContractEventModel
 from app.db.models.invoice_model import InvoiceModel
+from app.db.models.notification_dismissal_model import NotificationDismissalModel
+from app.db.models.contract_template_model import ContractTemplateModel
 
 __all__ = [
     "Base",
@@ -32,4 +34,6 @@ __all__ = [
     "FeedbackModel",
     "ContractEventModel",
     "InvoiceModel",
+    "NotificationDismissalModel",
+    "ContractTemplateModel",
 ]

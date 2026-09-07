@@ -2,7 +2,7 @@
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Form, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 from fastapi.responses import Response
 
 from app.api.deps import (
@@ -244,9 +244,10 @@ def get_contract_document(
     account_id: UUID = Depends(get_current_account_id),
     service: PdfService = Depends(get_pdf_service),
     _: MembershipEntity = Depends(require_permissions(Permission.WRITE_DOCUMENTS)),
+    template_id: UUID | None = Query(None),
 ) -> dict:
     """Сгенерировать и сохранить PDF, вернуть защищённый URL через API."""
-    doc = service.generate_and_save(contract_id, account_id)
+    doc = service.generate_and_save(contract_id, account_id, template_id=template_id)
     url = f"/api/v1/documents/{doc.id}"
     return {"status": "success", "data": {"url": url, "filename": doc.filename}}
 

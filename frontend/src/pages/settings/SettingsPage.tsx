@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { User, Key, Trash2, Users, Building2 } from 'lucide-react';
 import { authApi } from '@/features/auth/api';
 import { accountApi } from '@/features/account/api';
+import { ContractTemplatesSection } from '@/features/contract-templates/components/ContractTemplatesSection';
 import { useAuthStore } from '@/features/auth/store';
 import { useCan } from '@/features/auth/permissions';
 import { ROLE_LABELS, type Role } from '@/entities/account';
@@ -144,7 +145,7 @@ export default function SettingsPage() {
   });
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6 max-w-3xl">
       <div>
         <h1 className="text-2xl font-semibold text-gray-900">Настройки</h1>
         {role && (
@@ -202,6 +203,8 @@ export default function SettingsPage() {
           </form>
         </Card>
       )}
+
+      <ContractTemplatesSection />
 
       {canManageTeam && (
         <Card>
