@@ -87,6 +87,30 @@ class TestGenerateMessage:
         msg = service.generate_message(charge_id, uuid4(), "third")
         assert "третье уведомление" in msg.lower()
 
+    def test_includes_invoice_url_when_present(
+        self, mock_reminder_repo, mock_charge_repo, mock_contract_repo, mock_tenant_repo
+    ):
+        from app.domain.entities import InvoiceEntity
+
+        invoice_repo = Mock()
+        invoice_repo.get_by_charge.return_value = InvoiceEntity(
+            id=uuid4(),
+            account_id=uuid4(),
+            contract_id=uuid4(),
+            charge_id=uuid4(),
+            public_token="abcTOKEN",
+        )
+        service = ReminderService(
+            mock_reminder_repo,
+            mock_charge_repo,
+            mock_contract_repo,
+            mock_tenant_repo,
+            invoice_repo=invoice_repo,
+        )
+        msg = service.generate_message(uuid4(), uuid4(), "first")
+        assert "Квитанция:" in msg
+        assert "/i/abcTOKEN" in msg
+
 
 class TestCreateReminder:
     def test_success(self, service, mock_reminder_repo):

@@ -38,5 +38,6 @@ class AccountRepository(IAccountRepository):
         model.name = entity.name
         model.base_currency = entity.base_currency
         model.timezone = entity.timezone
+        model.payment_details = entity.payment_details
         self.session.flush()
         return model.to_entity()

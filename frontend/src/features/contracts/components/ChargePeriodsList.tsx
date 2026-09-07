@@ -1,6 +1,7 @@
 import { StatusDot } from '@/shared/ui/DetailTable';
 import { DetailTable, DetailTd, DetailTh, DetailTr } from '@/shared/ui/DetailTable';
 import { ReminderButton } from '@/features/reminders/components/ReminderButton';
+import { InvoiceButton } from '@/features/invoices/components/InvoiceButton';
 import { formatDate } from '@/shared/lib/utils';
 
 export type ChargeRow = {
@@ -117,6 +118,7 @@ export function ChargePeriodsList({
                         Оплатить
                       </button>
                     )}
+                    <InvoiceButton chargeId={c.id} />
                     {c.status === 'overdue' && (
                       <ReminderButton chargeId={c.id} chargeStatus={c.status} />
                     )}
@@ -184,6 +186,7 @@ export function ChargePeriodsList({
                             Оплатить
                           </button>
                         )}
+                        <InvoiceButton chargeId={c.id} compact />
                         {c.status === 'overdue' && (
                           <ReminderButton chargeId={c.id} chargeStatus={c.status} />
                         )}

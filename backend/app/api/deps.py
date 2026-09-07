@@ -16,6 +16,7 @@ from app.db.repositories.contract_event_repo import ContractEventRepository
 from app.db.repositories.contract_repo import ContractRepository
 from app.db.repositories.document_repo import DocumentRepository
 from app.db.repositories.feedback_repo import FeedbackRepository
+from app.db.repositories.invoice_repo import InvoiceRepository
 from app.db.repositories.membership_repo import MembershipRepository
 from app.db.repositories.payment_repo import PaymentRepository
 from app.db.repositories.property_expense_repo import PropertyExpenseRepository
@@ -36,6 +37,7 @@ from app.services.dashboard_service import DashboardService
 from app.services.document_service import DocumentService
 from app.services.feedback_service import FeedbackService
 from app.services.forecast_service import ForecastService
+from app.services.invoice_service import InvoiceService
 from app.services.ledger_service import LedgerService
 from app.services.payment_service import PaymentService
 from app.services.pdf_service import PdfService
@@ -92,6 +94,9 @@ def get_contract_event_repo(session: Session = Depends(get_db_session)) -> Contr
 
 def get_feedback_repo(session: Session = Depends(get_db_session)) -> FeedbackRepository:
     return FeedbackRepository(session)
+
+def get_invoice_repo(session: Session = Depends(get_db_session)) -> InvoiceRepository:
+    return InvoiceRepository(session)
 
 def get_audit_service(session: Session = Depends(get_db_session)) -> AuditService:
     return AuditService(session)
@@ -204,8 +209,35 @@ def get_reminder_service(
     contract_repo: ContractRepository = Depends(get_contract_repo),
     tenant_repo: TenantRepository = Depends(get_tenant_repo),
     event_repo: ContractEventRepository = Depends(get_contract_event_repo),
+    invoice_repo: InvoiceRepository = Depends(get_invoice_repo),
 ) -> ReminderService:
-    return ReminderService(reminder_repo, charge_repo, contract_repo, tenant_repo, event_repo)
+    return ReminderService(
+        reminder_repo, charge_repo, contract_repo, tenant_repo, event_repo, invoice_repo
+    )
+
+
+def get_invoice_service(
+    invoice_repo: InvoiceRepository = Depends(get_invoice_repo),
+    charge_repo: RentChargeRepository = Depends(get_rent_charge_repo),
+    payment_repo: PaymentRepository = Depends(get_payment_repo),
+    contract_repo: ContractRepository = Depends(get_contract_repo),
+    property_repo: PropertyRepository = Depends(get_property_repo),
+    tenant_repo: TenantRepository = Depends(get_tenant_repo),
+    account_repo: AccountRepository = Depends(get_account_repo),
+    document_repo: DocumentRepository = Depends(get_document_repo),
+    pdf_service: PdfService = Depends(get_pdf_service),
+) -> InvoiceService:
+    return InvoiceService(
+        invoice_repo,
+        charge_repo,
+        payment_repo,
+        contract_repo,
+        property_repo,
+        tenant_repo,
+        account_repo,
+        document_repo,
+        pdf_service,
+    )
 
 def get_credit_score_service(
     payment_repo: PaymentRepository = Depends(get_payment_repo),

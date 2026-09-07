@@ -13,6 +13,7 @@ from app.db.models.reminder_model import ReminderModel
 from app.db.models.document_model import DocumentModel
 from app.db.models.feedback_model import FeedbackModel
 from app.db.models.contract_event_model import ContractEventModel
+from app.db.models.invoice_model import InvoiceModel
 
 __all__ = [
     "Base",
@@ -27,6 +28,8 @@ __all__ = [
     "PropertyExpenseModel",
     "AuditLogModel",
     "ReminderModel",
+    "DocumentModel",
     "FeedbackModel",
     "ContractEventModel",
+    "InvoiceModel",
 ]

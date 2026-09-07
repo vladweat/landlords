@@ -49,6 +49,8 @@ class AccountService:
             account.base_currency = dto.base_currency.upper()
         if dto.timezone is not None:
             account.timezone = dto.timezone
+        if dto.payment_details is not None:
+            account.payment_details = dto.payment_details.strip() or None
         updated = self.account_repo.update(account)
         return AccountDTO.model_validate(updated)
 

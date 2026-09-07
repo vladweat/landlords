@@ -53,3 +53,4 @@ class AccountUpdateDTO(BaseModel):
     name: str | None = None
     base_currency: str | None = None
     timezone: str | None = None
+    payment_details: str | None = None

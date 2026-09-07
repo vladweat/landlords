@@ -16,6 +16,7 @@ class AccountDTO(BaseModel):
     owner_id: UUID
     base_currency: str
     timezone: str
+    payment_details: str | None = None
     created_at: datetime
 
 
@@ -25,3 +26,4 @@ class AccountCreateDTO(BaseModel):
     name: str
     base_currency: str = "RUB"
     timezone: str = "Europe/Moscow"
+    payment_details: str | None = None

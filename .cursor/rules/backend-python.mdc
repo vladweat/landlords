@@ -6,49 +6,38 @@ alwaysApply: false
 
 # Backend — слоистая архитектура
 
-> Полный обзор структуры, паттернов и известных проблем: **`backend/ARCHITECTURE.md`**  
-> Чеклист исправлений: **`backend/TODO.md`**
+> Справочник: `backend/ARCHITECTURE.md` · чеклист: `backend/TODO.md` · деньги: `docs/MONEY_FLOW.md`
 
 ```
-routes (api/v1/routes/)  →  services  →  repositories  →  models (db/models/)
-                              ↓
-                         domain/ (entities, interfaces, rules)
+routes → services → repositories → models
+            ↓
+       domain/ (entities, interfaces, rules, permissions)
 ```
 
-## Слои и ответственность
+## Слои
 
-- **routes** — HTTP, валидация входа (Pydantic schemas), DI через `Depends`, формирование ответа. Без бизнес-логики.
-- **services** — бизнес-логика, оркестрация, вызов `domain/rules`. Работают с DTO (`services/dto/`), не с ORM-моделями напрямую.
-- **repositories** — CRUD, SQL-запросы. Реализуют ABC-интерфейсы из `domain/interfaces.py`.
-- **domain/entities** — dataclass'ы, чистые объекты домена.
-- **domain/rules** — чистые функции валидации и расчётов (без БД).
-- **db/models** — SQLAlchemy ORM. Наследуют `Base` + `TimestampMixin`.
+- **routes** — HTTP, Pydantic, `Depends`, ответ. Без бизнес-логики.
+- **services** — оркестрация + `domain/rules`; DTO, не ORM.
+- **repositories** — CRUD/SQL по ABC из `domain/interfaces.py`.
+- **domain** — entities, rules (чистые функции), `permissions.py` (Role/Permission).
+- **db/models** — SQLAlchemy, `Base` + `TimestampMixin`.
 
-## Паттерны
+## Auth / multi-tenancy
 
-```python
-# Сервис получает интерфейс репозитория, не конкретный класс
-def __init__(self, repo: IContractRepository) -> None:
-    self.repo = repo
+- JWT: `sub` + `account_id`; на каждый запрос — активная **membership** из БД; **role всегда из БД**.
+- Mutate: `require_permissions(...)` → `ForbiddenError`.
+- Команда: `/v1/account/members` — только owner. Репозитории фильтруют по `account_id`.
 
-# Ошибки — через иерархию AppException
-raise NotFoundError(f"Contract with id={contract_id} not found")
+## Деньги (инварианты)
 
-# DI регистрируется в app/api/deps.py
-def get_contract_service(repo=Depends(get_contract_repo)) -> ContractService:
-    return ContractService(repo)
-```
+- Create → всегда `draft`; charges при activate (+ `auto_generate_charges`) или ручном generate (Celery).
+- Платёж без `rent_charge_id` → FIFO по `due_date`; хвост → аванс (`rent_charge_id=None`).
+- Outstanding / ledger: `Σcharges − Σpayments`; депозит вне кассы.
+- Renew — дописать charges + allocate аванс; terminate — prorate + unlink future → аванс.
 
-## API
+## API и стиль
 
-- Префикс роутеров: `/v1/{resource}` (nginx проксирует `/api/v1/...`).
-- Авторизация: `Depends(get_current_account_id)` — JWT Bearer + проверка membership; mutate — `require_permissions(...)`.
-- Пагинация: `PaginationParams` → `{ items, total, page, per_page, pages }`.
-- Celery-задачи: `app/tasks/`, воркер — `backend/worker.py`.
-
-## Стиль кода
-
-- Type hints везде, `from __future__` не используется.
-- Docstring'и на русском для публичных методов.
-- Линтеры: black + ruff.
+- Префикс `/v1/{resource}`; пагинация `PaginationParams` → `{ items, total, page, per_page, pages }`.
+- Ошибки: иерархия `AppException`. Celery: `app/tasks/`, entry `backend/worker.py`.
+- Type hints везде; docstring'и публичных методов на русском; black + ruff.
 - Новый ресурс: entity → interface → repo → service → schema → route → deps → тесты.

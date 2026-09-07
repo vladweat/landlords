@@ -299,6 +299,7 @@ class PdfService:
         account_id: UUID,
         pdf_bytes: bytes,
         prefix: str,
+        category: str | None = None,
     ) -> DocumentEntity:
         """Сохранить PDF на диск и создать запись документа."""
         dir_path = os.path.join(STORAGE_DIR, str(account_id), str(contract_id))
@@ -313,7 +314,13 @@ class PdfService:
         with open(file_path, "wb") as f:
             f.write(pdf_bytes)
 
-        category = "act" if "act" in prefix else "contract_pdf"
+        if category is None:
+            if "invoice" in prefix:
+                category = "invoice"
+            elif "act" in prefix:
+                category = "act"
+            else:
+                category = "contract_pdf"
 
         doc = DocumentEntity(
             id=uuid4(),
@@ -467,6 +474,96 @@ class PdfService:
         c.save()
         buffer.seek(0)
         return self._save_pdf(contract_id, account_id, buffer.read(), "renewal_act")
+
+    def generate_and_save_invoice(
+        self,
+        *,
+        contract_id: UUID,
+        account_id: UUID,
+        landlord_name: str,
+        tenant_name: str,
+        property_address: str,
+        period_start,
+        period_end,
+        due_date,
+        amount,
+        amount_paid,
+        amount_remaining,
+        currency: str,
+        status: str,
+        payment_details: str | None,
+    ) -> DocumentEntity:
+        """Сгенерировать PDF квитанции и сохранить на диск."""
+        from decimal import Decimal
+
+        status_labels = {
+            "pending": "Ожидает оплаты",
+            "partially_paid": "Частично оплачено",
+            "paid": "Оплачено",
+            "overdue": "Просрочено",
+        }
+        cur = "₽" if currency == "RUB" else currency
+        amount_s = f"{Decimal(str(amount))} {cur}"
+        paid_s = f"{Decimal(str(amount_paid))} {cur}"
+        remaining_s = f"{Decimal(str(amount_remaining))} {cur}"
+
+        buffer = BytesIO()
+        c = canvas.Canvas(buffer, pagesize=A4)
+        width, height = A4
+        left = 22 * mm
+        y = height - 20 * mm
+
+        def line(text: str, y_pos: float, bold: bool = False, size: int = 10) -> float:
+            c.setFont(FONT_BOLD if bold else FONT_NAME, size)
+            c.drawString(left, y_pos, text)
+            return y_pos - 6 * mm
+
+        c.setFont(FONT_BOLD, 14)
+        c.drawCentredString(width / 2, y, "КВИТАНЦИЯ НА ОПЛАТУ АРЕНДЫ")
+        y -= 14 * mm
+
+        y = line(f"Арендодатель: {landlord_name}", y, bold=True)
+        y = line(f"Арендатор: {tenant_name}", y)
+        y = line(f"Объект: {property_address}", y)
+        y -= 2 * mm
+        y = line(
+            f"Период: {period_start.strftime('%d.%m.%Y')} — {period_end.strftime('%d.%m.%Y')}",
+            y,
+        )
+        y = line(f"Срок оплаты: {due_date.strftime('%d.%m.%Y')}", y, bold=True)
+        y = line(f"Статус: {status_labels.get(status, status)}", y)
+        y -= 4 * mm
+        y = line(f"Сумма начисления: {amount_s}", y)
+        y = line(f"Уже оплачено: {paid_s}", y)
+        y = line(f"К оплате: {remaining_s}", y, bold=True, size=12)
+        y -= 6 * mm
+
+        y = line("Реквизиты для оплаты:", y, bold=True)
+        details = (payment_details or "").strip() or "Реквизиты не указаны арендодателем."
+        words = details.replace("\n", " \n ").split()
+        chunk = ""
+        for word in words:
+            if word == "\n":
+                if chunk:
+                    y = line(chunk, y)
+                    chunk = ""
+                y -= 2 * mm
+                continue
+            trial = f"{chunk} {word}".strip()
+            if len(trial) > 85:
+                y = line(chunk, y)
+                chunk = word
+            else:
+                chunk = trial
+        if chunk:
+            y = line(chunk, y)
+
+        c.showPage()
+        c.save()
+        buffer.seek(0)
+        return self._save_pdf(
+            contract_id, account_id, buffer.read(), "invoice", category="invoice"
+        )
 
     def get_documents(self, contract_id: UUID, account_id: UUID) -> list[DocumentEntity]:
         if not self.document_repo:

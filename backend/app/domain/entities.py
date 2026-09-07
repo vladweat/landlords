@@ -29,6 +29,7 @@ class AccountEntity:
     owner_id: UUID
     base_currency: str = "RUB"
     timezone: str = "Europe/Moscow"
+    payment_details: str | None = None
     created_at: datetime = field(default_factory=_utc_now)
 
 
@@ -176,6 +177,20 @@ class LedgerLine:
     source_id: UUID | None = None
     created_at: datetime | None = None
     
+@dataclass
+class InvoiceEntity:
+    """Квитанция (инвойс) по начислению — публичная ссылка + PDF."""
+
+    id: UUID
+    account_id: UUID
+    contract_id: UUID
+    charge_id: UUID
+    public_token: str
+    document_id: UUID | None = None
+    created_at: datetime = field(default_factory=_utc_now)
+    updated_at: datetime = field(default_factory=_utc_now)
+
+
 @dataclass
 class ReminderEntity:
     """Напоминание о просрочке."""
