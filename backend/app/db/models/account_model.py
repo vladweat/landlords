@@ -3,7 +3,7 @@
 from uuid import UUID, uuid4
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, func
+from sqlalchemy import DateTime, ForeignKey, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -19,6 +19,7 @@ class AccountModel(TimestampMixin, Base):
     owner_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True)
     base_currency: Mapped[str] = mapped_column(String(3), default="RUB", nullable=False)
     timezone: Mapped[str] = mapped_column(String(50), default="Europe/Moscow", nullable=False)
+    payment_details: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     def to_entity(self) -> AccountEntity:
         """Преобразовать ORM-модель в доменную сущность."""
@@ -28,6 +29,7 @@ class AccountModel(TimestampMixin, Base):
             owner_id=self.owner_id,
             base_currency=self.base_currency,
             timezone=self.timezone,
+            payment_details=self.payment_details,
             created_at=self.created_at,
         )
 
@@ -40,5 +42,6 @@ class AccountModel(TimestampMixin, Base):
             owner_id=entity.owner_id,
             base_currency=entity.base_currency,
             timezone=entity.timezone,
+            payment_details=entity.payment_details,
             created_at=entity.created_at,
         )

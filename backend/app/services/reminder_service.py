@@ -3,11 +3,13 @@
 from datetime import date, timedelta
 from uuid import UUID, uuid4
 
+from app.core.config import settings
 from app.core.exceptions import NotFoundError, ValidationError
 from app.domain.entities import ReminderEntity
 from app.domain.interfaces import (
     IContractEventRepository,
     IContractRepository,
+    IInvoiceRepository,
     IRentChargeRepository,
     IReminderRepository,
     ITenantRepository,
@@ -36,15 +38,29 @@ class ReminderService:
     }
 
     def __init__(
-        self, reminder_repo: IReminderRepository, charge_repo: IRentChargeRepository,
-        contract_repo: IContractRepository, tenant_repo: ITenantRepository,
+        self,
+        reminder_repo: IReminderRepository,
+        charge_repo: IRentChargeRepository,
+        contract_repo: IContractRepository,
+        tenant_repo: ITenantRepository,
         event_repo: IContractEventRepository | None = None,
+        invoice_repo: IInvoiceRepository | None = None,
     ) -> None:
         self.reminder_repo = reminder_repo
         self.charge_repo = charge_repo
         self.contract_repo = contract_repo
         self.tenant_repo = tenant_repo
         self.event_repo = event_repo
+        self.invoice_repo = invoice_repo
+
+    def _invoice_share_url(self, charge_id: UUID, account_id: UUID) -> str | None:
+        if not self.invoice_repo:
+            return None
+        invoice = self.invoice_repo.get_by_charge(charge_id, account_id)
+        if not invoice:
+            return None
+        base = settings.FRONTEND_URL.rstrip("/")
+        return f"{base}/i/{invoice.public_token}"
 
     def generate_message(self, charge_id: UUID, account_id: UUID, reminder_type: str) -> str:
         charge = self.charge_repo.get_by_id(charge_id, account_id)
@@ -61,7 +77,7 @@ class ReminderService:
         today = date.today()
         overdue_days = (today - charge.due_date).days if charge.due_date < today else 0
 
-        return template.format(
+        message = template.format(
             tenant_name=tenant.full_name,
             period=f"{charge.period_start} — {charge.period_end}",
             start_date=contract.start_date.strftime("%d.%m.%Y"),
@@ -69,6 +85,10 @@ class ReminderService:
             overdue_days=overdue_days,
             deadline=(today + timedelta(days=3)).strftime("%d.%m.%Y"),
         )
+        share_url = self._invoice_share_url(charge_id, account_id)
+        if share_url:
+            message = f"{message}\n\nКвитанция: {share_url}"
+        return message
 
     def create_reminder(self, account_id: UUID, dto: ReminderCreateDTO) -> ReminderDTO:
         charge = self.charge_repo.get_by_id(dto.charge_id, account_id)
@@ -87,7 +107,7 @@ class ReminderService:
             charge_id=dto.charge_id, reminder_type=dto.reminder_type, message_text=message,
         )
         created = self.reminder_repo.create(entity)
-        
+
         if self.event_repo:
             self.event_repo.create(ContractEventEntity(
                 id=uuid4(), account_id=account_id, contract_id=entity.contract_id,
@@ -95,7 +115,7 @@ class ReminderService:
                 title=f"Напоминание о просрочке: {entity.reminder_type}",
                 event_metadata={"reminder_id": str(created.id)},
             ))
-        
+
         return ReminderDTO.model_validate(created)
 
     def get_reminders(self, charge_id: UUID, account_id: UUID) -> list[ReminderDTO]:

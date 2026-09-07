@@ -6,6 +6,7 @@ export interface Account {
   owner_id: string;
   base_currency: string;
   timezone: string;
+  payment_details?: string | null;
 }
 
 export interface Member {

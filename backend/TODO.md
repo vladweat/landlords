@@ -4,7 +4,7 @@
 
 Справочник по архитектуре: [ARCHITECTURE.md](./ARCHITECTURE.md)
 
-**Статус:** 57 / 66 выполнено
+**Статус:** 61 / 64 выполнено (3 открыты: reproducible Docker ×2, полный CI)
 
 ---
 
@@ -21,7 +21,7 @@
 
 ### Инфраструктура и CI
 - [ ] Reproducible Docker build из `requirements.txt` (не копировать `.venv`) — `Dockerfile`, CI.
-- [ ] Добавить volume `storage/documents` для API и Celery worker — `docker-compose.yml`.
+- [x] Добавить volume `storage/documents` для API и Celery worker — `docker-compose.yml`.
 - [ ] CI: lint → unit → integration → build image → security scan → smoke tests.
 
 ### Тесты, миграции и БД
@@ -58,12 +58,14 @@
 
 ## P1 — безопасность
 
-- [ ] Убрать логирование reset-токена в plaintext — `app/api/v1/routes/auth.py:78`
-- [ ] Защитить `/documents/`: proxy через API с auth или signed URLs — `nginx/nginx.conf`
+> Дублирует «Перед запуском»; актуальный статус — там. Ниже для истории code review.
+
+- [x] Убрать логирование reset-токена в plaintext — `user_service.request_password_reset`
+- [x] Защитить `/documents/`: proxy через API с auth — `nginx/nginx.conf`, routes
 - [x] Задать сильный `SECRET_KEY` через env; убрать/запретить дефолт в prod — `app/core/config.py`
-- [ ] Реализовать отправку email для forgot-password (или временно отключить endpoint)
-- [ ] Закрыть Flower auth или не публиковать порт в prod — `docker-compose.yml`
-- [ ] Ужесточить CORS для prod (не `*`) — nginx / `main.py`
+- [x] Forgot-password: SMTP или dev-файл в `storage/password_resets` — `user_service.py`
+- [x] Закрыть Flower auth или не публиковать порт в prod — `docker-compose.yml`
+- [x] Ужесточить CORS для prod (не `*`) — nginx / `main.py`
 
 ---
 

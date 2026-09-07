@@ -11,6 +11,7 @@ export const accountApi = {
     name?: string;
     base_currency?: string;
     timezone?: string;
+    payment_details?: string | null;
   }): Promise<Account> => {
     const response = await apiClient.patch<{ status: string; data: Account }>('/account', data);
     return response.data.data;

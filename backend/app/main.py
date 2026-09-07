@@ -121,6 +121,7 @@ def create_app() -> FastAPI:
     from app.api.v1.routes.documents import router as documents_router
     from app.api.v1.routes.reminders import router as reminders_router
     from app.api.v1.routes.feedback import router as feedback_router
+    from app.api.v1.routes.public_invoices import router as public_invoices_router
 
     app.include_router(auth_router)
     app.include_router(account_router)
@@ -135,6 +136,7 @@ def create_app() -> FastAPI:
     app.include_router(documents_router)
     app.include_router(reminders_router)
     app.include_router(feedback_router)
+    app.include_router(public_invoices_router)
 
     return app
 

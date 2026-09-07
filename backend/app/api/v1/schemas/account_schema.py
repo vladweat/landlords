@@ -16,6 +16,7 @@ class AccountResponse(BaseModel):
     owner_id: UUID
     base_currency: str
     timezone: str
+    payment_details: str | None = None
 
 
 class AccountUpdateRequest(BaseModel):
@@ -24,6 +25,7 @@ class AccountUpdateRequest(BaseModel):
     name: str | None = None
     base_currency: str | None = None
     timezone: str | None = None
+    payment_details: str | None = None
 
 
 class AccountSingleResponse(BaseModel):

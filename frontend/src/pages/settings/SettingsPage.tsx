@@ -31,6 +31,7 @@ const accountSchema = z.object({
   name: z.string().min(1, 'Название обязательно'),
   base_currency: z.string().length(3, 'Код валюты из 3 символов'),
   timezone: z.string().min(1, 'Часовой пояс обязателен'),
+  payment_details: z.string().optional(),
 });
 
 const memberSchema = z.object({
@@ -63,6 +64,7 @@ export default function SettingsPage() {
       name: account?.name || '',
       base_currency: account?.base_currency || 'RUB',
       timezone: account?.timezone || 'Europe/Moscow',
+      payment_details: account?.payment_details || '',
     },
   });
 
@@ -181,6 +183,21 @@ export default function SettingsPage() {
             <Input label="Название" error={accountErrors.name?.message} {...accountRegister('name')} />
             <Input label="Валюта" error={accountErrors.base_currency?.message} {...accountRegister('base_currency')} />
             <Input label="Часовой пояс" error={accountErrors.timezone?.message} {...accountRegister('timezone')} />
+            <div className="w-full">
+              <label htmlFor="payment_details" className="mb-1 block text-sm font-medium text-gray-700">
+                Реквизиты для оплаты
+              </label>
+              <textarea
+                id="payment_details"
+                rows={4}
+                placeholder="Карта, СБП, расчётный счёт — текст для квитанции арендатору"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                {...accountRegister('payment_details')}
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                Показываются на публичной квитанции и в PDF.
+              </p>
+            </div>
             <Button type="submit" size="sm" isLoading={accountMutation.isPending}>Сохранить</Button>
           </form>
         </Card>

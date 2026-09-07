@@ -4,7 +4,12 @@
 Стек: React 19, Vite, TanStack Query, Zustand (auth), Tailwind 4, FSD-подобная структура.
 
 **Сборка сейчас ломается:** `npx tsc --noEmit` ≈ **44 ошибки**.  
-Продуктовые фичи — отдельно: [ROADMAP.md](../docs/ROADMAP.md).
+Продукт: [ROADMAP.md](../docs/ROADMAP.md) · приоритеты: [PRIORITIES.md](../docs/PRIORITIES.md).
+
+### Перед prod (с backend)
+
+- [ ] Зелёный `npm run build` (см. P0 ниже)
+- [ ] CI job: frontend lint + `tsc` + build — [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)
 
 Отмечай выполненное: `- [ ]` → `- [x]`.
 

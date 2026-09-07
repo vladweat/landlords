@@ -8,7 +8,7 @@ from datetime import date
 
 from app.domain.entities import (
     AccountEntity, ContractEntity, ContractEventEntity, DocumentEntity,
-    FeedbackEntity, MembershipEntity, PaymentEntity, PropertyEntity,
+    FeedbackEntity, InvoiceEntity, MembershipEntity, PaymentEntity, PropertyEntity,
     PropertyExpenseEntity, ReminderEntity, RentChargeEntity, TenantEntity,
     UserEntity,
 )
@@ -499,4 +499,33 @@ class IFeedbackRepository(ABC):
     @abstractmethod
     def create(self, entity: FeedbackEntity) -> FeedbackEntity:
         """Создать запись обратной связи."""
+        ...
+
+
+class IInvoiceRepository(ABC):
+    """Интерфейс репозитория квитанций."""
+
+    @abstractmethod
+    def create(self, entity: InvoiceEntity) -> InvoiceEntity:
+        """Создать квитанцию."""
+        ...
+
+    @abstractmethod
+    def update(self, entity: InvoiceEntity) -> InvoiceEntity:
+        """Обновить квитанцию."""
+        ...
+
+    @abstractmethod
+    def get_by_charge(self, charge_id: UUID, account_id: UUID) -> InvoiceEntity | None:
+        """Получить квитанцию по начислению."""
+        ...
+
+    @abstractmethod
+    def get_by_token(self, public_token: str) -> InvoiceEntity | None:
+        """Получить квитанцию по публичному токену."""
+        ...
+
+    @abstractmethod
+    def get_by_id(self, invoice_id: UUID, account_id: UUID) -> InvoiceEntity | None:
+        """Получить квитанцию по ID."""
         ...

@@ -55,6 +55,7 @@ def update_account(
             name=body.name,
             base_currency=body.base_currency,
             timezone=body.timezone,
+            payment_details=body.payment_details,
         ),
     )
     return {"status": "success", "data": AccountResponse.model_validate(dto)}
