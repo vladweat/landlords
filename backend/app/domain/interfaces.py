@@ -7,8 +7,9 @@ from uuid import UUID
 from datetime import date
 
 from app.domain.entities import (
-    AccountEntity, ContractEntity, ContractEventEntity, DocumentEntity,
-    FeedbackEntity, InvoiceEntity, MembershipEntity, PaymentEntity, PropertyEntity,
+    AccountEntity, ContractEntity, ContractEventEntity, ContractTemplateEntity,
+    DocumentEntity, FeedbackEntity, InvoiceEntity, MembershipEntity,
+    NotificationDismissalEntity, PaymentEntity, PropertyEntity,
     PropertyExpenseEntity, ReminderEntity, RentChargeEntity, TenantEntity,
     UserEntity,
 )
@@ -491,6 +492,60 @@ class IContractEventRepository(ABC):
     def list_by_contract(
         self, contract_id: UUID, account_id: UUID, page: int = 1, per_page: int = 20,
     ) -> PaginatedResult: ...
+
+
+class IContractTemplateRepository(ABC):
+    """Интерфейс репозитория шаблонов договоров."""
+
+    @abstractmethod
+    def list_by_account(self, account_id: UUID) -> Sequence[ContractTemplateEntity]:
+        """Список шаблонов аккаунта."""
+        ...
+
+    @abstractmethod
+    def get_by_id(
+        self, template_id: UUID, account_id: UUID
+    ) -> ContractTemplateEntity | None:
+        """Получить шаблон по ID."""
+        ...
+
+    @abstractmethod
+    def create(self, entity: ContractTemplateEntity) -> ContractTemplateEntity:
+        """Создать шаблон."""
+        ...
+
+    @abstractmethod
+    def update(self, entity: ContractTemplateEntity) -> ContractTemplateEntity:
+        """Обновить шаблон."""
+        ...
+
+    @abstractmethod
+    def delete(self, template_id: UUID, account_id: UUID) -> bool:
+        """Удалить шаблон."""
+        ...
+
+    @abstractmethod
+    def clear_defaults(
+        self, account_id: UUID, property_type: str | None
+    ) -> None:
+        """Снять is_default у шаблонов того же типа."""
+        ...
+
+
+class INotificationDismissalRepository(ABC):
+    """Интерфейс репозитория скрытых уведомлений."""
+
+    @abstractmethod
+    def list_keys(self, account_id: UUID, user_id: UUID) -> set[str]:
+        """Получить множество скрытых ключей пользователя."""
+        ...
+
+    @abstractmethod
+    def dismiss(
+        self, entity: NotificationDismissalEntity
+    ) -> NotificationDismissalEntity:
+        """Скрыть уведомление (idempotent по ключу)."""
+        ...
 
 
 class IFeedbackRepository(ABC):

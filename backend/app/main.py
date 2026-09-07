@@ -113,6 +113,7 @@ def create_app() -> FastAPI:
     from app.api.v1.routes.properties import router as properties_router
     from app.api.v1.routes.tenants import router as tenants_router
     from app.api.v1.routes.contracts import router as contracts_router
+    from app.api.v1.routes.contract_templates import router as contract_templates_router
     from app.api.v1.routes.charges import router as charges_router
     from app.api.v1.routes.payments import router as payments_router
     from app.api.v1.routes.expenses import router as expenses_router
@@ -121,6 +122,8 @@ def create_app() -> FastAPI:
     from app.api.v1.routes.documents import router as documents_router
     from app.api.v1.routes.reminders import router as reminders_router
     from app.api.v1.routes.feedback import router as feedback_router
+    from app.api.v1.routes.notifications import router as notifications_router
+    from app.api.v1.routes.reports import router as reports_router
     from app.api.v1.routes.public_invoices import router as public_invoices_router
 
     app.include_router(auth_router)
@@ -128,6 +131,7 @@ def create_app() -> FastAPI:
     app.include_router(properties_router)
     app.include_router(tenants_router)
     app.include_router(contracts_router)
+    app.include_router(contract_templates_router)
     app.include_router(charges_router)
     app.include_router(payments_router)
     app.include_router(expenses_router)
@@ -136,6 +140,8 @@ def create_app() -> FastAPI:
     app.include_router(documents_router)
     app.include_router(reminders_router)
     app.include_router(feedback_router)
+    app.include_router(notifications_router)
+    app.include_router(reports_router)
     app.include_router(public_invoices_router)
 
     return app

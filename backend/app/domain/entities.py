@@ -223,14 +223,28 @@ class DocumentEntity:
 
 @dataclass
 class ContractTemplateEntity:
-    """Шаблон договора."""
+    """Шаблон договора с плейсхолдерами."""
 
     id: UUID
     account_id: UUID
     name: str
+    title: str
+    body: str
+    property_type: str | None = None  # apartment|house|room|None=все
     is_default: bool = False
-    file_data: bytes | None = None
     created_at: datetime = field(default_factory=_utc_now)
+    updated_at: datetime = field(default_factory=_utc_now)
+
+@dataclass
+class NotificationDismissalEntity:
+    """Скрытое пользователем уведомление (ключ inbox)."""
+
+    id: UUID
+    account_id: UUID
+    user_id: UUID
+    notification_key: str
+    dismissed_at: datetime = field(default_factory=_utc_now)
+
 
 @dataclass
 class FeedbackEntity:
