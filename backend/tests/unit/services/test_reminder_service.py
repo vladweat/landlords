@@ -119,6 +119,24 @@ class TestCreateReminder:
         assert result.reminder_type == "first"
         assert "Иван" in result.message_text
 
+    def test_creates_russian_contract_event(
+        self, mock_reminder_repo, mock_charge_repo, mock_contract_repo, mock_tenant_repo
+    ):
+        event_repo = Mock()
+        service = ReminderService(
+            mock_reminder_repo,
+            mock_charge_repo,
+            mock_contract_repo,
+            mock_tenant_repo,
+            event_repo=event_repo,
+        )
+        dto = ReminderCreateDTO(charge_id=uuid4(), reminder_type="first")
+        service.create_reminder(uuid4(), dto)
+        event = event_repo.create.call_args[0][0]
+        assert event.event_type == "reminder"
+        assert event.title == "Напоминание о просрочке (первое)"
+        assert "Иван" in event.description
+
     def test_charge_not_overdue(self, service, mock_charge_repo):
         mock_charge_repo.get_by_id.return_value.status = "paid"
         dto = ReminderCreateDTO(charge_id=uuid4(), reminder_type="first")

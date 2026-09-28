@@ -44,7 +44,7 @@ export interface ContractEvent {
   id: string;
   event_type: EventType;
   title: string;
-  description: string;
+  description: string | null;
   created_at: string;
 }
 

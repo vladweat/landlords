@@ -1,5 +1,5 @@
 import { apiClient } from '@/shared/api/client';
-import type { Property } from '@/entities/property';
+import type { Property, PropertyType } from '@/entities/property';
 import type { PaginatedData } from '@/shared/api/types';
 
 export interface PropertyFormData {
@@ -8,7 +8,7 @@ export interface PropertyFormData {
   house: string;
   building?: string;
   apartment?: string;
-  type: 'apartment' | 'house' | 'commercial';
+  type: PropertyType;
   size_m2: number;
   purchase_price: string | null;
 }

@@ -150,7 +150,11 @@ class TestTerminateRenewService:
         assert result.charges_deleted == 1
         assert result.charges_updated == 1
         charge_repo.delete.assert_called_once_with(future.id, contract.account_id)
-        event_repo.create.assert_called_once()
+        event = event_repo.create.call_args[0][0]
+        assert event.event_type == "termination"
+        assert event.title == "Договор расторгнут"
+        assert "15.03.2026" in event.description
+        assert "Досрочное расторжение по соглашению" in event.description
 
     def test_terminate_unlinks_payments_on_future_charges(self, repos):
         """Платежи с future charge отвязываются в аванс перед удалением."""
@@ -243,6 +247,12 @@ class TestTerminateRenewService:
         assert result.contract.rent_amount == Decimal("35000")
         assert result.charges_created >= 1
         assert charge_repo.create.call_count == result.charges_created
+        event = event_repo.create.call_args[0][0]
+        assert event.event_type == "renewal"
+        assert event.title == "Договор продлён"
+        assert "30.06.2026" in event.description
+        assert "31.12.2026" in event.description
+        assert "Аренда:" in event.description
 
     def test_renew_not_found(self, repos):
         contract_repo, charge_repo, payment_repo, event_repo = repos

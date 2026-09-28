@@ -19,6 +19,10 @@ from app.services.dto.payment_dto import (
 )
 from app.domain.rules import compute_charge_status
 from app.domain.entities import ContractEventEntity
+from app.services.contract_event_labels import (
+    format_money,
+    payment_method_label,
+)
 from app.services.contract_status import check_and_update_contract_status
 from app.services.payment_allocation import allocate_unlinked_payments
 
@@ -38,6 +42,36 @@ class PaymentService:
         self.charge_repo = charge_repo
         self.event_repo = event_repo
 
+    def _log_payment_event(
+        self,
+        account_id: UUID,
+        contract_id: UUID,
+        amount,
+        currency: str,
+        method: str,
+        note: str | None,
+        payment_id: UUID,
+    ) -> None:
+        """Записать событие платежа в таймлайн договора."""
+        if not self.event_repo:
+            return
+        parts = [payment_method_label(method)]
+        if note and note.strip():
+            parts.append(note.strip())
+        self.event_repo.create(
+            ContractEventEntity(
+                id=uuid4(),
+                account_id=account_id,
+                contract_id=contract_id,
+                event_type="payment",
+                title=f"Платёж: {format_money(amount, currency)}",
+                description=", ".join(parts),
+                event_metadata={
+                    "payment_id": str(payment_id),
+                    "amount": str(amount),
+                },
+            )
+        )
     def list_payments(
         self,
         account_id: UUID,
@@ -144,20 +178,15 @@ class PaymentService:
             )
             created_payments.append(advance)
 
-        if self.event_repo:
-            self.event_repo.create(
-                ContractEventEntity(
-                    id=uuid4(),
-                    account_id=account_id,
-                    contract_id=dto.contract_id,
-                    event_type="payment",
-                    title=f"Платёж: {dto.amount} {contract.currency}",
-                    event_metadata={
-                        "payment_id": str(linked.id),
-                        "amount": float(dto.amount),
-                    },
-                )
-            )
+        self._log_payment_event(
+            account_id,
+            dto.contract_id,
+            dto.amount,
+            contract.currency,
+            dto.method,
+            dto.note,
+            linked.id,
+        )
 
         new_total = self.payment_repo.get_total_paid_for_charge(charge.id, account_id)
         new_status = compute_charge_status(charge.amount, new_total, charge.due_date)
@@ -238,6 +267,16 @@ class PaymentService:
 
         if not created_payments:
             raise ValidationError("No payment created")
+
+        self._log_payment_event(
+            account_id,
+            dto.contract_id,
+            dto.amount,
+            contract.currency,
+            dto.method,
+            dto.note,
+            created_payments[0].id,
+        )
 
         check_and_update_contract_status(
             self.charge_repo, self.payment_repo, self.contract_repo,

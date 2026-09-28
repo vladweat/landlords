@@ -22,6 +22,11 @@ from app.domain.rules import (
     validate_status_transition,
 )
 from app.services.audit_log_service import AuditService
+from app.services.contract_event_labels import (
+    format_date_ru,
+    format_money,
+    status_label,
+)
 from app.services.contract_status import check_and_update_contract_status
 from app.services.payment_allocation import allocate_unlinked_payments
 from app.services.dto.contract_dto import (
@@ -123,7 +128,10 @@ class ContractService:
             self.event_repo.create(ContractEventEntity(
                 id=uuid4(), account_id=account_id, contract_id=contract_id,
                 event_type="status_change",
-                title=f"Статус изменён: {old_status} → {dto.status}",
+                title=(
+                    f"Статус изменён: {status_label(old_status)} → "
+                    f"{status_label(dto.status)}"
+                ),
                 event_metadata={"old_status": old_status, "new_status": dto.status},
             ))
 
@@ -218,13 +226,17 @@ class ContractService:
         updated = self.repo.update(entity)
 
         if self.event_repo:
+            reason = (dto.termination_reason or "").strip()
+            description = f"Дата расторжения: {format_date_ru(dto.effective_date)}"
+            if reason:
+                description = f"{description}\n{reason}"
             self.event_repo.create(ContractEventEntity(
                 id=uuid4(),
                 account_id=account_id,
                 contract_id=contract_id,
                 event_type="termination",
                 title="Договор расторгнут",
-                description=dto.termination_reason,
+                description=description,
                 event_metadata={
                     "old_status": old_status,
                     "effective_date": dto.effective_date.isoformat(),
@@ -315,13 +327,21 @@ class ContractService:
         updated = self.repo.update(entity)
 
         if self.event_repo:
+            description = (
+                f"Срок: {format_date_ru(old_end)} → {format_date_ru(dto.new_end_date)}"
+            )
+            if new_rent != old_rent:
+                description = (
+                    f"{description}\nАренда: {format_money(old_rent, entity.currency)} → "
+                    f"{format_money(new_rent, entity.currency)}"
+                )
             self.event_repo.create(ContractEventEntity(
                 id=uuid4(),
                 account_id=account_id,
                 contract_id=contract_id,
                 event_type="renewal",
                 title="Договор продлён",
-                description=f"Новая дата окончания: {dto.new_end_date.isoformat()}",
+                description=description,
                 event_metadata={
                     "old_end_date": old_end.isoformat(),
                     "new_end_date": dto.new_end_date.isoformat(),

@@ -16,6 +16,7 @@ from app.domain.interfaces import (
 )
 from app.services.dto.reminder_dto import ReminderDTO, ReminderCreateDTO
 from app.domain.entities import ContractEventEntity
+from app.services.contract_event_labels import reminder_type_label
 
 
 class ReminderService:
@@ -112,7 +113,8 @@ class ReminderService:
             self.event_repo.create(ContractEventEntity(
                 id=uuid4(), account_id=account_id, contract_id=entity.contract_id,
                 event_type="reminder",
-                title=f"Напоминание о просрочке: {entity.reminder_type}",
+                title=f"Напоминание о просрочке ({reminder_type_label(entity.reminder_type)})",
+                description=message,
                 event_metadata={"reminder_id": str(created.id)},
             ))
 

@@ -51,7 +51,7 @@ class PropertyCreateDTO(BaseModel):
     house: str = Field(..., max_length=50)
     building: str | None = Field(None, max_length=50)
     apartment: str | None = Field(None, max_length=50)
-    type: str = Field(..., pattern="^(apartment|house|room)$")
+    type: str = Field(..., pattern="^(apartment|house|room|commercial)$")
     size_m2: float = Field(..., gt=0)
     purchase_price: Decimal | None = Field(None, ge=0)
 
@@ -62,7 +62,7 @@ class PropertyUpdateDTO(BaseModel):
     house: str | None = Field(None, max_length=50)
     building: str | None = Field(None, max_length=50)
     apartment: str | None = Field(None, max_length=50)
-    type: str | None = Field(None, pattern="^(apartment|house|room)$")
+    type: str | None = Field(None, pattern="^(apartment|house|room|commercial)$")
     size_m2: float | None = Field(None, gt=0)
     purchase_price: Decimal | None = Field(None, ge=0)
     status: str | None = Field(None, pattern="^(active|inactive|archived)$")

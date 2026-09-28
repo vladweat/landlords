@@ -40,7 +40,7 @@ class TestPropertiesCRUD:
         """Получить объект по ID."""
         create = client.post(
             "/v1/properties",
-            json=property_payload(street="Поиск", house="1", property_type="room", size_m2=20.0),
+            json=property_payload(street="Поиск", house="1", property_type="commercial", size_m2=20.0),
             headers=auth_headers,
         )
         prop_id = create.json()["data"]["id"]
@@ -69,7 +69,7 @@ class TestPropertiesCRUD:
         """Удалить объект."""
         create = client.post(
             "/v1/properties",
-            json=property_payload(street="Удаления", house="1", property_type="room", size_m2=15.0),
+            json=property_payload(street="Удаления", house="1", property_type="commercial", size_m2=15.0),
             headers=auth_headers,
         )
         prop_id = create.json()["data"]["id"]

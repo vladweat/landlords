@@ -230,7 +230,7 @@ class ContractTemplateEntity:
     name: str
     title: str
     body: str
-    property_type: str | None = None  # apartment|house|room|None=все
+    property_type: str | None = None  # apartment|house|room|commercial|None=все
     is_default: bool = False
     created_at: datetime = field(default_factory=_utc_now)
     updated_at: datetime = field(default_factory=_utc_now)

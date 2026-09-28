@@ -13,6 +13,9 @@ class TestDashboard:
         assert "monthly_expected_income" in data["data"]
         assert "outstanding_balance" in data["data"]
         assert "occupancy_rate" in data["data"]
+        assert "overdue_count" in data["data"]
+        assert "overdue_total_amount" in data["data"]
+        assert isinstance(data["data"]["overdue_count"], int)
 
     def test_no_token(self, client: TestClient):
         """Без токена — 422."""

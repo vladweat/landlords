@@ -1,4 +1,7 @@
-export type PropertyType = 'apartment' | 'house' | 'room';
+import type { PropertyType } from '@/entities/property';
+import { PROPERTY_TYPE_LABELS as BASE_LABELS } from '@/entities/property';
+
+export type { PropertyType };
 
 export interface ContractTemplate {
   id: string;
@@ -34,8 +37,6 @@ export interface ContractTemplateUpdatePayload {
 }
 
 export const PROPERTY_TYPE_LABELS: Record<PropertyType | 'any', string> = {
-  apartment: 'Квартира',
-  house: 'Дом',
-  room: 'Комната',
+  ...BASE_LABELS,
   any: 'Все типы',
 };

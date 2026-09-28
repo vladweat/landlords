@@ -16,7 +16,7 @@ const meta: Record<EventType, { icon: typeof StickyNote; color: string; bg: stri
 interface TimelineItemProps {
   event_type: EventType;
   title: string;
-  description: string;
+  description: string | null;
   created_at: string;
   isLast?: boolean;
 }

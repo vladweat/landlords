@@ -221,6 +221,80 @@ class TestCreatePayment:
         assert created[2].amount == Decimal("500")
         assert created[2].rent_charge_id is None
 
+    def test_auto_distribute_creates_contract_event(
+        self, mock_payment_repo, mock_contract_repo, mock_charge_repo
+    ):
+        """Автораспределение пишет событие платежа в таймлайн договора."""
+        event_repo = Mock()
+        service = PaymentService(
+            mock_payment_repo, mock_contract_repo, mock_charge_repo, event_repo
+        )
+        contract_id = uuid4()
+        mock_contract_repo.get_by_id.return_value = ContractEntity(
+            id=contract_id, account_id=uuid4(), property_id=uuid4(), tenant_id=uuid4(),
+            start_date=date.today(), end_date=date.today(), rent_amount=Decimal("1000"),
+            currency="RUB", payment_day=5, status="active",
+        )
+        charge = RentChargeEntity(
+            id=uuid4(), account_id=uuid4(), contract_id=contract_id,
+            due_date=date.today(), period_start=date.today(), period_end=date.today(),
+            amount=Decimal("1000"), currency="RUB", status="pending",
+        )
+        mock_charge_repo.list_unpaid_for_contract_for_update.return_value = [charge]
+        mock_payment_repo.get_total_paid_for_charge.return_value = Decimal("0")
+        mock_payment_repo.create.side_effect = lambda e: e
+        mock_payment_repo.list_unlinked_for_contract_for_update.return_value = []
+        mock_charge_repo.list_by_contract.return_value = [charge]
+
+        dto = PaymentCreateDTO(
+            contract_id=contract_id, date_paid=date.today(),
+            amount=Decimal("1000"), method="transfer", note="за январь",
+        )
+        service.create_payment(uuid4(), dto)
+
+        event_repo.create.assert_called_once()
+        event = event_repo.create.call_args[0][0]
+        assert event.event_type == "payment"
+        assert event.title == "Платёж: 1\u00a0000 RUB"
+        assert "перевод" in event.description
+        assert "за январь" in event.description
+
+    def test_linked_payment_creates_russian_event(
+        self, mock_payment_repo, mock_contract_repo, mock_charge_repo
+    ):
+        """Платёж с charge пишет русскоязычное событие."""
+        event_repo = Mock()
+        service = PaymentService(
+            mock_payment_repo, mock_contract_repo, mock_charge_repo, event_repo
+        )
+        contract_id = uuid4()
+        charge_id = uuid4()
+        mock_contract_repo.get_by_id.return_value = ContractEntity(
+            id=contract_id, account_id=uuid4(), property_id=uuid4(), tenant_id=uuid4(),
+            start_date=date.today(), end_date=date.today(), rent_amount=Decimal("1000"),
+            currency="RUB", payment_day=5, status="active",
+        )
+        mock_charge_repo.get_by_id_for_update.return_value = RentChargeEntity(
+            id=charge_id, account_id=uuid4(), contract_id=contract_id,
+            due_date=date.today(), period_start=date.today(), period_end=date.today(),
+            amount=Decimal("1000"), currency="RUB", status="pending",
+        )
+        mock_payment_repo.create.side_effect = lambda e: e
+        mock_payment_repo.get_total_paid_for_charge.return_value = Decimal("500")
+        mock_payment_repo.list_unlinked_for_contract_for_update.return_value = []
+        mock_charge_repo.list_by_contract.return_value = []
+
+        dto = PaymentCreateDTO(
+            contract_id=contract_id, date_paid=date.today(),
+            amount=Decimal("500"), method="cash", rent_charge_id=charge_id,
+        )
+        service.create_payment(uuid4(), dto)
+
+        event = event_repo.create.call_args[0][0]
+        assert event.event_type == "payment"
+        assert event.title == "Платёж: 500 RUB"
+        assert event.description == "наличные"
+
     def test_contract_not_found(self, payment_service, mock_contract_repo):
         """Контракт не найден."""
         mock_contract_repo.get_by_id.return_value = None

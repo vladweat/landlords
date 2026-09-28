@@ -45,7 +45,11 @@ export default function DashboardPage() {
 
   const summary = summaryQuery.data;
   const lastPayments = lastPaymentsQuery.data ?? [];
-  const overdueCount = useMemo(() => (summary?.properties_overview || []).filter(p => p.contract_status === 'overdue').length, [summary]);
+  const overdueContractsCount = useMemo(
+    () => (summary?.properties_overview || []).filter((p) => p.contract_status === 'overdue').length,
+    [summary],
+  );
+  const overdueChargesCount = summary?.overdue_count ?? 0;
   const changePercent = summary?.monthly_income_change_percent ?? 0;
   const isZero = changePercent === 0;
   const isPositive = changePercent > 0;
@@ -96,14 +100,14 @@ export default function DashboardPage() {
         <div className="flex items-center gap-5 text-sm">
           <Link to="/properties" className="flex items-center gap-1.5 text-gray-600 hover:text-gray-900"><Building2 className="h-4 w-4 text-blue-600" /><span className="font-medium"><AnimatedNumber value={summary.active_properties} /></span></Link>
           <Link to="/contracts?status=active" className="flex items-center gap-1.5 text-gray-600 hover:text-gray-900"><CreditCard className="h-4 w-4 text-emerald-600" /><span className="font-medium"><AnimatedNumber value={(summary.active_contracts)} /></span></Link>
-          <Link to="/contracts?status=overdue" className={cn('flex items-center gap-1.5', overdueCount > 0 ? 'text-red-600' : 'text-gray-600 hover:text-gray-900')}><AlertTriangle className="h-4 w-4" /><span className="font-medium"><AnimatedNumber value={overdueCount} /></span></Link>
+          <Link to="/contracts?status=overdue" className={cn('flex items-center gap-1.5', overdueContractsCount > 0 ? 'text-red-600' : 'text-gray-600 hover:text-gray-900')}><AlertTriangle className="h-4 w-4" /><span className="font-medium"><AnimatedNumber value={overdueContractsCount} /></span></Link>
           <Link to="/payments" className="flex items-center gap-1.5 text-gray-600 hover:text-gray-900"><Wallet className="h-4 w-4 text-amber-600" /><span className="font-medium"><AnimatedNumber value={Number(summary.monthly_collected_income)} format /> ₽</span>{!isZero && <span className={cn('text-xs', isPositive ? 'text-emerald-600' : 'text-red-500')}>{isPositive ? <TrendingUp className="h-3 w-3 inline" /> : <TrendingDown className="h-3 w-3 inline" />}{isPositive ? '+' : '-'}{Math.abs(changePercent).toFixed(1)}%</span>}</Link>
           <RefreshButton onClick={invalidateAll} isLoading={summaryQuery.isFetching} />
         </div>
       </motion.div>
 
       {showOnboardingNow && <motion.div variants={fadeUp}><OnboardingWizard onComplete={() => setShowOnboarding(false)} /></motion.div>}
-      <motion.div variants={fadeUp}><OverdueAlert count={overdueCount} amount={summary.overdue_total_amount || '0'} /></motion.div>
+      <motion.div variants={fadeUp}><OverdueAlert count={overdueChargesCount} amount={summary.overdue_total_amount || '0'} /></motion.div>
 
       <motion.div variants={fadeUp}><UpcomingEventsWidget /></motion.div>
 

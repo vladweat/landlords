@@ -59,6 +59,7 @@ class DashboardService:
         outstanding = self.charge_repo.get_total_outstanding(account_id)
         occupancy_rate = compute_occupancy_rate(active_contracts, active_properties)
         overdue_total = self.charge_repo.get_overdue_total_amount(account_id)
+        overdue_count = self.charge_repo.get_overdue_count(account_id)
 
         # Сводка по объектам
         properties_overview = []
@@ -129,6 +130,7 @@ class DashboardService:
             monthly_income_previous=monthly_previous,
             monthly_income_change_percent=change_percent,
             overdue_total_amount=overdue_total,
+            overdue_count=overdue_count,
             properties_overview=properties_overview,
         )
 

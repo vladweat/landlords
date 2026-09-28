@@ -302,9 +302,14 @@ class IRentChargeRepository(ABC):
         
     @abstractmethod
     def get_overdue_total_amount(self, account_id: UUID) -> Decimal:
-        """Общая сумма просроченных начислений."""
+        """Сумма остатков по просроченным начислениям (due_date < today, remainder > 0)."""
         ...
-        
+
+    @abstractmethod
+    def get_overdue_count(self, account_id: UUID) -> int:
+        """Число просроченных начислений (due_date < today, remainder > 0)."""
+        ...
+
     @abstractmethod
     def get_by_id_for_update(self, charge_id: UUID, account_id: UUID) -> RentChargeEntity | None:
         """Получить charge с блокировкой строки."""

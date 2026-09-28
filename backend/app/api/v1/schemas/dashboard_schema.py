@@ -19,6 +19,7 @@ class DashboardSummaryResponse(BaseModel):
     monthly_income_previous: Decimal = Decimal("0")
     monthly_income_change_percent: float = 0.0
     overdue_total_amount: Decimal = Decimal("0")
+    overdue_count: int = 0
     portfolio_roi: dict | None = None
     properties_overview: list[dict] = []
 

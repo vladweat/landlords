@@ -20,8 +20,8 @@ import { useCan } from '@/features/auth/permissions';
 import { TableSkeleton } from '@/shared/ui/Skeleton';
 import { exportCSV } from '@/shared/lib/exportCSV';
 import { ROIBadge } from '@/features/properties/components/ROIBadge';
+import { PROPERTY_TYPE_LABELS } from '@/entities/property';
 
-const typeLabels: Record<string, string> = { apartment: 'Квартира', house: 'Дом', commercial: 'Коммерческая' };
 const PER_PAGE = 20;
 
 export default function PropertiesPage() {
@@ -73,7 +73,11 @@ export default function PropertiesPage() {
           <input placeholder="Поиск по адресу..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} className="w-full rounded-lg border border-gray-300 pl-10 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
         </div>
         <select value={typeFilter} onChange={(e) => { setTypeFilter(e.target.value); setPage(1); }} className="rounded-lg border border-gray-300 px-3 py-2 text-sm">
-          <option value="all">Все типы</option><option value="apartment">Квартира</option><option value="house">Дом</option><option value="commercial">Коммерческая</option>
+          <option value="all">Все типы</option>
+          <option value="apartment">Квартира</option>
+          <option value="house">Дом</option>
+          <option value="room">Комната</option>
+          <option value="commercial">Коммерция</option>
         </select>
       </div>
       {isLoading ? <TableSkeleton rows={5} cols={5} /> : properties.length === 0 ? (
@@ -97,7 +101,7 @@ export default function PropertiesPage() {
                     </Link>
                   ) : <span className="inline-flex items-center gap-2 text-sm text-gray-500"><span className="w-2 h-2 rounded-full bg-gray-300" />Свободен</span>}
                 </td>
-                <td className="py-3 px-4 text-sm text-gray-700">{typeLabels[p.type]}</td>
+                <td className="py-3 px-4 text-sm text-gray-700">{PROPERTY_TYPE_LABELS[p.type] ?? p.type}</td>
                 <td className="py-3 px-4 text-sm text-gray-700">{p.size_m2} м²</td>
                 <td className="py-3 px-4 hidden lg:table-cell"><ROIBadge roi={p.roi?.roi ?? null} /></td>
                 <td className="py-3 px-4 text-right">
