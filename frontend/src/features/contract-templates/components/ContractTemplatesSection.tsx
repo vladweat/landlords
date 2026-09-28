@@ -200,6 +200,7 @@ export function ContractTemplatesSection() {
               <option value="apartment">Квартира</option>
               <option value="house">Дом</option>
               <option value="room">Комната</option>
+              <option value="commercial">Коммерция</option>
             </select>
           </div>
           <label className="flex items-center gap-2 text-sm text-gray-700">

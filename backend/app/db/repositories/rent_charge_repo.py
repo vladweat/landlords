@@ -2,7 +2,7 @@
 
 from decimal import Decimal
 from uuid import UUID
-from datetime import date
+from datetime import date, datetime, timezone
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -162,10 +162,11 @@ class RentChargeRepository(IRentChargeRepository):
         result = Decimal(str(total_remainders)) - Decimal(str(advances))
         return max(result, Decimal("0"))
 
-    def get_overdue_total_amount(self, account_id: UUID) -> Decimal:
-        """Сумма остатков по просроченным начислениям (не полные amount)."""
+    def _overdue_unpaid_base(self, account_id: UUID):
+        """Базовый query: начисления с due_date < today и ненулевым остатком (как календарь)."""
         from app.db.models.payment_model import PaymentModel
 
+        today = datetime.now(timezone.utc).date()
         paid_subq = (
             self.session.query(
                 PaymentModel.rent_charge_id.label("charge_id"),
@@ -178,21 +179,31 @@ class RentChargeRepository(IRentChargeRepository):
             .group_by(PaymentModel.rent_charge_id)
             .subquery()
         )
-        remainder = func.greatest(
-            RentChargeModel.amount - func.coalesce(paid_subq.c.paid, 0),
-            0,
-        )
-        result = (
-            self.session.query(func.coalesce(func.sum(remainder), 0))
+        paid = func.coalesce(paid_subq.c.paid, 0)
+        remainder = func.greatest(RentChargeModel.amount - paid, 0)
+        query = (
+            self.session.query(RentChargeModel, remainder.label("remainder"))
             .select_from(RentChargeModel)
             .outerjoin(paid_subq, paid_subq.c.charge_id == RentChargeModel.id)
             .filter(
                 RentChargeModel.account_id == account_id,
-                RentChargeModel.status == "overdue",
+                RentChargeModel.due_date < today,
+                RentChargeModel.amount > paid,
             )
-            .scalar()
         )
+        return query, remainder
+
+    def get_overdue_total_amount(self, account_id: UUID) -> Decimal:
+        """Сумма остатков по просроченным начислениям (не полные amount)."""
+        query, remainder = self._overdue_unpaid_base(account_id)
+        result = query.with_entities(func.coalesce(func.sum(remainder), 0)).scalar()
         return Decimal(str(result))
+
+    def get_overdue_count(self, account_id: UUID) -> int:
+        """Число просроченных начислений с ненулевым остатком."""
+        query, _ = self._overdue_unpaid_base(account_id)
+        result = query.with_entities(func.count(RentChargeModel.id)).scalar()
+        return int(result or 0)
     
     def list_unpaid_for_contract_for_update(
         self, contract_id: UUID, account_id: UUID

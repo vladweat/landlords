@@ -8,6 +8,16 @@ interface OverdueAlertProps {
   amount: string;
 }
 
+function overdueChargesLabel(count: number): string {
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+  if (mod10 === 1 && mod100 !== 11) return `${count} просроченное начисление`;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+    return `${count} просроченных начисления`;
+  }
+  return `${count} просроченных начислений`;
+}
+
 export function OverdueAlert({ count, amount }: OverdueAlertProps) {
   const dismissedKey = 'overdue_alert_dismissed';
   const [dismissed, setDismissed] = useState(sessionStorage.getItem(dismissedKey) === 'true');
@@ -26,7 +36,7 @@ export function OverdueAlert({ count, amount }: OverdueAlertProps) {
           <AlertTriangle className="h-5 w-5 text-amber-600 flex-shrink-0" />
           <div>
             <p className="text-sm font-medium text-amber-800">
-              У вас {count} просроченных платежа на сумму {Number(amount).toLocaleString('ru-RU')} ₽
+              У вас {overdueChargesLabel(count)} на сумму {Number(amount).toLocaleString('ru-RU')} ₽
             </p>
           </div>
         </div>

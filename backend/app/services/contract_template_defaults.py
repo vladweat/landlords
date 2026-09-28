@@ -68,6 +68,12 @@ DEFAULT_TEMPLATES: list[DefaultTemplateSpec] = [
         "title": "ДОГОВОР АРЕНДЫ КОМНАТЫ",
         "body": _COMMON_BODY,
     },
+    {
+        "name": "Коммерция (стандарт)",
+        "property_type": "commercial",
+        "title": "ДОГОВОР АРЕНДЫ КОММЕРЧЕСКОГО ПОМЕЩЕНИЯ",
+        "body": _COMMON_BODY,
+    },
 ]
 
 PLACEHOLDER_HINTS = [

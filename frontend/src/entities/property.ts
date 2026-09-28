@@ -1,3 +1,12 @@
+export type PropertyType = 'apartment' | 'house' | 'room' | 'commercial';
+
+export const PROPERTY_TYPE_LABELS: Record<PropertyType, string> = {
+  apartment: 'Квартира',
+  house: 'Дом',
+  room: 'Комната',
+  commercial: 'Коммерция',
+};
+
 export interface ActiveContract {
   id: string;
   tenant_name: string;
@@ -23,7 +32,7 @@ export interface Property {
   building?: string;
   apartment?: string;
   address: string;
-  type: 'apartment' | 'house' | 'commercial';
+  type: PropertyType;
   size_m2: number;
   purchase_price: string | null;
   created_at: string;

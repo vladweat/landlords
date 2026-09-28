@@ -12,7 +12,7 @@ from app.services.dto.contract_template_dto import (
     ContractTemplateUpdateDTO,
 )
 
-ALLOWED_PROPERTY_TYPES = frozenset({"apartment", "house", "room"})
+ALLOWED_PROPERTY_TYPES = frozenset({"apartment", "house", "room", "commercial"})
 
 
 class ContractTemplateService:
@@ -146,6 +146,6 @@ class ContractTemplateService:
             return None
         if property_type not in ALLOWED_PROPERTY_TYPES:
             raise ValidationError(
-                "property_type должен быть apartment, house, room или пустым"
+                "property_type должен быть apartment, house, room, commercial или пустым"
             )
         return property_type

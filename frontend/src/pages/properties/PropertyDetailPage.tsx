@@ -21,12 +21,7 @@ import { ExpenseModal } from '@/pages/expenses/ExpenseModal';
 import { PropertyModal } from './PropertyModal';
 import { AttachmentsSection } from '@/features/documents/components/AttachmentsSection';
 import { useCan } from '@/features/auth/permissions';
-
-const typeLabels: Record<string, string> = {
-  apartment: 'Квартира',
-  house: 'Дом',
-  commercial: 'Коммерческая',
-};
+import { PROPERTY_TYPE_LABELS } from '@/entities/property';
 
 const contractStatusLabels: Record<string, string> = {
   active: 'Активен',
@@ -129,7 +124,7 @@ export default function PropertyDetailPage() {
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-gray-500">Тип</span>
-              <span>{typeLabels[property.type] || property.type}</span>
+              <span>{PROPERTY_TYPE_LABELS[property.type] ?? property.type}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-500">Площадь</span>

@@ -36,6 +36,7 @@ export interface DashboardSummary {
   monthly_income_previous: string;
   monthly_income_change_percent: number;
   overdue_total_amount: string;
+  overdue_count: number;
   portfolio_roi?: {
     portfolio_roi: number;
     properties_with_roi: number;
