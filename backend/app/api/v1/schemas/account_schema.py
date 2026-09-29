@@ -17,6 +17,9 @@ class AccountResponse(BaseModel):
     base_currency: str
     timezone: str
     payment_details: str | None = None
+    plan: str = "free"
+    subscription_status: str = "none"
+    subscription_period_end: datetime | None = None
 
 
 class AccountUpdateRequest(BaseModel):
@@ -33,6 +36,52 @@ class AccountSingleResponse(BaseModel):
 
     status: str = "success"
     data: AccountResponse
+
+
+class PlanChangeRequest(BaseModel):
+    """Смена тарифа аккаунта."""
+
+    plan: str
+
+
+class PlanLimitsResponse(BaseModel):
+    max_properties: int
+    max_users: int
+    max_storage_bytes: int
+
+
+class PlanUsageResponse(BaseModel):
+    properties: int
+    users: int
+    storage_bytes: int
+
+
+class PlanCatalogItemResponse(BaseModel):
+    id: str
+    name: str
+    max_properties: int
+    max_users: int
+    max_storage_bytes: int
+    price_rub_monthly: int | None = None
+
+
+class SubscriptionResponse(BaseModel):
+    """Текущий тариф, usage и каталог."""
+
+    plan: str
+    plan_name: str
+    subscription_status: str = "none"
+    subscription_period_end: datetime | None = None
+    billing_enabled: bool = False
+    write_blocked: bool = False
+    limits: PlanLimitsResponse
+    usage: PlanUsageResponse
+    plans_catalog: list[PlanCatalogItemResponse]
+
+
+class SubscriptionSingleResponse(BaseModel):
+    status: str = "success"
+    data: SubscriptionResponse
 
 
 class MemberResponse(BaseModel):

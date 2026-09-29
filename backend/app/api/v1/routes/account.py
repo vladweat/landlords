@@ -7,6 +7,7 @@ from app.api.deps import (
     get_current_account_id,
     get_current_user_id,
     get_invite_service,
+    get_plan_limit_service,
     require_permissions,
 )
 from app.api.v1.schemas.account_schema import (
@@ -21,6 +22,9 @@ from app.api.v1.schemas.account_schema import (
     MemberResponse,
     MemberSingleResponse,
     MemberUpdateRequest,
+    PlanChangeRequest,
+    SubscriptionResponse,
+    SubscriptionSingleResponse,
 )
 from app.domain.entities import MembershipEntity
 from app.domain.permissions import Permission
@@ -31,6 +35,7 @@ from app.services.dto.membership_dto import (
     MemberUpdateDTO,
 )
 from app.services.invite_service import InviteService
+from app.services.plan_limit_service import PlanLimitService
 from fastapi import APIRouter, Depends
 
 router = APIRouter(prefix="/v1/account", tags=["Account"])
@@ -43,6 +48,31 @@ def get_account(
 ) -> dict:
     """Получить настройки аккаунта."""
     dto = service.get_account(account_id)
+    return {"status": "success", "data": AccountResponse.model_validate(dto)}
+
+
+@router.get("/subscription", response_model=SubscriptionSingleResponse)
+def get_subscription(
+    account_id: UUID = Depends(get_current_account_id),
+    service: PlanLimitService = Depends(get_plan_limit_service),
+) -> dict:
+    """Текущий тариф, usage и каталог планов."""
+    data = service.get_subscription(account_id)
+    return {
+        "status": "success",
+        "data": SubscriptionResponse.model_validate(data),
+    }
+
+
+@router.patch("/plan", response_model=AccountSingleResponse)
+def change_plan(
+    body: PlanChangeRequest,
+    account_id: UUID = Depends(get_current_account_id),
+    service: PlanLimitService = Depends(get_plan_limit_service),
+    _: MembershipEntity = Depends(require_permissions(Permission.MANAGE_ACCOUNT)),
+) -> dict:
+    """Сменить тариф вручную (owner; free/enterprise; pro — только в development)."""
+    dto = service.change_plan(account_id, body.plan)
     return {"status": "success", "data": AccountResponse.model_validate(dto)}
 
 

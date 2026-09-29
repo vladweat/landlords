@@ -20,6 +20,19 @@ class AccountModel(TimestampMixin, Base):
     base_currency: Mapped[str] = mapped_column(String(3), default="RUB", nullable=False)
     timezone: Mapped[str] = mapped_column(String(50), default="Europe/Moscow", nullable=False)
     payment_details: Mapped[str | None] = mapped_column(Text, nullable=True)
+    plan: Mapped[str] = mapped_column(String(32), default="free", nullable=False)
+    subscription_status: Mapped[str] = mapped_column(
+        String(32), default="none", nullable=False
+    )
+    subscription_period_end: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    yookassa_payment_method_id: Mapped[str | None] = mapped_column(
+        String(128), nullable=True
+    )
+    yookassa_last_payment_id: Mapped[str | None] = mapped_column(
+        String(128), nullable=True
+    )
 
     def to_entity(self) -> AccountEntity:
         """Преобразовать ORM-модель в доменную сущность."""
@@ -30,6 +43,11 @@ class AccountModel(TimestampMixin, Base):
             base_currency=self.base_currency,
             timezone=self.timezone,
             payment_details=self.payment_details,
+            plan=self.plan,
+            subscription_status=self.subscription_status,
+            subscription_period_end=self.subscription_period_end,
+            yookassa_payment_method_id=self.yookassa_payment_method_id,
+            yookassa_last_payment_id=self.yookassa_last_payment_id,
             created_at=self.created_at,
         )
 
@@ -43,5 +61,10 @@ class AccountModel(TimestampMixin, Base):
             base_currency=entity.base_currency,
             timezone=entity.timezone,
             payment_details=entity.payment_details,
+            plan=entity.plan,
+            subscription_status=entity.subscription_status,
+            subscription_period_end=entity.subscription_period_end,
+            yookassa_payment_method_id=entity.yookassa_payment_method_id,
+            yookassa_last_payment_id=entity.yookassa_last_payment_id,
             created_at=entity.created_at,
         )

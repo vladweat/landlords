@@ -2,6 +2,7 @@
 
 from uuid import UUID
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.db.models.document_model import DocumentModel
@@ -56,3 +57,12 @@ class DocumentRepository(IDocumentRepository):
         self.session.delete(model)
         self.session.flush()
         return True
+
+    def sum_size_bytes(self, account_id: UUID) -> int:
+        """Суммарный размер документов аккаунта в байтах."""
+        total = (
+            self.session.query(func.coalesce(func.sum(DocumentModel.size_bytes), 0))
+            .filter_by(account_id=account_id)
+            .scalar()
+        )
+        return int(total or 0)

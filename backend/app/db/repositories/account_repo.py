@@ -40,10 +40,24 @@ class AccountRepository(IAccountRepository):
         model.base_currency = entity.base_currency
         model.timezone = entity.timezone
         model.payment_details = entity.payment_details
+        model.plan = entity.plan
+        model.subscription_status = entity.subscription_status
+        model.subscription_period_end = entity.subscription_period_end
+        model.yookassa_payment_method_id = entity.yookassa_payment_method_id
+        model.yookassa_last_payment_id = entity.yookassa_last_payment_id
         self.session.flush()
         return model.to_entity()
 
     def list_all(self) -> Sequence[AccountEntity]:
         """Все аккаунты (для фоновых задач)."""
         models = self.session.query(AccountModel).all()
+        return [m.to_entity() for m in models]
+
+    def list_pro_subscriptions(self) -> Sequence[AccountEntity]:
+        """Аккаунты на тарифе Pro (для продления/отключения)."""
+        models = (
+            self.session.query(AccountModel)
+            .filter(AccountModel.plan == "pro")
+            .all()
+        )
         return [m.to_entity() for m in models]

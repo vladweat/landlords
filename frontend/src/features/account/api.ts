@@ -1,10 +1,69 @@
 import { apiClient } from '@/shared/api/client';
-import type { Account, Invite, InvitePreview, Member, Role } from '@/entities/account';
+import type {
+  Account,
+  CheckoutResult,
+  Invite,
+  InvitePreview,
+  Member,
+  PlanId,
+  Role,
+  Subscription,
+} from '@/entities/account';
 import type { AuthResponse } from '@/features/auth/api';
 
 export const accountApi = {
   get: async (): Promise<Account> => {
     const response = await apiClient.get<{ status: string; data: Account }>('/account');
+    return response.data.data;
+  },
+
+  getSubscription: async (): Promise<Subscription> => {
+    const response = await apiClient.get<{ status: string; data: Subscription }>(
+      '/account/subscription',
+    );
+    return response.data.data;
+  },
+
+  changePlan: async (plan: PlanId | string): Promise<Account> => {
+    const response = await apiClient.patch<{ status: string; data: Account }>(
+      '/account/plan',
+      { plan },
+    );
+    return response.data.data;
+  },
+
+  createCheckout: async (): Promise<CheckoutResult> => {
+    const response = await apiClient.post<{ status: string; data: CheckoutResult }>(
+      '/billing/checkout',
+    );
+    return response.data.data;
+  },
+
+  confirmPayment: async (
+    paymentId: string,
+  ): Promise<{ status: string; account_id?: string | null; reason?: string | null }> => {
+    const response = await apiClient.post<{
+      status: string;
+      data: { status: string; account_id?: string | null; reason?: string | null };
+    }>('/billing/confirm', { payment_id: paymentId });
+    return response.data.data;
+  },
+
+  cancelSubscription: async (): Promise<{
+    id: string;
+    plan: string;
+    subscription_status: string;
+    subscription_period_end?: string | null;
+  }> => {
+    const response = await apiClient.post<{
+      status: string;
+      data: {
+        id: string;
+        plan: string;
+        subscription_status: string;
+        subscription_period_end?: string | null;
+      };
+    }>('/billing/cancel');
     return response.data.data;
   },
 

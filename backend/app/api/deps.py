@@ -2,9 +2,12 @@
 
 from uuid import UUID
 
+from app.core.config import settings
 from app.core.exceptions import ForbiddenError, UnauthorizedError
 from app.core.security import decode_access_token
 from app.db.repositories.account_invite_repo import AccountInviteRepository
+from app.domain.billing import is_subscription_write_blocked
+from app.domain.permissions import Permission as Perm
 
 # Репозитории
 from app.db.repositories.account_repo import AccountRepository
@@ -34,6 +37,7 @@ from app.domain.permissions import Permission, has_permission
 # Сервисы
 from app.services.account_service import AccountService
 from app.services.audit_log_service import AuditService
+from app.services.billing_service import BillingService
 from app.services.calendar_service import CalendarService
 from app.services.contract_event_service import ContractEventService
 from app.services.contract_service import ContractService
@@ -43,6 +47,7 @@ from app.services.dashboard_service import DashboardService
 from app.services.document_service import DocumentService
 from app.services.email_service import EmailService
 from app.services.feedback_service import FeedbackService
+from app.services.yookassa_client import YooKassaClient
 from app.services.forecast_service import ForecastService
 from app.services.invite_service import InviteService
 from app.services.invoice_service import InvoiceService
@@ -50,6 +55,7 @@ from app.services.ledger_service import LedgerService
 from app.services.notification_service import NotificationService
 from app.services.payment_service import PaymentService
 from app.services.pdf_service import PdfService
+from app.services.plan_limit_service import PlanLimitService
 from app.services.property_expense_service import PropertyExpenseService
 from app.services.property_service import PropertyService
 from app.services.reminder_service import ReminderService
@@ -159,23 +165,49 @@ def get_account_service(
 ) -> AccountService:
     return AccountService(account_repo, membership_repo, user_repo)
 
+
+def get_plan_limit_service(
+    account_repo: AccountRepository = Depends(get_account_repo),
+    property_repo: PropertyRepository = Depends(get_property_repo),
+    membership_repo: MembershipRepository = Depends(get_membership_repo),
+    invite_repo: AccountInviteRepository = Depends(get_account_invite_repo),
+    document_repo: DocumentRepository = Depends(get_document_repo),
+) -> PlanLimitService:
+    return PlanLimitService(
+        account_repo, property_repo, membership_repo, invite_repo, document_repo
+    )
+
+
+def get_billing_service(
+    account_repo: AccountRepository = Depends(get_account_repo),
+) -> BillingService:
+    return BillingService(account_repo, YooKassaClient())
+
+
 def get_invite_service(
     invite_repo: AccountInviteRepository = Depends(get_account_invite_repo),
     account_repo: AccountRepository = Depends(get_account_repo),
     user_repo: UserRepository = Depends(get_user_repo),
     membership_repo: MembershipRepository = Depends(get_membership_repo),
     email_service: EmailService = Depends(get_email_service),
+    plan_limit_service: PlanLimitService = Depends(get_plan_limit_service),
 ) -> InviteService:
     return InviteService(
-        invite_repo, account_repo, user_repo, membership_repo, email_service
+        invite_repo,
+        account_repo,
+        user_repo,
+        membership_repo,
+        email_service,
+        plan_limit_service,
     )
 
 def get_property_service(
     repo: PropertyRepository = Depends(get_property_repo),
     contract_repo: ContractRepository = Depends(get_contract_repo),
     tenant_repo: TenantRepository = Depends(get_tenant_repo),
+    plan_limit_service: PlanLimitService = Depends(get_plan_limit_service),
 ) -> PropertyService:
-    return PropertyService(repo, contract_repo, tenant_repo)
+    return PropertyService(repo, contract_repo, tenant_repo, plan_limit_service)
 
 def get_tenant_service(
     repo: TenantRepository = Depends(get_tenant_repo),
@@ -197,6 +229,7 @@ def get_pdf_service(
     template_service: ContractTemplateService = Depends(get_contract_template_service),
     account_repo: AccountRepository = Depends(get_account_repo),
     user_repo: UserRepository = Depends(get_user_repo),
+    plan_limit_service: PlanLimitService = Depends(get_plan_limit_service),
 ) -> PdfService:
     return PdfService(
         contract_repo,
@@ -206,6 +239,7 @@ def get_pdf_service(
         template_service,
         account_repo,
         user_repo,
+        plan_limit_service,
     )
 
 
@@ -213,8 +247,11 @@ def get_document_service(
     document_repo: DocumentRepository = Depends(get_document_repo),
     contract_repo: ContractRepository = Depends(get_contract_repo),
     property_repo: PropertyRepository = Depends(get_property_repo),
+    plan_limit_service: PlanLimitService = Depends(get_plan_limit_service),
 ) -> DocumentService:
-    return DocumentService(document_repo, contract_repo, property_repo)
+    return DocumentService(
+        document_repo, contract_repo, property_repo, plan_limit_service
+    )
 
 
 def get_contract_service(
@@ -459,15 +496,40 @@ def get_current_account_id(
     return membership.account_id
 
 
+_WRITE_PERMISSIONS = frozenset(
+    {
+        Perm.WRITE_PROPERTIES,
+        Perm.WRITE_TENANTS,
+        Perm.WRITE_CONTRACTS,
+        Perm.WRITE_DOCUMENTS,
+        Perm.WRITE_PAYMENTS,
+        Perm.WRITE_CHARGES,
+        Perm.WRITE_EXPENSES,
+        Perm.WRITE_REMINDERS,
+    }
+)
+
+
 def require_permissions(*permissions: Permission):
-    """Dependency factory: проверить права текущей роли."""
+    """Dependency factory: проверить права текущей роли и биллинг write-block."""
 
     def _checker(
         membership: MembershipEntity = Depends(get_current_membership),
+        account_repo: AccountRepository = Depends(get_account_repo),
     ) -> MembershipEntity:
         for perm in permissions:
             if not has_permission(membership.role, perm):
                 raise ForbiddenError("Недостаточно прав для этого действия")
+        needs_write = any(p in _WRITE_PERMISSIONS for p in permissions)
+        if needs_write:
+            account = account_repo.get_by_id(membership.account_id)
+            if account and is_subscription_write_blocked(
+                account, grace_days=settings.BILLING_GRACE_DAYS
+            ):
+                raise ForbiddenError(
+                    "Подписка не оплачена: изменения недоступны. "
+                    "Оплатите тариф Pro в настройках."
+                )
         return membership
 
     return _checker

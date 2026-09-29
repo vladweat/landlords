@@ -1,11 +1,13 @@
+import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { User, Key, Trash2, Users, Building2 } from 'lucide-react';
 import { authApi } from '@/features/auth/api';
 import { accountApi } from '@/features/account/api';
+import { PlanSection } from '@/features/account/components/PlanSection';
 import { ContractTemplatesSection } from '@/features/contract-templates/components/ContractTemplatesSection';
 import { useAuthStore } from '@/features/auth/store';
 import { useCan } from '@/features/auth/permissions';
@@ -15,7 +17,6 @@ import { Card } from '@/shared/ui/Card';
 import { Button } from '@/shared/ui/Button';
 import { Input } from '@/shared/ui/Input';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
-import { useState } from 'react';
 import { z } from 'zod';
 
 const profileSchema = z.object({
@@ -43,12 +44,53 @@ const inviteSchema = z.object({
 
 export default function SettingsPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const { user, account, role, setAuth, logout, fetchUser } = useAuthStore();
   const canManageTeam = useCan('manage_team');
   const canManageAccount = useCan('manage_account');
   const [removingUserId, setRemovingUserId] = useState<string | null>(null);
   const [revokingInviteId, setRevokingInviteId] = useState<string | null>(null);
+  const billingReturnHandled = useRef(false);
+
+  useEffect(() => {
+    if (!canManageAccount || billingReturnHandled.current) return;
+    if (searchParams.get('billing') !== 'return') return;
+    billingReturnHandled.current = true;
+
+    const paymentId = sessionStorage.getItem('yookassa_payment_id');
+    const finish = () => {
+      sessionStorage.removeItem('yookassa_payment_id');
+      searchParams.delete('billing');
+      setSearchParams(searchParams, { replace: true });
+    };
+
+    if (!paymentId) {
+      finish();
+      toast.message('Вернулись из оплаты. Обновите страницу, если тариф не сменился.');
+      return;
+    }
+
+    void accountApi
+      .confirmPayment(paymentId)
+      .then(async (result) => {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['account-subscription'] }),
+          fetchUser(),
+        ]);
+        if (result.status === 'applied') {
+          toast.success('Оплата Pro подтверждена');
+        } else if (result.status === 'ignored' && result.reason === 'duplicate') {
+          toast.success('Подписка Pro уже активна');
+        } else {
+          toast.message(
+            `Платёж ещё не завершён (${result.reason ?? result.status}). Подождите или проверьте ЮKassa.`,
+          );
+        }
+      })
+      .catch((error) => showError(error, 'Не удалось подтвердить оплату'))
+      .finally(finish);
+  }, [canManageAccount, searchParams, setSearchParams, queryClient, fetchUser]);
 
   const { register: profileRegister, handleSubmit: handleProfileSubmit, formState: { errors: profileErrors } } = useForm({
     resolver: zodResolver(profileSchema),
@@ -86,6 +128,16 @@ export default function SettingsPage() {
     enabled: canManageTeam,
   });
 
+  const { data: subscription } = useQuery({
+    queryKey: ['account-subscription'],
+    queryFn: accountApi.getSubscription,
+  });
+
+  const seatsOccupied =
+    (subscription?.usage.users ?? 0) + invites.length;
+  const seatsAtLimit =
+    !!subscription && seatsOccupied >= subscription.limits.max_users;
+
   const profileMutation = useMutation({
     mutationFn: authApi.updateProfile,
     onSuccess: (data) => {
@@ -118,6 +170,7 @@ export default function SettingsPage() {
     mutationFn: accountApi.createInvite,
     onSuccess: async (invite) => {
       queryClient.invalidateQueries({ queryKey: ['account-invites'] });
+      queryClient.invalidateQueries({ queryKey: ['account-subscription'] });
       resetInvite();
       let copied = false;
       try {
@@ -207,6 +260,8 @@ export default function SettingsPage() {
           </form>
         </Card>
       </div>
+
+      <PlanSection />
 
       {canManageAccount && (
         <Card>
@@ -359,6 +414,12 @@ export default function SettingsPage() {
           )}
 
           <h3 className="text-sm font-medium text-gray-700 mb-3">Пригласить участника</h3>
+          {seatsAtLimit && (
+            <p className="mb-3 text-sm text-amber-700">
+              Достигнут лимит пользователей тарифа. Смените тариф или отзовите
+              приглашение.
+            </p>
+          )}
           <form
             onSubmit={handleInviteSubmit((d) =>
               createInviteMutation.mutate({
@@ -381,7 +442,12 @@ export default function SettingsPage() {
                 <option value="accountant">{ROLE_LABELS.accountant}</option>
               </select>
             </div>
-            <Button type="submit" size="sm" isLoading={createInviteMutation.isPending}>
+            <Button
+              type="submit"
+              size="sm"
+              isLoading={createInviteMutation.isPending}
+              disabled={seatsAtLimit}
+            >
               Отправить приглашение
             </Button>
           </form>

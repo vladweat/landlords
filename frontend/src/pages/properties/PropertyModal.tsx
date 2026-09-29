@@ -40,7 +40,13 @@ export function PropertyModal({ isOpen, onClose, property }: PropertyModalProps)
 
   const createMutation = useMutation({
     mutationFn: propertiesApi.create,
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['properties'] }); scrollToTop(); toast.success("Объект добавлен"); onClose(); },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['properties'] });
+      queryClient.invalidateQueries({ queryKey: ['account-subscription'] });
+      scrollToTop();
+      toast.success("Объект добавлен");
+      onClose();
+    },
     onError: (error) => showError(error, 'Ошибка создания'),
   });
 

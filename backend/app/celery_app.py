@@ -44,7 +44,11 @@ celery_app.conf.update(
     result_serializer="json",
     timezone="UTC",
     enable_utc=True,
-    imports=("app.tasks.charge_tasks", "app.tasks.email_tasks"),
+    imports=(
+        "app.tasks.charge_tasks",
+        "app.tasks.email_tasks",
+        "app.tasks.billing_tasks",
+    ),
     broker_connection_retry_on_startup=True,
     task_track_started=True,
     task_acks_late=True,
@@ -57,6 +61,10 @@ celery_app.conf.update(
         "send-daily-reminder-emails": {
             "task": "app.tasks.email_tasks.send_daily_reminder_emails",
             "schedule": crontab(hour=7, minute=0),
+        },
+        "process-subscription-renewals-daily": {
+            "task": "app.tasks.billing_tasks.process_subscription_renewals",
+            "schedule": crontab(hour=4, minute=0),
         },
     },
 )

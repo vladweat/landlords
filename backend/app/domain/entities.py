@@ -30,6 +30,11 @@ class AccountEntity:
     base_currency: str = "RUB"
     timezone: str = "Europe/Moscow"
     payment_details: str | None = None
+    plan: str = "free"
+    subscription_status: str = "none"
+    subscription_period_end: datetime | None = None
+    yookassa_payment_method_id: str | None = None
+    yookassa_last_payment_id: str | None = None
     created_at: datetime = field(default_factory=_utc_now)
 
 

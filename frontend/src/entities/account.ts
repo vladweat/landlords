@@ -1,5 +1,9 @@
 export type Role = 'owner' | 'manager' | 'accountant';
 
+export type PlanId = 'free' | 'pro' | 'enterprise';
+
+export type SubscriptionStatus = 'none' | 'active' | 'past_due' | 'canceled';
+
 export interface Account {
   id: string;
   name: string;
@@ -7,6 +11,47 @@ export interface Account {
   base_currency: string;
   timezone: string;
   payment_details?: string | null;
+  plan?: PlanId | string;
+  subscription_status?: SubscriptionStatus | string;
+  subscription_period_end?: string | null;
+}
+
+export interface PlanLimits {
+  max_properties: number;
+  max_users: number;
+  max_storage_bytes: number;
+}
+
+export interface PlanUsage {
+  properties: number;
+  users: number;
+  storage_bytes: number;
+}
+
+export interface PlanCatalogItem {
+  id: PlanId | string;
+  name: string;
+  max_properties: number;
+  max_users: number;
+  max_storage_bytes: number;
+  price_rub_monthly?: number | null;
+}
+
+export interface Subscription {
+  plan: PlanId | string;
+  plan_name: string;
+  subscription_status: SubscriptionStatus | string;
+  subscription_period_end?: string | null;
+  billing_enabled: boolean;
+  write_blocked: boolean;
+  limits: PlanLimits;
+  usage: PlanUsage;
+  plans_catalog: PlanCatalogItem[];
+}
+
+export interface CheckoutResult {
+  confirmation_url: string;
+  payment_id: string;
 }
 
 export interface Member {

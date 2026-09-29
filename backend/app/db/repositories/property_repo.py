@@ -91,3 +91,11 @@ class PropertyRepository(IPropertyRepository):
             .filter_by(account_id=account_id, status="active")
             .count()
         )
+
+    def count_by_account(self, account_id: UUID) -> int:
+        """Количество всех объектов аккаунта."""
+        return (
+            self.session.query(PropertyModel)
+            .filter_by(account_id=account_id)
+            .count()
+        )

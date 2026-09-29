@@ -73,8 +73,8 @@
 
 ### 3. Чтобы это был SaaS, а не личный инструмент
 
-- [ ] Тарифы и лимиты: объекты, пользователи, хранилище (plans/subscription)
-- [ ] Оплата: Stripe или ЮKassa, webhooks, отключение при неоплате
+- [x] Тарифы и лимиты: объекты, пользователи, хранилище (plans/subscription)
+- [x] Оплата: ЮKassa (test/demo), webhooks, отключение при неоплате (Pro; Enterprise вручную)
 - [ ] Юридическое: оферта, политика данных, удаление аккаунта, выгрузка
 - [ ] Наблюдаемость: Sentry + алерты на beat и диск документов
 - [ ] Поддержка: почта «написать нам», статус инцидентов
@@ -116,6 +116,7 @@
 ## Связанные спеки
 
 - Деньги: [MONEY_FLOW.md](./MONEY_FLOW.md), [use-cases-contracts-payments.md](./use-cases-contracts-payments.md)
+- SaaS-оплата: [BILLING.md](./BILLING.md)
 - Роли: [multi-user-roles.md](./multi-user-roles.md)
 - Что делать дальше: [PRIORITIES.md](./PRIORITIES.md)
 - Инфра: [INFRA.md](./INFRA.md)
