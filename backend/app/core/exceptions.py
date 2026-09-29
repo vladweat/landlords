@@ -46,6 +46,13 @@ class ForbiddenError(AppException):
     message: str = "Access denied"
 
 
+class GoneError(AppException):
+    """Ресурс больше недоступен (истёк, отозван, уже использован)."""
+
+    status_code: int = HTTPStatus.GONE
+    message: str = "Resource no longer available"
+
+
 class ServiceUnavailableError(AppException):
     """Внешний сервис недоступен."""
 

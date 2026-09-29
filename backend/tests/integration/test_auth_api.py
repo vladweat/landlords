@@ -1,7 +1,8 @@
 """Интеграционные тесты аутентификации."""
 
-import pytest
 from fastapi.testclient import TestClient
+
+from app.core.security import create_reset_token
 
 
 class TestAuthRegister:
@@ -110,3 +111,52 @@ class TestAuthMe:
             },
         )
         assert resp.status_code == 401
+
+
+class TestPasswordReset:
+    def test_forgot_and_reset(self, client: TestClient, auth_headers, tmp_path, monkeypatch):
+        """Сброс пароля: forgot пишет письмо в файл, reset меняет пароль."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr("app.services.email_service.settings.SMTP_HOST", None)
+
+        me = client.get("/v1/auth/me", headers=auth_headers)
+        user_id = me.json()["data"]["user"]["id"]
+
+        forgot = client.post(
+            "/v1/auth/forgot-password",
+            json={"email": "test@example.com"},
+        )
+        assert forgot.status_code == 200
+
+        files = list((tmp_path / "storage" / "emails").glob("*.txt"))
+        assert files, "expected password reset email file"
+        content = files[0].read_text(encoding="utf-8")
+        assert "Сброс пароля" in content
+        assert "reset-password?token=" in content
+
+        token = create_reset_token(str(user_id))
+        reset = client.post(
+            "/v1/auth/reset-password",
+            json={"token": token, "new_password": "newpass99"},
+        )
+        assert reset.status_code == 200
+
+        old_login = client.post(
+            "/v1/auth/login",
+            json={"email": "test@example.com", "password": "secret123"},
+        )
+        assert old_login.status_code == 401
+
+        new_login = client.post(
+            "/v1/auth/login",
+            json={"email": "test@example.com", "password": "newpass99"},
+        )
+        assert new_login.status_code == 200
+
+    def test_forgot_unknown_email_ok(self, client: TestClient):
+        """Несуществующий email не раскрывает факт отсутствия."""
+        resp = client.post(
+            "/v1/auth/forgot-password",
+            json={"email": "missing@example.com"},
+        )
+        assert resp.status_code == 200

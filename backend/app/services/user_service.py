@@ -2,6 +2,7 @@
 
 from uuid import UUID, uuid4
 
+from app.core.config import settings
 from app.core.exceptions import (
     ConflictError,
     ForbiddenError,
@@ -9,17 +10,19 @@ from app.core.exceptions import (
     UnauthorizedError,
     ValidationError,
 )
-from app.core.security import create_access_token, hash_password, verify_password, create_reset_token
-from loguru import logger
-from pathlib import Path
-import time
-import smtplib
-from email.message import EmailMessage
+from app.core.security import (
+    create_access_token,
+    create_reset_token,
+    hash_password,
+    verify_password,
+)
 from app.domain.entities import AccountEntity, MembershipEntity, UserEntity
 from app.domain.interfaces import IAccountRepository, IMembershipRepository, IUserRepository
 from app.domain.permissions import Role
 from app.services.dto.account_dto import AccountDTO
 from app.services.dto.user_dto import UserCreateDTO, UserDTO
+from app.services.email_service import EmailService
+from loguru import logger
 
 
 class UserService:
@@ -30,10 +33,12 @@ class UserService:
         user_repo: IUserRepository,
         account_repo: IAccountRepository,
         membership_repo: IMembershipRepository,
+        email_service: EmailService | None = None,
     ) -> None:
         self.user_repo = user_repo
         self.account_repo = account_repo
         self.membership_repo = membership_repo
+        self.email_service = email_service or EmailService()
 
     def register(self, dto: UserCreateDTO) -> tuple[UserDTO, AccountDTO, str]:
         """Зарегистрировать пользователя и создать аккаунт."""
@@ -71,6 +76,11 @@ class UserService:
             user_id=str(created_user.id),
             account_id=str(created_account.id),
         )
+
+        try:
+            self.email_service.send_welcome(created_user.email, created_user.full_name)
+        except Exception:
+            logger.exception("Failed to send welcome email")
 
         return (
             UserDTO.model_validate(created_user),
@@ -137,45 +147,18 @@ class UserService:
     def request_password_reset(self, email: str) -> None:
         """
         Запрос на сброс пароля: создать токен и отправить письмо.
-        Не логируем сам токен. Если SMTP не настроен, ссылка сохраняется в storage/password_resets для dev.
+        Не логируем сам токен. Без SMTP письмо пишется в storage/emails.
         """
         user = self.user_repo.get_by_email(email)
         if not user:
             return
 
         token = create_reset_token(str(user.id))
-
         try:
-            from app.core.config import settings
-
             frontend = settings.FRONTEND_URL.rstrip("/")
             reset_link = f"{frontend}/reset-password?token={token}"
-
-            if settings.SMTP_HOST:
-                msg = EmailMessage()
-                msg["Subject"] = "Сброс пароля"
-                msg["From"] = settings.SMTP_FROM or "no-reply@example.com"
-                msg["To"] = user.email
-                msg.set_content(f"Чтобы сбросить пароль, перейдите по ссылке: {reset_link}")
-                try:
-                    smtp_port = settings.SMTP_PORT or 25
-                    with smtplib.SMTP(settings.SMTP_HOST, smtp_port) as smtp:
-                        if settings.SMTP_USER and settings.SMTP_PASSWORD:
-                            try:
-                                smtp.starttls()
-                            except Exception:
-                                pass
-                            smtp.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
-                        smtp.send_message(msg)
-                    logger.info("Password reset email sent (no token in logs).")
-                except Exception:
-                    logger.exception("Failed to send password reset email")
-            else:
-                out_dir = Path("storage/password_resets")
-                out_dir.mkdir(parents=True, exist_ok=True)
-                fname = out_dir / f"{user.email}-{int(time.time())}.txt"
-                fname.write_text(reset_link)
-                logger.info("Password reset link written to storage/password_resets (SMTP unset).")
+            self.email_service.send_password_reset(user.email, reset_link)
+            logger.info("Password reset email dispatched (no token in logs).")
         except Exception:
             logger.exception("Error while preparing password reset")
 

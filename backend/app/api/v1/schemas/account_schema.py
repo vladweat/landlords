@@ -50,15 +50,6 @@ class MemberResponse(BaseModel):
     created_at: datetime
 
 
-class MemberCreateRequest(BaseModel):
-    """Создание участника."""
-
-    email: EmailStr
-    full_name: str
-    password: str = Field(min_length=6)
-    role: str
-
-
 class MemberUpdateRequest(BaseModel):
     """Смена роли участника."""
 
@@ -73,3 +64,60 @@ class MemberListResponse(BaseModel):
 class MemberSingleResponse(BaseModel):
     status: str = "success"
     data: MemberResponse
+
+
+class InviteCreateRequest(BaseModel):
+    """Создание приглашения."""
+
+    email: EmailStr
+    full_name: str
+    role: str
+
+
+class InviteResponse(BaseModel):
+    """Приглашение."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    account_id: UUID
+    email: str
+    full_name: str
+    role: str
+    token: str
+    invite_url: str
+    expires_at: datetime
+    invited_by_user_id: UUID
+    created_at: datetime
+
+
+class InviteListResponse(BaseModel):
+    status: str = "success"
+    data: list[InviteResponse]
+
+
+class InviteSingleResponse(BaseModel):
+    status: str = "success"
+    data: InviteResponse
+
+
+class InvitePreviewResponse(BaseModel):
+    """Публичный preview приглашения."""
+
+    email: str
+    full_name: str
+    role: str
+    account_name: str
+    expires_at: datetime
+
+
+class InvitePreviewSingleResponse(BaseModel):
+    status: str = "success"
+    data: InvitePreviewResponse
+
+
+class InviteAcceptRequest(BaseModel):
+    """Принятие приглашения."""
+
+    password: str = Field(min_length=6)
+    full_name: str | None = None

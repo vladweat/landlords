@@ -3,7 +3,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict
 
 
 class MembershipDTO(BaseModel):
@@ -30,15 +30,6 @@ class MemberDTO(BaseModel):
     is_active: bool
     membership_id: UUID
     created_at: datetime
-
-
-class MemberCreateDTO(BaseModel):
-    """DTO для создания участника."""
-
-    email: EmailStr
-    full_name: str
-    password: str = Field(min_length=6)
-    role: str
 
 
 class MemberUpdateDTO(BaseModel):

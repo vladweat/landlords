@@ -1,19 +1,31 @@
 """Абстрактные интерфейсы репозиториев."""
 
 from abc import ABC, abstractmethod
+from datetime import date
 from decimal import Decimal
 from typing import Sequence
 from uuid import UUID
-from datetime import date
 
 from app.domain.entities import (
-    AccountEntity, ContractEntity, ContractEventEntity, ContractTemplateEntity,
-    DocumentEntity, FeedbackEntity, InvoiceEntity, MembershipEntity,
-    NotificationDismissalEntity, PaymentEntity, PropertyEntity,
-    PropertyExpenseEntity, ReminderEntity, RentChargeEntity, TenantEntity,
+    AccountEntity,
+    AccountInviteEntity,
+    ContractEntity,
+    ContractEventEntity,
+    ContractTemplateEntity,
+    DocumentEntity,
+    EmailDispatchLogEntity,
+    FeedbackEntity,
+    InvoiceEntity,
+    MembershipEntity,
+    NotificationDismissalEntity,
+    PaymentEntity,
+    PropertyEntity,
+    PropertyExpenseEntity,
+    ReminderEntity,
+    RentChargeEntity,
+    TenantEntity,
     UserEntity,
 )
-
 from app.domain.pagination import PaginatedResult
 
 
@@ -67,6 +79,11 @@ class IAccountRepository(ABC):
     @abstractmethod
     def update(self, entity: AccountEntity) -> AccountEntity:
         """Обновить аккаунт."""
+        ...
+
+    @abstractmethod
+    def list_all(self) -> Sequence[AccountEntity]:
+        """Все аккаунты (для фоновых задач)."""
         ...
 
 
@@ -129,7 +146,7 @@ class IPropertyRepository(ABC):
         property_type: str | None = None,
     ) -> PaginatedResult:
         ...
-        
+
     @abstractmethod
     def create(self, entity: PropertyEntity) -> PropertyEntity:
         """Создать объект."""
@@ -144,7 +161,7 @@ class IPropertyRepository(ABC):
     def delete(self, property_id: UUID, account_id: UUID) -> None:
         """Удалить объект."""
         ...
-        
+
     @abstractmethod
     def count_active(self, account_id: UUID) -> int:
         """Количество активных объектов."""
@@ -180,7 +197,7 @@ class ITenantRepository(ABC):
     def delete(self, tenant_id: UUID, account_id: UUID) -> None:
         """Удалить арендатора."""
         ...
-        
+
 class IContractRepository(ABC):
     """Интерфейс репозитория контрактов."""
 
@@ -226,7 +243,7 @@ class IContractRepository(ABC):
     def delete(self, contract_id: UUID, account_id: UUID) -> None:
         """Удалить контракт."""
         ...
-        
+
     @abstractmethod
     def count_active(self, account_id: UUID) -> int:
         """Количество активных контрактов."""
@@ -238,14 +255,14 @@ class IContractRepository(ABC):
     ) -> ContractEntity | None:
         """Получить активный контракт для объекта."""
         ...
-        
+
     @abstractmethod
     def get_active_for_tenant(
         self, tenant_id: UUID, account_id: UUID
     ) -> Sequence[ContractEntity]:
         """Получить активные контракты арендатора."""
         ...
-            
+
 class IRentChargeRepository(ABC):
     """Интерфейс репозитория начислений."""
 
@@ -287,7 +304,7 @@ class IRentChargeRepository(ABC):
     ) -> RentChargeEntity:
         """Обновить статус начисления."""
         ...
-        
+
     @abstractmethod
     def get_total_expected_for_month(
         self, account_id: UUID, year: int, month: int
@@ -299,7 +316,7 @@ class IRentChargeRepository(ABC):
     def get_total_outstanding(self, account_id: UUID) -> Decimal:
         """Общая сумма непогашенных начислений."""
         ...
-        
+
     @abstractmethod
     def get_overdue_total_amount(self, account_id: UUID) -> Decimal:
         """Сумма остатков по просроченным начислениям (due_date < today, remainder > 0)."""
@@ -383,7 +400,7 @@ class IPaymentRepository(ABC):
     def delete(self, payment_id: UUID, account_id: UUID) -> None:
         """Удалить платёж."""
         ...
-        
+
     @abstractmethod
     def get_total_paid_for_contract(
         self, contract_id: UUID, account_id: UUID
@@ -397,12 +414,12 @@ class IPaymentRepository(ABC):
     ) -> Decimal:
         """Общая сумма платежей за месяц."""
         ...
-        
+
     @abstractmethod
     def get_monthly_income(self, account_id: UUID, year: int, month: int) -> Decimal:
         """Доход за указанный месяц."""
         ...
-        
+
     @abstractmethod
     def get_by_tenant(self, tenant_id: UUID, account_id: UUID) -> Sequence[PaymentEntity]:
         """Получить все платежи арендатора."""
@@ -465,13 +482,13 @@ class IPropertyExpenseRepository(ABC):
 class IReminderRepository(ABC):
     @abstractmethod
     def create(self, entity: ReminderEntity) -> ReminderEntity: ...
-    
+
     @abstractmethod
     def get_by_charge(self, charge_id: UUID, account_id: UUID) -> list[ReminderEntity]: ...
-    
+
     @abstractmethod
     def count_by_charge(self, charge_id: UUID, account_id: UUID) -> int: ...
-    
+
 class IDocumentRepository(ABC):
     @abstractmethod
     def create(self, entity: DocumentEntity) -> DocumentEntity: ...
@@ -550,6 +567,63 @@ class INotificationDismissalRepository(ABC):
         self, entity: NotificationDismissalEntity
     ) -> NotificationDismissalEntity:
         """Скрыть уведомление (idempotent по ключу)."""
+        ...
+
+
+class IEmailDispatchLogRepository(ABC):
+    """Интерфейс лога отправленных email-уведомлений."""
+
+    @abstractmethod
+    def was_sent_recently(
+        self, account_id: UUID, notification_key: str, within_days: int
+    ) -> bool:
+        """True, если ключ уже отправляли за within_days дней."""
+        ...
+
+    @abstractmethod
+    def record(self, entity: EmailDispatchLogEntity) -> EmailDispatchLogEntity:
+        """Записать факт отправки (upsert по ключу)."""
+        ...
+
+
+class IAccountInviteRepository(ABC):
+    """Интерфейс репозитория приглашений в аккаунт."""
+
+    @abstractmethod
+    def create(self, entity: AccountInviteEntity) -> AccountInviteEntity:
+        """Создать приглашение."""
+        ...
+
+    @abstractmethod
+    def get_by_id(self, invite_id: UUID, account_id: UUID) -> AccountInviteEntity | None:
+        """Получить приглашение по id в рамках аккаунта."""
+        ...
+
+    @abstractmethod
+    def get_by_token(self, token: str) -> AccountInviteEntity | None:
+        """Получить приглашение по токену."""
+        ...
+
+    @abstractmethod
+    def get_pending_by_email(
+        self, account_id: UUID, email: str
+    ) -> AccountInviteEntity | None:
+        """Активное (не принятое) приглашение по email в аккаунте."""
+        ...
+
+    @abstractmethod
+    def list_pending(self, account_id: UUID) -> Sequence[AccountInviteEntity]:
+        """Список непринятых приглашений аккаунта."""
+        ...
+
+    @abstractmethod
+    def update(self, entity: AccountInviteEntity) -> AccountInviteEntity:
+        """Обновить приглашение."""
+        ...
+
+    @abstractmethod
+    def delete(self, invite_id: UUID, account_id: UUID) -> None:
+        """Удалить приглашение."""
         ...
 
 

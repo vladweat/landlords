@@ -2,13 +2,9 @@
 
 from uuid import UUID
 
-from fastapi import Depends, Header
-from sqlalchemy.orm import Session
-
 from app.core.exceptions import ForbiddenError, UnauthorizedError
 from app.core.security import decode_access_token
-from app.domain.entities import MembershipEntity
-from app.domain.permissions import Permission, has_permission
+from app.db.repositories.account_invite_repo import AccountInviteRepository
 
 # Репозитории
 from app.db.repositories.account_repo import AccountRepository
@@ -16,6 +12,7 @@ from app.db.repositories.contract_event_repo import ContractEventRepository
 from app.db.repositories.contract_repo import ContractRepository
 from app.db.repositories.contract_template_repo import ContractTemplateRepository
 from app.db.repositories.document_repo import DocumentRepository
+from app.db.repositories.email_dispatch_log_repo import EmailDispatchLogRepository
 from app.db.repositories.feedback_repo import FeedbackRepository
 from app.db.repositories.invoice_repo import InvoiceRepository
 from app.db.repositories.membership_repo import MembershipRepository
@@ -29,6 +26,9 @@ from app.db.repositories.reminder_repo import ReminderRepository
 from app.db.repositories.rent_charge_repo import RentChargeRepository
 from app.db.repositories.tenant_repo import TenantRepository
 from app.db.repositories.user_repo import UserRepository
+from app.db.session import get_db_session
+from app.domain.entities import MembershipEntity
+from app.domain.permissions import Permission, has_permission
 
 # Сервисы
 from app.services.account_service import AccountService
@@ -40,8 +40,10 @@ from app.services.contract_template_service import ContractTemplateService
 from app.services.credit_score_service import CreditScoreService
 from app.services.dashboard_service import DashboardService
 from app.services.document_service import DocumentService
+from app.services.email_service import EmailService
 from app.services.feedback_service import FeedbackService
 from app.services.forecast_service import ForecastService
+from app.services.invite_service import InviteService
 from app.services.invoice_service import InvoiceService
 from app.services.ledger_service import LedgerService
 from app.services.notification_service import NotificationService
@@ -55,8 +57,12 @@ from app.services.report_export_service import ReportExportService
 from app.services.roi_service import RoiService
 from app.services.tenant_service import TenantService
 from app.services.user_service import UserService
+from fastapi import Depends, Header
+from sqlalchemy.orm import Session
 
-from app.db.session import get_db_session
+
+def get_email_service() -> EmailService:
+    return EmailService()
 
 
 # ==================== БАЗОВЫЕ ====================
@@ -115,6 +121,16 @@ def get_notification_dismissal_repo(
 ) -> NotificationDismissalRepository:
     return NotificationDismissalRepository(session)
 
+def get_email_dispatch_log_repo(
+    session: Session = Depends(get_db_session),
+) -> EmailDispatchLogRepository:
+    return EmailDispatchLogRepository(session)
+
+def get_account_invite_repo(
+    session: Session = Depends(get_db_session),
+) -> AccountInviteRepository:
+    return AccountInviteRepository(session)
+
 def get_audit_service(session: Session = Depends(get_db_session)) -> AuditService:
     return AuditService(session)
 
@@ -125,8 +141,9 @@ def get_user_service(
     user_repo: UserRepository = Depends(get_user_repo),
     account_repo: AccountRepository = Depends(get_account_repo),
     membership_repo: MembershipRepository = Depends(get_membership_repo),
+    email_service: EmailService = Depends(get_email_service),
 ) -> UserService:
-    return UserService(user_repo, account_repo, membership_repo)
+    return UserService(user_repo, account_repo, membership_repo, email_service)
 
 def get_account_service(
     account_repo: AccountRepository = Depends(get_account_repo),
@@ -134,6 +151,17 @@ def get_account_service(
     user_repo: UserRepository = Depends(get_user_repo),
 ) -> AccountService:
     return AccountService(account_repo, membership_repo, user_repo)
+
+def get_invite_service(
+    invite_repo: AccountInviteRepository = Depends(get_account_invite_repo),
+    account_repo: AccountRepository = Depends(get_account_repo),
+    user_repo: UserRepository = Depends(get_user_repo),
+    membership_repo: MembershipRepository = Depends(get_membership_repo),
+    email_service: EmailService = Depends(get_email_service),
+) -> InviteService:
+    return InviteService(
+        invite_repo, account_repo, user_repo, membership_repo, email_service
+    )
 
 def get_property_service(
     repo: PropertyRepository = Depends(get_property_repo),

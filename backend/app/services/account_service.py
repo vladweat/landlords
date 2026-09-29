@@ -1,16 +1,13 @@
 """Сервис аккаунта и участников."""
 
-from uuid import UUID, uuid4
+from uuid import UUID
 
-from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError, ValidationError
-from app.core.security import hash_password
-from app.domain.entities import MembershipEntity, UserEntity
+from app.core.exceptions import ForbiddenError, NotFoundError, ValidationError
 from app.domain.interfaces import IAccountRepository, IMembershipRepository, IUserRepository
 from app.domain.permissions import ASSIGNABLE_ROLES, Role
 from app.services.dto.account_dto import AccountDTO
 from app.services.dto.membership_dto import (
     AccountUpdateDTO,
-    MemberCreateDTO,
     MemberDTO,
     MemberUpdateDTO,
 )
@@ -75,53 +72,6 @@ class AccountService:
                 )
             )
         return result
-
-    def create_member(self, account_id: UUID, dto: MemberCreateDTO) -> MemberDTO:
-        """Создать пользователя и membership (manager/accountant)."""
-        try:
-            role = Role(dto.role)
-        except ValueError as exc:
-            raise ValidationError(f"Недопустимая роль: {dto.role}") from exc
-        if role not in ASSIGNABLE_ROLES:
-            raise ValidationError("Можно назначить только роли manager или accountant")
-
-        existing = self.user_repo.get_by_email(dto.email)
-        if existing:
-            raise ConflictError(f"User with email '{dto.email}' already exists")
-
-        if len(dto.password) < 6:
-            raise ValidationError("Пароль должен быть не менее 6 символов")
-
-        account = self.account_repo.get_by_id(account_id)
-        if not account:
-            raise NotFoundError("Account not found")
-
-        user = self.user_repo.create(
-            UserEntity(
-                id=uuid4(),
-                email=dto.email,
-                password_hash=hash_password(dto.password),
-                full_name=dto.full_name,
-            )
-        )
-        membership = self.membership_repo.create(
-            MembershipEntity(
-                id=uuid4(),
-                account_id=account_id,
-                user_id=user.id,
-                role=role.value,
-            )
-        )
-        return MemberDTO(
-            user_id=user.id,
-            email=user.email,
-            full_name=user.full_name,
-            phone=user.phone,
-            role=membership.role,
-            is_active=True,
-            membership_id=membership.id,
-            created_at=membership.created_at,
-        )
 
     def update_member_role(
         self, account_id: UUID, target_user_id: UUID, dto: MemberUpdateDTO

@@ -1,3 +1,4 @@
+from typing import Sequence
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -41,3 +42,8 @@ class AccountRepository(IAccountRepository):
         model.payment_details = entity.payment_details
         self.session.flush()
         return model.to_entity()
+
+    def list_all(self) -> Sequence[AccountEntity]:
+        """Все аккаунты (для фоновых задач)."""
+        models = self.session.query(AccountModel).all()
+        return [m.to_entity() for m in models]

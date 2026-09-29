@@ -1,5 +1,6 @@
 import { apiClient } from '@/shared/api/client';
-import type { Account, Member, Role } from '@/entities/account';
+import type { Account, Invite, InvitePreview, Member, Role } from '@/entities/account';
+import type { AuthResponse } from '@/features/auth/api';
 
 export const accountApi = {
   get: async (): Promise<Account> => {
@@ -22,19 +23,6 @@ export const accountApi = {
     return response.data.data;
   },
 
-  createMember: async (data: {
-    email: string;
-    full_name: string;
-    password: string;
-    role: Exclude<Role, 'owner'>;
-  }): Promise<Member> => {
-    const response = await apiClient.post<{ status: string; data: Member }>(
-      '/account/members',
-      data,
-    );
-    return response.data.data;
-  },
-
   updateMemberRole: async (userId: string, role: Exclude<Role, 'owner'>): Promise<Member> => {
     const response = await apiClient.patch<{ status: string; data: Member }>(
       `/account/members/${userId}`,
@@ -45,5 +33,44 @@ export const accountApi = {
 
   removeMember: async (userId: string): Promise<void> => {
     await apiClient.delete(`/account/members/${userId}`);
+  },
+
+  listInvites: async (): Promise<Invite[]> => {
+    const response = await apiClient.get<{ status: string; data: Invite[] }>('/account/invites');
+    return response.data.data;
+  },
+
+  createInvite: async (data: {
+    email: string;
+    full_name: string;
+    role: Exclude<Role, 'owner'>;
+  }): Promise<Invite> => {
+    const response = await apiClient.post<{ status: string; data: Invite }>(
+      '/account/invites',
+      data,
+    );
+    return response.data.data;
+  },
+
+  revokeInvite: async (inviteId: string): Promise<void> => {
+    await apiClient.delete(`/account/invites/${inviteId}`);
+  },
+
+  getInvitePreview: async (token: string): Promise<InvitePreview> => {
+    const response = await apiClient.get<{ status: string; data: InvitePreview }>(
+      `/public/invites/${token}`,
+    );
+    return response.data.data;
+  },
+
+  acceptInvite: async (
+    token: string,
+    data: { password: string; full_name?: string },
+  ): Promise<AuthResponse> => {
+    const response = await apiClient.post<AuthResponse>(
+      `/public/invites/${token}/accept`,
+      data,
+    );
+    return response.data;
   },
 };

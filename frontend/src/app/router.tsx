@@ -7,6 +7,7 @@ import { useAuthStore } from '@/features/auth/store';
 const LoginPage = lazy(() => import('@/pages/login/LoginPage'));
 const ForgotPasswordPage = lazy(() => import('@/pages/forgot-password/ForgotPasswordPage'));
 const ResetPasswordPage = lazy(() => import('@/pages/reset-password/ResetPasswordPage'));
+const InvitePage = lazy(() => import('@/pages/invite/InvitePage'));
 const AppLayout = lazy(() => import('@/pages/layout/AppLayout'));
 const DashboardPage = lazy(() => import('@/pages/dashboard/DashboardPage'));
 const PropertiesPage = lazy(() => import('@/pages/properties/PropertiesPage'));
@@ -45,6 +46,7 @@ export function AppRouter() {
         <Route path="/login" element={<GuestOnly><LoginPage /></GuestOnly>} />
         <Route path="/forgot-password" element={<GuestOnly><ForgotPasswordPage /></GuestOnly>} />
         <Route path="/reset-password" element={<GuestOnly><ResetPasswordPage /></GuestOnly>} />
+        <Route path="/invite" element={<GuestOnly><InvitePage /></GuestOnly>} />
         <Route path="/i/:token" element={<InvoicePublicPage />} />
         <Route element={<ProtectedRoute />}>
           <Route element={<AppLayout />}>

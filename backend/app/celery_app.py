@@ -44,7 +44,7 @@ celery_app.conf.update(
     result_serializer="json",
     timezone="UTC",
     enable_utc=True,
-    imports=("app.tasks.charge_tasks",),
+    imports=("app.tasks.charge_tasks", "app.tasks.email_tasks"),
     broker_connection_retry_on_startup=True,
     task_track_started=True,
     task_acks_late=True,
@@ -53,6 +53,10 @@ celery_app.conf.update(
         "update-overdue-charges-daily": {
             "task": "app.tasks.charge_tasks.update_overdue_charges",
             "schedule": crontab(hour=3, minute=0),
+        },
+        "send-daily-reminder-emails": {
+            "task": "app.tasks.email_tasks.send_daily_reminder_emails",
+            "schedule": crontab(hour=7, minute=0),
         },
     },
 )
