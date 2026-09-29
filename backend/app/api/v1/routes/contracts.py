@@ -7,6 +7,7 @@ from fastapi.responses import Response
 
 from app.api.deps import (
     get_contract_event_service,
+    get_contract_repo,
     get_contract_service,
     get_current_account_id,
     get_current_user_id,
@@ -17,6 +18,7 @@ from app.api.deps import (
     get_tenant_portal_service,
     require_permissions,
 )
+from app.db.repositories.contract_repo import ContractRepository
 from app.api.pagination import PaginationParams
 from app.api.v1.schemas.contract_event_schema import ContractEventResponse, CreateNoteRequest
 from app.api.v1.schemas.contract_schema import (
@@ -29,6 +31,8 @@ from app.api.v1.schemas.contract_schema import (
     ContractLifecycleResponse,
     ContractLifecycleSingleResponse,
     ContractLedgerResponse,
+    GenerateChargesBulkRequest,
+    GenerateChargesBulkResponse,
     LedgerResponse,
 )
 from app.api.v1.schemas.portal_schema import (
@@ -90,6 +94,49 @@ def create_contract(
         "status": "success",
         "data": ContractResponse.model_validate(dto),
     }
+
+
+@router.post(
+    "/generate-charges-bulk",
+    response_model=GenerateChargesBulkResponse,
+)
+def generate_charges_bulk(
+    body: GenerateChargesBulkRequest,
+    account_id: UUID = Depends(get_current_account_id),
+    contract_repo: ContractRepository = Depends(get_contract_repo),
+    _: MembershipEntity = Depends(require_permissions(Permission.WRITE_CHARGES)),
+) -> dict:
+    """Поставить генерацию начислений в очередь для нескольких договоров."""
+    from app.celery_app import celery_app
+
+    eligible = {"active", "overdue"}
+    enqueued: list[dict] = []
+    skipped: list[dict] = []
+    seen: set[UUID] = set()
+
+    for contract_id in body.contract_ids:
+        if contract_id in seen:
+            continue
+        seen.add(contract_id)
+        contract = contract_repo.get_by_id(contract_id, account_id)
+        if contract is None:
+            skipped.append({"contract_id": contract_id, "reason": "not_found"})
+            continue
+        if contract.status not in eligible:
+            skipped.append(
+                {
+                    "contract_id": contract_id,
+                    "reason": f"invalid_status:{contract.status}",
+                }
+            )
+            continue
+        result = celery_app.send_task(
+            "app.tasks.charge_tasks.generate_charges_for_contract",
+            args=[str(account_id), str(contract_id)],
+        )
+        enqueued.append({"contract_id": contract_id, "task_id": result.id})
+
+    return {"status": "success", "data": {"enqueued": enqueued, "skipped": skipped}}
 
 
 @router.get("/{contract_id}", response_model=ContractSingleResponse)

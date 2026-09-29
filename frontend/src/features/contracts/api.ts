@@ -81,6 +81,22 @@ export const contractsApi = {
     return response.data.data;
   },
 
+  generateChargesBulk: async (
+    contractIds: string[],
+  ): Promise<{
+    enqueued: { contract_id: string; task_id: string }[];
+    skipped: { contract_id: string; reason: string }[];
+  }> => {
+    const response = await apiClient.post<{
+      status: string;
+      data: {
+        enqueued: { contract_id: string; task_id: string }[];
+        skipped: { contract_id: string; reason: string }[];
+      };
+    }>('/contracts/generate-charges-bulk', { contract_ids: contractIds });
+    return response.data.data;
+  },
+
   refreshStatus: async (id: string): Promise<{ id: string; status: string }> => {
     const response = await apiClient.post<{ status: string; data: { id: string; status: string } }>(`/contracts/${id}/refresh-status`);
     return response.data.data;

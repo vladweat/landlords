@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { Building2 } from 'lucide-react';
 import { Card } from '@/shared/ui/Card';
-import type { PropertyOverviewItem } from '@/entities/payment';
+import type { PropertyOverviewItem } from '@/entities/dashboard';
 
 const statusLabels: Record<string, string> = { active: 'Активен', overdue: 'Просрочка' };
 const statusColors: Record<string, string> = { active: 'bg-green-100 text-green-700', overdue: 'bg-red-100 text-red-700' };

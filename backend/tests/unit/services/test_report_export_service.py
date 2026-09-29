@@ -180,3 +180,42 @@ class TestReportExportService:
     def test_invalid_dates(self, service, account_id):
         with pytest.raises(ValidationError):
             service.export(account_id, date(2026, 3, 31), date(2026, 3, 1), fmt="xlsx")
+
+    def test_filter_by_contract_ids(self, service, account_id, repos):
+        """Чужой contract_id — пустые payment/charge/expense строки."""
+        contract_id = repos[6]
+        contract_repo = repos[3]
+        other_id = uuid4()
+        contract_repo.get_by_id.return_value = None
+
+        content, _, _ = service.export(
+            account_id,
+            date(2026, 3, 1),
+            date(2026, 3, 31),
+            fmt="csv",
+            contract_ids=[other_id],
+        )
+        text = content.decode("utf-8-sig")
+        assert str(contract_id) not in text
+        lines = [
+            ln
+            for ln in text.splitlines()
+            if ln.startswith("payment,")
+            or ln.startswith("charge,")
+            or ln.startswith("expense,")
+        ]
+        assert lines == []
+
+    def test_filter_includes_matching_contract(self, service, account_id, repos):
+        contract_id = repos[6]
+        content, _, _ = service.export(
+            account_id,
+            date(2026, 3, 1),
+            date(2026, 3, 31),
+            fmt="csv",
+            contract_ids=[contract_id],
+        )
+        text = content.decode("utf-8-sig")
+        assert str(contract_id) in text
+        assert "payment" in text
+        assert "expense" in text

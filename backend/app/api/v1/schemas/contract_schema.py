@@ -104,7 +104,42 @@ class ContractSingleResponse(BaseModel):
 
     status: str = "success"
     data: ContractResponse
-    
+
+
+class GenerateChargesBulkRequest(BaseModel):
+    """Запрос массовой генерации начислений."""
+
+    contract_ids: list[UUID] = Field(..., min_length=1, max_length=50)
+
+
+class GenerateChargesEnqueuedItem(BaseModel):
+    """Договор, поставленный в очередь генерации."""
+
+    contract_id: UUID
+    task_id: str
+
+
+class GenerateChargesSkippedItem(BaseModel):
+    """Договор, пропущенный при массовой генерации."""
+
+    contract_id: UUID
+    reason: str
+
+
+class GenerateChargesBulkData(BaseModel):
+    """Результат массовой генерации начислений."""
+
+    enqueued: list[GenerateChargesEnqueuedItem]
+    skipped: list[GenerateChargesSkippedItem]
+
+
+class GenerateChargesBulkResponse(BaseModel):
+    """Ответ массовой генерации начислений."""
+
+    status: str = "success"
+    data: GenerateChargesBulkData
+
+
 class LedgerLineResponse(BaseModel):
     """Схема строки ledger."""
 

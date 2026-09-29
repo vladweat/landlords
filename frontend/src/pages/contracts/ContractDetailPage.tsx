@@ -90,6 +90,7 @@ export default function ContractDetailPage() {
   const queryClient = useQueryClient();
   const canWriteContracts = useCan('write_contracts');
   const canWritePayments = useCan('write_payments');
+  const canWriteCharges = useCan('write_charges');
   const [terminateOpen, setTerminateOpen] = useState(false);
   const [renewOpen, setRenewOpen] = useState(false);
   const [paymentOpen, setPaymentOpen] = useState(false);
@@ -274,7 +275,7 @@ export default function ContractDetailPage() {
     ...(contract.status === 'draft'
       ? [{ label: 'Активировать', icon: <Play className="h-4 w-4" />, onClick: () => setActivateOpen(true) }]
       : []),
-    ...((contract.status === 'active' || contract.status === 'overdue') && chargeList.length === 0
+    ...((contract.status === 'active' || contract.status === 'overdue') && chargeList.length === 0 && canWriteCharges
       ? [{
           label: generateMutation.isPending ? 'Генерация…' : 'Сгенерировать начисления',
           icon: <CalendarPlus className="h-4 w-4" />,
@@ -565,7 +566,7 @@ export default function ContractDetailPage() {
                       onClick: () => setActivateOpen(true),
                     }}
                   />
-                ) : (
+                ) : canWriteCharges ? (
                   <EmptyState
                     icon={FileText}
                     title="Начислений пока нет"
@@ -574,6 +575,12 @@ export default function ContractDetailPage() {
                       label: generateMutation.isPending ? 'Запуск…' : 'Сгенерировать',
                       onClick: () => generateMutation.mutate(),
                     }}
+                  />
+                ) : (
+                  <EmptyState
+                    icon={FileText}
+                    title="Начислений пока нет"
+                    description="Начисления ещё не созданы по этому договору."
                   />
                 )
               ) : (

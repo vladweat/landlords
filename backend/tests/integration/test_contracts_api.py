@@ -2,6 +2,7 @@
 
 from datetime import date, timedelta
 from decimal import Decimal
+from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
 
@@ -169,3 +170,81 @@ class TestContractsCRUD:
             headers=auth_headers,
         )
         assert resp.status_code == 404
+
+
+class TestGenerateChargesBulk:
+    def test_enqueue_active_skip_draft(self, client: TestClient, auth_headers):
+        """Активный — в очередь, черновик — skipped."""
+        property_id = _create_property(client, auth_headers, "BulkGen")
+        tenant_id = _create_tenant(client, auth_headers, "BulkGen Tenant")
+        start = date.today() - timedelta(days=30)
+        end = date.today() + timedelta(days=300)
+
+        draft = client.post(
+            "/v1/contracts",
+            json={
+                "property_id": property_id,
+                "tenant_id": tenant_id,
+                "start_date": str(start),
+                "end_date": str(end),
+                "rent_amount": 40000,
+                "payment_day": 5,
+            },
+            headers=auth_headers,
+        )
+        draft_id = draft.json()["data"]["id"]
+
+        property2 = _create_property(client, auth_headers, "BulkGen2")
+        tenant2 = _create_tenant(client, auth_headers, "BulkGen Tenant2")
+        active = client.post(
+            "/v1/contracts",
+            json={
+                "property_id": property2,
+                "tenant_id": tenant2,
+                "start_date": str(start),
+                "end_date": str(end),
+                "rent_amount": 45000,
+                "payment_day": 5,
+            },
+            headers=auth_headers,
+        )
+        active_id = active.json()["data"]["id"]
+        client.put(
+            f"/v1/contracts/{active_id}",
+            json={"status": "active"},
+            headers=auth_headers,
+        )
+
+        mock_result = MagicMock()
+        mock_result.id = "task-bulk-1"
+        with patch("app.celery_app.celery_app.send_task", return_value=mock_result) as mock_task:
+            resp = client.post(
+                "/v1/contracts/generate-charges-bulk",
+                json={"contract_ids": [active_id, draft_id]},
+                headers=auth_headers,
+            )
+
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert len(data["enqueued"]) == 1
+        assert data["enqueued"][0]["contract_id"] == active_id
+        assert data["enqueued"][0]["task_id"] == "task-bulk-1"
+        assert len(data["skipped"]) == 1
+        assert data["skipped"][0]["contract_id"] == draft_id
+        assert "invalid_status:draft" in data["skipped"][0]["reason"]
+        mock_task.assert_called_once()
+
+    def test_skip_not_found(self, client: TestClient, auth_headers):
+        """Несуществующий договор — skipped."""
+        missing = "00000000-0000-0000-0000-000000000000"
+        with patch("app.celery_app.celery_app.send_task") as mock_task:
+            resp = client.post(
+                "/v1/contracts/generate-charges-bulk",
+                json={"contract_ids": [missing]},
+                headers=auth_headers,
+            )
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["enqueued"] == []
+        assert data["skipped"][0]["reason"] == "not_found"
+        mock_task.assert_not_called()
