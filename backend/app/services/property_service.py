@@ -1,5 +1,8 @@
 """Сервис управления объектами недвижимости."""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
 from app.core.exceptions import ConflictError, NotFoundError
@@ -7,16 +10,22 @@ from app.domain.entities import PropertyEntity
 from app.domain.interfaces import IContractRepository, IPropertyRepository, ITenantRepository
 from app.services.dto.property_dto import ActiveContractDTO, PropertyCreateDTO, PropertyDTO, PropertyUpdateDTO
 
+if TYPE_CHECKING:
+    from app.services.plan_limit_service import PlanLimitService
+
+
 class PropertyService:
     def __init__(
         self,
         repo: IPropertyRepository,
         contract_repo: IContractRepository | None = None,
         tenant_repo: ITenantRepository | None = None,
+        plan_limit_service: PlanLimitService | None = None,
     ) -> None:
         self.repo = repo
         self.contract_repo = contract_repo
         self.tenant_repo = tenant_repo
+        self.plan_limit_service = plan_limit_service
 
     def list_properties(
         self,
@@ -54,6 +63,8 @@ class PropertyService:
         return dto
 
     def create_property(self, account_id: UUID, dto: PropertyCreateDTO) -> PropertyDTO:
+        if self.plan_limit_service:
+            self.plan_limit_service.assert_can_create_property(account_id)
         entity = PropertyEntity(
             id=uuid4(), account_id=account_id,
             city=dto.city, street=dto.street, house=dto.house,

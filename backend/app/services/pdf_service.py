@@ -1,9 +1,12 @@
 """Сервис генерации PDF договоров."""
 
+from __future__ import annotations
+
 import os
 import re
 from datetime import datetime, timezone
 from io import BytesIO
+from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 from xml.sax.saxutils import escape
 
@@ -28,6 +31,9 @@ from app.domain.interfaces import (
     IUserRepository,
 )
 from app.services.contract_template_service import ContractTemplateService
+
+if TYPE_CHECKING:
+    from app.services.plan_limit_service import PlanLimitService
 
 STORAGE_DIR = "/app/storage/documents"
 FONT_PATH = "/app/fonts/DejaVuSans.ttf"
@@ -74,6 +80,7 @@ class PdfService:
         template_service: ContractTemplateService | None = None,
         account_repo: IAccountRepository | None = None,
         user_repo: IUserRepository | None = None,
+        plan_limit_service: PlanLimitService | None = None,
     ) -> None:
         self.contract_repo = contract_repo
         self.property_repo = property_repo
@@ -82,6 +89,7 @@ class PdfService:
         self.template_service = template_service
         self.account_repo = account_repo
         self.user_repo = user_repo
+        self.plan_limit_service = plan_limit_service
 
     def generate_contract_pdf(
         self,
@@ -230,6 +238,9 @@ class PdfService:
         category: str | None = None,
     ) -> DocumentEntity:
         """Сохранить PDF на диск и создать запись документа."""
+        if self.plan_limit_service:
+            self.plan_limit_service.assert_can_upload(account_id, len(pdf_bytes))
+
         dir_path = os.path.join(STORAGE_DIR, str(account_id), str(contract_id))
         os.makedirs(dir_path, exist_ok=True)
 

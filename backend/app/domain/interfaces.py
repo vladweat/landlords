@@ -87,6 +87,11 @@ class IAccountRepository(ABC):
         """Все аккаунты (для фоновых задач)."""
         ...
 
+    @abstractmethod
+    def list_pro_subscriptions(self) -> Sequence[AccountEntity]:
+        """Аккаунты на тарифе Pro (для продления/отключения)."""
+        ...
+
 
 class IMembershipRepository(ABC):
     """Интерфейс репозитория memberships."""
@@ -128,6 +133,11 @@ class IMembershipRepository(ABC):
         """Удалить membership."""
         ...
 
+    @abstractmethod
+    def count_active_by_account(self, account_id: UUID) -> int:
+        """Количество активных участников аккаунта."""
+        ...
+
 
 class IPropertyRepository(ABC):
     """Интерфейс репозитория объектов недвижимости."""
@@ -166,6 +176,11 @@ class IPropertyRepository(ABC):
     @abstractmethod
     def count_active(self, account_id: UUID) -> int:
         """Количество активных объектов."""
+        ...
+
+    @abstractmethod
+    def count_by_account(self, account_id: UUID) -> int:
+        """Количество всех объектов аккаунта."""
         ...
 
 
@@ -511,6 +526,11 @@ class IDocumentRepository(ABC):
     @abstractmethod
     def delete(self, doc_id: UUID, account_id: UUID) -> bool: ...
 
+    @abstractmethod
+    def sum_size_bytes(self, account_id: UUID) -> int:
+        """Суммарный размер документов аккаунта в байтах."""
+        ...
+
 class IContractEventRepository(ABC):
 
     @abstractmethod
@@ -620,6 +640,11 @@ class IAccountInviteRepository(ABC):
     @abstractmethod
     def list_pending(self, account_id: UUID) -> Sequence[AccountInviteEntity]:
         """Список непринятых приглашений аккаунта."""
+        ...
+
+    @abstractmethod
+    def count_pending(self, account_id: UUID) -> int:
+        """Количество активных (непринятых, не истёкших) приглашений."""
         ...
 
     @abstractmethod

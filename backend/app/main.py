@@ -130,9 +130,11 @@ def create_app() -> FastAPI:
     from app.api.v1.routes.public_invites import router as public_invites_router
     from app.api.v1.routes.public_portal import router as public_portal_router
     from app.api.v1.routes.claims import router as claims_router
+    from app.api.v1.routes.billing import router as billing_router
 
     app.include_router(auth_router)
     app.include_router(account_router)
+    app.include_router(billing_router)
     app.include_router(properties_router)
     app.include_router(tenants_router)
     app.include_router(contracts_router)

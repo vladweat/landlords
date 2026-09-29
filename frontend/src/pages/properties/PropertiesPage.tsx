@@ -8,6 +8,7 @@ import { showError } from '@/shared/lib/toast';
 import { scrollToTop } from '@/shared/lib/scrollToTop';
 import { propertiesApi } from '@/features/properties/api';
 import { contractsApi } from '@/features/contracts/api';
+import { accountApi } from '@/features/account/api';
 import type { Property } from '@/entities/property';
 import { Button } from '@/shared/ui/Button';
 import { EmptyState } from '@/shared/ui/EmptyState';
@@ -34,7 +35,24 @@ export default function PropertiesPage() {
   const [typeFilter, setTypeFilter] = useState('all');
   const [page, setPage] = useState(1);
   const debouncedSearch = useDebounce(search, 300);
-  useHotkeys(canWrite ? { n: () => { setEditing(null); setIsModalOpen(true); } } : {});
+
+  const { data: subscription } = useQuery({
+    queryKey: ['account-subscription'],
+    queryFn: accountApi.getSubscription,
+  });
+  const propertiesAtLimit =
+    !!subscription &&
+    subscription.usage.properties >= subscription.limits.max_properties;
+
+  const openCreate = () => {
+    if (propertiesAtLimit) {
+      toast.error('Достигнут лимит объектов тарифа. Смените тариф в Настройках.');
+      return;
+    }
+    setEditing(null);
+    setIsModalOpen(true);
+  };
+  useHotkeys(canWrite ? { n: openCreate } : {});
 
   const { data: paginated, isLoading } = useQuery({
     queryKey: ['properties', page, debouncedSearch, typeFilter],
@@ -53,7 +71,13 @@ export default function PropertiesPage() {
 
   const deleteMutation = useMutation({
     mutationFn: propertiesApi.delete,
-    onSuccess: () => { scrollToTop(); queryClient.invalidateQueries({ queryKey: ['properties'] }); setDeleting(null); toast.success('Объект удалён'); },
+    onSuccess: () => {
+      scrollToTop();
+      queryClient.invalidateQueries({ queryKey: ['properties'] });
+      queryClient.invalidateQueries({ queryKey: ['account-subscription'] });
+      setDeleting(null);
+      toast.success('Объект удалён');
+    },
     onError: (error) => showError(error, 'Ошибка удаления'),
   });
 
@@ -64,7 +88,14 @@ export default function PropertiesPage() {
         <div className="flex items-center gap-2">
           <button onClick={() => exportCSV(properties, 'objects', ['Адрес','Тип','Площадь'], ['address','type','size_m2'])} className="rounded-lg p-2 text-gray-400 hover:bg-gray-100" title="Экспорт CSV"><Download className="h-4 w-4" /></button>
           {canWrite && (
-            <Button onClick={() => { setEditing(null); setIsModalOpen(true); }} leftIcon={<Plus className="h-4 w-4" />}>Добавить</Button>
+            <Button
+              onClick={openCreate}
+              leftIcon={<Plus className="h-4 w-4" />}
+              disabled={propertiesAtLimit}
+              title={propertiesAtLimit ? 'Достигнут лимит тарифа' : undefined}
+            >
+              Добавить
+            </Button>
           )}
         </div>
       </div>
@@ -81,7 +112,7 @@ export default function PropertiesPage() {
         </select>
       </div>
       {isLoading ? <TableSkeleton rows={5} cols={5} /> : properties.length === 0 ? (
-        <EmptyState icon={Building2} title={search || typeFilter !== 'all' ? 'Ничего не найдено' : 'Нет объектов'} description={search || typeFilter !== 'all' ? 'Измените параметры поиска' : 'Добавьте первый объект'} action={!search && typeFilter === 'all' && canWrite ? { label: 'Добавить объект', onClick: () => { setEditing(null); setIsModalOpen(true); } } : undefined} />
+        <EmptyState icon={Building2} title={search || typeFilter !== 'all' ? 'Ничего не найдено' : 'Нет объектов'} description={search || typeFilter !== 'all' ? 'Измените параметры поиска' : 'Добавьте первый объект'} action={!search && typeFilter === 'all' && canWrite && !propertiesAtLimit ? { label: 'Добавить объект', onClick: openCreate } : undefined} />
       ) : (
         <div className="hidden sm:block overflow-hidden rounded-xl border border-gray-100 bg-white">
           <table className="w-full"><thead><tr className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">

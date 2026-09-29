@@ -1,3 +1,4 @@
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -40,6 +41,50 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: str | None = None
     SMTP_FROM: str | None = None
     RESEND_API_KEY: str | None = None
+
+    # ==================== ЮKassa (SaaS billing) ====================
+    # Демо-магазин: ключ начинается с test_. Без ключей checkout недоступен.
+    YOOKASSA_SHOP_ID: str | None = None
+    YOOKASSA_SECRET_KEY: str | None = None
+    YOOKASSA_RETURN_URL: str | None = None
+    BILLING_PRO_PRICE_RUB: int = 990
+    BILLING_GRACE_DAYS: int = 3
+
+    @field_validator(
+        "YOOKASSA_SHOP_ID",
+        "YOOKASSA_SECRET_KEY",
+        "YOOKASSA_RETURN_URL",
+        mode="before",
+    )
+    @classmethod
+    def _empty_str_to_none(cls, value: object) -> object:
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
+
+    @field_validator("BILLING_PRO_PRICE_RUB", "BILLING_GRACE_DAYS", mode="before")
+    @classmethod
+    def _empty_int_to_default(cls, value: object, info) -> object:
+        if value is None or (isinstance(value, str) and not value.strip()):
+            return 990 if info.field_name == "BILLING_PRO_PRICE_RUB" else 3
+        return value
+
+    @property
+    def billing_enabled(self) -> bool:
+        """ЮKassa настроена (есть shop id и secret)."""
+        return bool(
+            self.YOOKASSA_SHOP_ID
+            and self.YOOKASSA_SECRET_KEY
+            and str(self.YOOKASSA_SECRET_KEY).strip()
+        )
+
+    @property
+    def yookassa_return_url(self) -> str:
+        """URL возврата после оплаты."""
+        if self.YOOKASSA_RETURN_URL:
+            return self.YOOKASSA_RETURN_URL
+        return f"{self.FRONTEND_URL.rstrip('/')}/settings?billing=return"
+
     # ==================== База данных ====================
     
     DB_HOST: str = "localhost"

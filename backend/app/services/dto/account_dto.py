@@ -17,6 +17,9 @@ class AccountDTO(BaseModel):
     base_currency: str
     timezone: str
     payment_details: str | None = None
+    plan: str = "free"
+    subscription_status: str = "none"
+    subscription_period_end: datetime | None = None
     created_at: datetime
 
 

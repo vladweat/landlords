@@ -62,6 +62,17 @@ class AccountInviteRepository(IAccountInviteRepository):
         )
         return [m.to_entity() for m in models]
 
+    def count_pending(self, account_id: UUID) -> int:
+        """Количество активных (непринятых, не истёкших) приглашений."""
+        now = datetime.now(timezone.utc)
+        return (
+            self.session.query(AccountInviteModel)
+            .filter_by(account_id=account_id)
+            .filter(AccountInviteModel.accepted_at.is_(None))
+            .filter(AccountInviteModel.expires_at > now)
+            .count()
+        )
+
     def update(self, entity: AccountInviteEntity) -> AccountInviteEntity:
         """Обновить приглашение."""
         model = self.session.query(AccountInviteModel).filter_by(id=entity.id).first()

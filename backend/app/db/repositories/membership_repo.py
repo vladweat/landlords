@@ -71,3 +71,11 @@ class MembershipRepository(IMembershipRepository):
         """Удалить membership."""
         self.session.query(MembershipModel).filter_by(id=membership_id).delete()
         self.session.flush()
+
+    def count_active_by_account(self, account_id: UUID) -> int:
+        """Количество активных участников аккаунта."""
+        return (
+            self.session.query(MembershipModel)
+            .filter_by(account_id=account_id, is_active=True)
+            .count()
+        )

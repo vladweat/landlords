@@ -60,6 +60,7 @@ class UserService:
                 id=uuid4(),
                 name=f"{dto.full_name}'s Account",
                 owner_id=created_user.id,
+                plan="free",
             )
         )
 

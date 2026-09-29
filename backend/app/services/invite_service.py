@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import secrets
 from datetime import datetime, timedelta, timezone
+from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
 from app.core.config import settings
@@ -27,6 +28,9 @@ from app.services.dto.user_dto import UserDTO
 from app.services.email_service import EmailService
 from loguru import logger
 
+if TYPE_CHECKING:
+    from app.services.plan_limit_service import PlanLimitService
+
 ROLE_LABELS_RU = {
     Role.MANAGER.value: "менеджер",
     Role.ACCOUNTANT.value: "бухгалтер",
@@ -45,12 +49,14 @@ class InviteService:
         user_repo: IUserRepository,
         membership_repo: IMembershipRepository,
         email_service: EmailService | None = None,
+        plan_limit_service: PlanLimitService | None = None,
     ) -> None:
         self.invite_repo = invite_repo
         self.account_repo = account_repo
         self.user_repo = user_repo
         self.membership_repo = membership_repo
         self.email_service = email_service or EmailService()
+        self.plan_limit_service = plan_limit_service
 
     def create_invite(
         self, account_id: UUID, invited_by_user_id: UUID, dto: InviteCreateDTO
@@ -74,6 +80,9 @@ class InviteService:
         existing = self.invite_repo.get_pending_by_email(account_id, email)
         if existing:
             self.invite_repo.delete(existing.id, account_id)
+
+        if self.plan_limit_service:
+            self.plan_limit_service.assert_can_add_user(account_id, for_invite=True)
 
         now = datetime.now(timezone.utc)
         entity = AccountInviteEntity(
@@ -146,6 +155,11 @@ class InviteService:
         full_name = (dto.full_name or invite.full_name).strip()
         if not full_name:
             raise ValidationError("Имя обязательно")
+
+        if self.plan_limit_service:
+            self.plan_limit_service.assert_can_add_user(
+                invite.account_id, for_invite=False
+            )
 
         user = self.user_repo.create(
             UserEntity(

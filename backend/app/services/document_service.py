@@ -1,7 +1,10 @@
 """Сервис загружаемых вложений к договору и объекту."""
 
+from __future__ import annotations
+
 import os
 import re
+from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
 from fastapi import UploadFile
@@ -13,6 +16,9 @@ from app.domain.interfaces import (
     IDocumentRepository,
     IPropertyRepository,
 )
+
+if TYPE_CHECKING:
+    from app.services.plan_limit_service import PlanLimitService
 
 STORAGE_DIR = "/app/storage/documents"
 MAX_UPLOAD_BYTES = 15 * 1024 * 1024
@@ -62,10 +68,12 @@ class DocumentService:
         document_repo: IDocumentRepository,
         contract_repo: IContractRepository,
         property_repo: IPropertyRepository,
+        plan_limit_service: PlanLimitService | None = None,
     ) -> None:
         self.document_repo = document_repo
         self.contract_repo = contract_repo
         self.property_repo = property_repo
+        self.plan_limit_service = plan_limit_service
 
     def list_by_contract(self, contract_id: UUID, account_id: UUID) -> list[DocumentEntity]:
         contract = self.contract_repo.get_by_id(contract_id, account_id)
@@ -164,6 +172,8 @@ class DocumentService:
             raise ValidationError("Пустой файл")
         if size > MAX_UPLOAD_BYTES:
             raise ValidationError("Размер файла не должен превышать 15 МБ")
+        if self.plan_limit_service:
+            self.plan_limit_service.assert_can_upload(account_id, size)
 
         if contract_id is not None:
             dir_path = os.path.join(STORAGE_DIR, str(account_id), str(contract_id))

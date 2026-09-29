@@ -35,3 +35,4 @@ sentry-sdk
 pytest-asyncio
 tenacity
 pre-commit
+yookassa

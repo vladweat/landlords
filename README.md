@@ -61,3 +61,7 @@ docker compose exec api python -m app.cli seed \
 | Миграции | на старте API (`RUN_MIGRATIONS=1`) или `alembic upgrade head` |
 
 Образы API: `INSTALL_MODE=offline` (копирует `.venv`, default) или `online` (`pip install -r requirements.txt`).
+
+### Оплата тарифа Pro (ЮKassa, test)
+
+Подробно: [docs/BILLING.md](docs/BILLING.md). Кратко: в `backend/.env` — `YOOKASSA_SHOP_ID` + `YOOKASSA_SECRET_KEY=test_…`, перезапуск `api`/`celery-*`, Settings → «Оплатить Pro», карта `5555 5555 5555 4444`. После оплаты return → `confirm` без ngrok; webhook опционален.
