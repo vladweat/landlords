@@ -1,6 +1,6 @@
 import { scrollToTop } from "@/shared/lib/scrollToTop";
 import { useEffect } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -21,8 +21,8 @@ export function PropertyModal({ isOpen, onClose, property }: PropertyModalProps)
   useEscapeKey(onClose);
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<PropertyFormData>({
-    resolver: zodResolver(propertySchema),
-    defaultValues: { city: '', street: '', house: '', building: '', apartment: '', type: 'apartment', size_m2: undefined, purchase_price: '' },
+    resolver: zodResolver(propertySchema) as Resolver<PropertyFormData>,
+    defaultValues: { city: '', street: '', house: '', building: '', apartment: '', type: 'apartment', size_m2: 0, purchase_price: null },
   });
 
   useEffect(() => {
@@ -34,8 +34,8 @@ export function PropertyModal({ isOpen, onClose, property }: PropertyModalProps)
       apartment: property.apartment || '',
       type: property.type,
       size_m2: property.size_m2,
-      purchase_price: property.purchase_price ?? '',
-    } : { city: '', street: '', house: '', building: '', apartment: '', type: 'apartment', size_m2: undefined, purchase_price: '' });
+      purchase_price: property.purchase_price ?? null,
+    } : { city: '', street: '', house: '', building: '', apartment: '', type: 'apartment', size_m2: 0, purchase_price: null });
   }, [property, reset]);
 
   const createMutation = useMutation({
@@ -95,7 +95,7 @@ export function PropertyModal({ isOpen, onClose, property }: PropertyModalProps)
                     <option value="commercial">Коммерция</option>
                   </select>
                 </div>
-                <Input label="Площадь (м²)" type="number" placeholder="0" error={errors.size_m2?.message} {...register('size_m2')} />
+                <Input label="Площадь (м²)" type="number" placeholder="0" error={errors.size_m2?.message} {...register('size_m2', { valueAsNumber: true })} />
                 <Input label="Цена покупки" type="number" placeholder="Необязательно" error={errors.purchase_price?.message} {...register('purchase_price')} />
                 <div className="flex gap-3 pt-2">
                   <Button type="button" variant="secondary" onClick={onClose} className="flex-1">Отмена</Button>

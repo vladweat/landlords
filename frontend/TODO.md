@@ -3,13 +3,13 @@
 Чеклист по результатам аудита `frontend/src` (сентябрь 2026).  
 Стек: React 19, Vite, TanStack Query, Zustand (auth), Tailwind 4, FSD-подобная структура.
 
-**Сборка сейчас ломается:** `npx tsc --noEmit` ≈ **44 ошибки**.  
+**Сборка:** `npx tsc --noEmit` и `npm run build` зелёные.  
 Продукт: [ROADMAP.md](../docs/ROADMAP.md) · приоритеты: [PRIORITIES.md](../docs/PRIORITIES.md).
 
 ### Перед prod (с backend)
 
-- [ ] Зелёный `npm run build` (см. P0 ниже)
-- [ ] CI job: frontend lint + `tsc` + build — [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)
+- [x] Зелёный `npm run build` (см. P0 ниже)
+- [x] CI job: frontend lint + `tsc` + build — [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)
 
 Отмечай выполненное: `- [ ]` → `- [x]`.
 
@@ -23,7 +23,7 @@
 - [x] Деньги: формы и API-payload как **string**, не `z.coerce.number()` / `number` — `PaymentModal`, `ContractModal`, `properties/schema`, типы в `entities/`.
 - [x] Onboarding: `queryFn: () => api.getAll(...)`; прогресс по `data.items.length` / `total`, не `data.length` — `OnboardingWizard.tsx`.
 - [x] Согласовать payment payload: `rent_charge_id` vs `charge_id` в `PaymentModal` / `features/payments/api.ts`.
-- [ ] Починить `tsc` до зелёного `npm run build` (включая unused imports, zod resolver types).
+- [x] Починить `tsc` до зелёного `npm run build` (включая unused imports, zod resolver types).
 
 ## P1 — логика и UX
 
@@ -50,8 +50,10 @@
 - [ ] a11y: `aria-label` на search inputs списках.
 - [ ] ContractModal: `end_date > start_date`; показ ошибок на selects property/tenant.
 - [ ] Вынести CRUD-модалки из `pages/*/…Modal` в `features/*/components` (FSD).
+- [ ] `ContractDetailPage`: только склейка features (ledger, документы, renew/terminate) — сейчас ~572 строки.
+- [ ] Auth: JWT из `localStorage` → HttpOnly cookie (XSS).
 - [ ] Frontend tests (vitest): auth store, money formatters, critical forms.
-- [ ] CI: `frontend` lint + `tsc` + build (сейчас CI только backend).
+- [x] CI: `frontend` lint + `tsc` + build (сейчас CI только backend).
 
 ---
 
@@ -62,5 +64,3 @@
 3. **Onboarding + contract form alignment** — wizard, `payment_day`, `billing_period`.
 4. **UX honesty** — убрать fake Undo, timezone dates, ReminderButton, Settings phone.
 5. **Cleanup** — dead code, unused deps, Error Boundary, CI frontend job.
-
-Для каждой задачи — small PR с тест-планом (ручной сценарий + `tsc` / lint).

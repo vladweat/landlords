@@ -2,19 +2,18 @@ services:
 
   nginx:
     build:
-      context: ./nginx
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: nginx/Dockerfile
     ports:
       - "80:80"
-    volumes:
-      - ./storage/documents:/storage/documents:ro
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     networks:
       - app-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      test: ["CMD", "curl", "-f", "http://localhost/ready"]
       interval: 30s
       timeout: 3s
       retries: 3
@@ -23,12 +22,16 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
-    # ports:
-    #   - "8000:8000"
+      args:
+        INSTALL_MODE: ${INSTALL_MODE:-offline}
     volumes:
       - ./storage/documents:/app/storage/documents
     env_file:
       - backend/.env
+    environment:
+      DB_HOST: postgres
+      REDIS_HOST: redis
+      RUN_MIGRATIONS: "1"
     depends_on:
       postgres:
         condition: service_healthy
@@ -37,17 +40,30 @@ services:
     restart: unless-stopped
     networks:
       - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/ready')\""]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
 
   celery-worker:
     build:
       context: .
       dockerfile: backend/Dockerfile
+      args:
+        INSTALL_MODE: ${INSTALL_MODE:-offline}
     command: python -m celery -A worker.celery_app worker --loglevel=info --concurrency=4
     volumes:
       - ./storage/documents:/app/storage/documents
     env_file:
       - backend/.env
+    environment:
+      DB_HOST: postgres
+      REDIS_HOST: redis
     depends_on:
+      api:
+        condition: service_healthy
       postgres:
         condition: service_healthy
       redis:
@@ -55,10 +71,7 @@ services:
     restart: unless-stopped
     networks:
       - app-network
-    # healthcheck:
-    #   disable: true
     healthcheck:
-      disable: false
       test: ["CMD-SHELL", "python -c \"from celery import Celery; from app.core.config import settings; app = Celery(broker=settings.REDIS_URL); app.connection().connect(); print('OK')\""]
       interval: 30s
       timeout: 10s
@@ -68,10 +81,17 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
+      args:
+        INSTALL_MODE: ${INSTALL_MODE:-offline}
     command: python -m celery -A worker.celery_app beat --loglevel=info
     env_file:
       - backend/.env
+    environment:
+      DB_HOST: postgres
+      REDIS_HOST: redis
     depends_on:
+      api:
+        condition: service_healthy
       redis:
         condition: service_healthy
     restart: unless-stopped
@@ -84,9 +104,14 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
+      args:
+        INSTALL_MODE: ${INSTALL_MODE:-offline}
     command: python -m celery -A worker.celery_app flower --port=5555
     env_file:
       - backend/.env
+    environment:
+      DB_HOST: postgres
+      REDIS_HOST: redis
     depends_on:
       redis:
         condition: service_healthy
@@ -95,22 +120,19 @@ services:
       - app-network
     healthcheck:
       disable: true
-    # Flower — включается только в development профиле, не открываем порт в проде.
     profiles:
       - development
 
   postgres:
     image: postgres:15
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: landlords_db
-    ports:
-      - "5432:5432"
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-landlords_db}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -120,8 +142,6 @@ services:
 
   redis:
     image: redis:7
-    ports:
-      - "6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -132,22 +152,6 @@ services:
     restart: unless-stopped
     networks:
       - app-network
-
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    ports:
-      - "80:80"
-    depends_on:
-      - api
-    networks:
-      - app-network
-    restart: unless-stopped
-    profiles:
-      - production
-
-
 
 volumes:
   postgres_data:

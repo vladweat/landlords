@@ -1,6 +1,6 @@
 import { useEscapeKey } from '@/shared/hooks/useEscapeKey';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertTriangle, X } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 import { Button } from './Button';
 
 interface ConfirmDialogProps {

@@ -1,5 +1,30 @@
-.venv/lib/python3.12/site-packages/__pycache__/
+# Контекст сборки — корень репозитория (docker compose build nginx).
+# Не тащить секреты и тяжёлые артефакты в online-сборка бэкенда / nginx.
+
 .git/
-*.pyc
-*.pyo
-frontend/
+**/.git/
+
+# Секреты
+.env
+backend/.env
+**/.env
+
+# Python
+**/__pycache__/
+**/*.py[cod]
+**/*.egg-info/
+backend/.pytest_cache/
+backend/.mypy_cache/
+backend/.ruff_cache/
+
+# Frontend (оставить исходники для nginx multi-stage; без node_modules)
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Документы и локальные данные
+storage/
+*.log
+
+# Тесты не нужны в runtime-образе API (online всё равно ставит deps из requirements)
+# backend/tests/ — оставляем возможность COPY при необходимости; не копируются Dockerfile'ом

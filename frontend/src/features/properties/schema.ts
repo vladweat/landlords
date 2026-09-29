@@ -11,8 +11,8 @@ export const propertySchema = z.object({
   building: z.string().optional(),
   apartment: z.string().optional(),
   type: z.enum(['apartment', 'house', 'room', 'commercial']),
-  size_m2: z.coerce.number().min(1, 'Площадь должна быть больше 0'),
-  purchase_price: moneyString.nullable().optional(),
+  size_m2: z.number().min(1, 'Площадь должна быть больше 0'),
+  purchase_price: moneyString.nullable(),
 });
 
 export type PropertyFormData = z.infer<typeof propertySchema>;
