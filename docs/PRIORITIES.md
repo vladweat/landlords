@@ -41,8 +41,8 @@ Volume `storage/documents` для api и celery — **готово**.
 
 | Задача | Комментарий |
 |--------|-------------|
-| ~~Реальная почта (SMTP)~~ | Готово: EmailService, welcome/reset, Celery-письма owner о просрочке/конце договора |
-| ~~Invite по ссылке~~ | Готово: invite link для manager/accountant |
+| ~~Реальная почта (SMTP)~~ | Готово: EmailService, Resend/`SMTP_*`, welcome/reset, Celery-письма owner |
+| ~~Invite по ссылке~~ | Готово: invite link для manager/accountant; ссылка + статус отправки письма |
 | Публичная страница арендатора (**#12**) | Баланс, инвойс, «я оплатил» по magic link |
 | Аудит в UI | Contract events уже пишутся — показать owner |
 | Массовые действия | Начисления / экспорт по нескольким договорам |

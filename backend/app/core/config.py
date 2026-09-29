@@ -32,12 +32,14 @@ class Settings(BaseSettings):
     # Базовый URL фронтенда — используется для формирования ссылок в письмах (reset password).
     FRONTEND_URL: str = "http://localhost:3000"
 
-    # SMTP (опционально). Если не задано, письма пишутся в storage/emails/ для dev.
+    # Почта: SMTP вручную и/или Resend API key (тогда smtp.resend.com).
+    # Если нет ни SMTP_HOST, ни RESEND_API_KEY — письма в storage/emails/.
     SMTP_HOST: str | None = None
     SMTP_PORT: int | None = None
     SMTP_USER: str | None = None
     SMTP_PASSWORD: str | None = None
     SMTP_FROM: str | None = None
+    RESEND_API_KEY: str | None = None
     # ==================== База данных ====================
     
     DB_HOST: str = "localhost"

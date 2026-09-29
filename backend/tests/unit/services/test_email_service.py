@@ -16,6 +16,7 @@ class TestEmailServiceFileFallback:
     def test_write_file_when_smtp_unset(self, email_service, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         monkeypatch.setattr("app.services.email_service.settings.SMTP_HOST", None)
+        monkeypatch.setattr("app.services.email_service.settings.RESEND_API_KEY", None)
 
         email_service.send("user@example.com", "Тема", "Текст письма")
 
@@ -30,6 +31,7 @@ class TestEmailServiceFileFallback:
     def test_password_reset_template(self, email_service, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         monkeypatch.setattr("app.services.email_service.settings.SMTP_HOST", None)
+        monkeypatch.setattr("app.services.email_service.settings.RESEND_API_KEY", None)
 
         email_service.send_password_reset("a@b.c", "http://localhost/reset?token=xyz")
         files = list((tmp_path / "storage" / "emails").glob("*.txt"))
@@ -44,6 +46,7 @@ class TestEmailServiceSmtp:
         monkeypatch.setattr("app.services.email_service.settings.SMTP_USER", "u")
         monkeypatch.setattr("app.services.email_service.settings.SMTP_PASSWORD", "p")
         monkeypatch.setattr("app.services.email_service.settings.SMTP_FROM", "from@test")
+        monkeypatch.setattr("app.services.email_service.settings.RESEND_API_KEY", None)
 
         smtp_instance = MagicMock()
         smtp_cm = MagicMock()
@@ -53,7 +56,25 @@ class TestEmailServiceSmtp:
         with patch("app.services.email_service.smtplib.SMTP", return_value=smtp_cm) as smtp_cls:
             email_service.send("to@test", "Subj", "Body")
 
-        smtp_cls.assert_called_once_with("smtp.test", 587)
+        smtp_cls.assert_called_once_with("smtp.test", 587, timeout=8)
         smtp_instance.starttls.assert_called_once()
         smtp_instance.login.assert_called_once_with("u", "p")
         smtp_instance.send_message.assert_called_once()
+
+    def test_resend_api_key_uses_resend_smtp(self, email_service, monkeypatch):
+        monkeypatch.setattr("app.services.email_service.settings.SMTP_HOST", None)
+        monkeypatch.setattr("app.services.email_service.settings.SMTP_PORT", None)
+        monkeypatch.setattr("app.services.email_service.settings.SMTP_USER", None)
+        monkeypatch.setattr("app.services.email_service.settings.SMTP_FROM", "me@domain.com")
+        monkeypatch.setattr("app.services.email_service.settings.RESEND_API_KEY", "re_test")
+
+        smtp_instance = MagicMock()
+        smtp_cm = MagicMock()
+        smtp_cm.__enter__.return_value = smtp_instance
+        smtp_cm.__exit__.return_value = False
+
+        with patch("app.services.email_service.smtplib.SMTP", return_value=smtp_cm) as smtp_cls:
+            email_service.send("to@test", "Subj", "Body")
+
+        smtp_cls.assert_called_once_with("smtp.resend.com", 587, timeout=8)
+        smtp_instance.login.assert_called_once_with("resend", "re_test")

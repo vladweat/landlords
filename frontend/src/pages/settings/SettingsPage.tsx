@@ -119,10 +119,22 @@ export default function SettingsPage() {
     onSuccess: async (invite) => {
       queryClient.invalidateQueries({ queryKey: ['account-invites'] });
       resetInvite();
+      let copied = false;
       try {
         await navigator.clipboard.writeText(invite.invite_url);
-        toast.success('Приглашение отправлено, ссылка скопирована');
+        copied = true;
       } catch {
+        /* clipboard may be unavailable */
+      }
+      if (invite.email_sent === false) {
+        toast.warning(
+          copied
+            ? 'Приглашение создано, письмо не ушло — ссылка скопирована'
+            : 'Приглашение создано, письмо не ушло — скопируйте ссылку из списка',
+        );
+      } else if (copied) {
+        toast.success('Приглашение отправлено, ссылка скопирована');
+      } else {
         toast.success('Приглашение создано');
       }
     },

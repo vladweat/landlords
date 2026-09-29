@@ -65,7 +65,7 @@ class InviteService:
 
         email = str(dto.email).lower().strip()
         if self.user_repo.get_by_email(email):
-            raise ConflictError(f"User with email '{email}' already exists")
+            raise ConflictError(f"Пользователь с email '{email}' уже существует")
 
         account = self.account_repo.get_by_id(account_id)
         if not account:
@@ -91,6 +91,7 @@ class InviteService:
 
         inviter = self.user_repo.get_by_id(invited_by_user_id)
         inviter_name = inviter.full_name if inviter else "Владелец"
+        email_sent = False
         try:
             self.email_service.send_invite(
                 to=email,
@@ -99,10 +100,11 @@ class InviteService:
                 role_label=ROLE_LABELS_RU.get(role.value, role.value),
                 inviter_name=inviter_name,
             )
+            email_sent = True
         except Exception:
             logger.exception("Failed to send invite email to={}", email)
 
-        return invite_dto
+        return invite_dto.model_copy(update={"email_sent": email_sent})
 
     def list_pending(self, account_id: UUID) -> list[InviteDTO]:
         """Список активных приглашений."""
