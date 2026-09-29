@@ -1,4 +1,4 @@
-import { StickyNote, Bell, RefreshCw, CreditCard, FileX } from 'lucide-react';
+import { StickyNote, Bell, RefreshCw, CreditCard, FileX, HandCoins } from 'lucide-react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import type { EventType } from '@/entities/contract';
@@ -9,6 +9,7 @@ const meta: Record<EventType, { icon: typeof StickyNote; color: string; bg: stri
   reminder: { icon: Bell, color: 'text-orange-600', bg: 'bg-orange-50', label: 'Напоминание' },
   status_change: { icon: RefreshCw, color: 'text-violet-600', bg: 'bg-violet-50', label: 'Статус' },
   payment: { icon: CreditCard, color: 'text-emerald-600', bg: 'bg-emerald-50', label: 'Платёж' },
+  payment_claim: { icon: HandCoins, color: 'text-teal-700', bg: 'bg-teal-50', label: 'Заявка' },
   termination: { icon: FileX, color: 'text-amber-700', bg: 'bg-amber-50', label: 'Расторжение' },
   renewal: { icon: RefreshCw, color: 'text-sky-700', bg: 'bg-sky-50', label: 'Продление' },
 };

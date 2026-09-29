@@ -4,7 +4,7 @@ from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class InvoiceResponse(BaseModel):
@@ -43,8 +43,16 @@ class PublicInvoiceResponse(BaseModel):
     status: str
     payment_details: str | None = None
     filename: str | None = None
+    has_pending_claim: bool = False
 
 
 class PublicInvoiceSingleResponse(BaseModel):
     status: str = "success"
     data: PublicInvoiceResponse
+
+
+class CreateInvoiceClaimRequest(BaseModel):
+    """Заявка «я оплатил» с публичной квитанции."""
+
+    amount: Decimal | None = None
+    note: str | None = Field(default=None, max_length=500)

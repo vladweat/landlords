@@ -21,6 +21,7 @@ const ExpensesPage = lazy(() => import('@/pages/expenses/ExpensesPage'));
 const ReportsPage = lazy(() => import('@/pages/reports/ReportsPage'));
 const SettingsPage = lazy(() => import('@/pages/settings/SettingsPage'));
 const InvoicePublicPage = lazy(() => import('@/pages/invoices/InvoicePublicPage'));
+const TenantPortalPage = lazy(() => import('@/pages/portal/TenantPortalPage'));
 const NotFound = lazy(() => import('@/pages/NotFound'));
 
 function HomeRedirect() {
@@ -48,6 +49,7 @@ export function AppRouter() {
         <Route path="/reset-password" element={<GuestOnly><ResetPasswordPage /></GuestOnly>} />
         <Route path="/invite" element={<GuestOnly><InvitePage /></GuestOnly>} />
         <Route path="/i/:token" element={<InvoicePublicPage />} />
+        <Route path="/t/:token" element={<TenantPortalPage />} />
         <Route element={<ProtectedRoute />}>
           <Route element={<AppLayout />}>
             <Route path="/dashboard" element={<DashboardPage />} />

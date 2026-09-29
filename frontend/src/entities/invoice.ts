@@ -21,4 +21,5 @@ export interface PublicInvoice {
   status: string;
   payment_details: string | null;
   filename: string | null;
+  has_pending_claim: boolean;
 }

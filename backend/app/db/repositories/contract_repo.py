@@ -100,8 +100,18 @@ class ContractRepository(IContractRepository):
         model.auto_generate_charges = entity.auto_generate_charges
         model.status = entity.status
         model.termination_reason = entity.termination_reason
+        model.portal_token = entity.portal_token
         self.session.flush()
         return model.to_entity()
+
+    def get_by_portal_token(self, portal_token: str) -> ContractEntity | None:
+        """Получить контракт по публичному токену портала."""
+        model = (
+            self.session.query(ContractModel)
+            .filter_by(portal_token=portal_token)
+            .first()
+        )
+        return model.to_entity() if model else None
 
     def delete(self, contract_id: UUID, account_id: UUID) -> None:
         """Удалить контракт."""

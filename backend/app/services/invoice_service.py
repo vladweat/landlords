@@ -12,6 +12,7 @@ from app.domain.interfaces import (
     IContractRepository,
     IDocumentRepository,
     IInvoiceRepository,
+    IPaymentClaimRepository,
     IPaymentRepository,
     IPropertyRepository,
     IRentChargeRepository,
@@ -36,6 +37,7 @@ class InvoiceService:
         account_repo: IAccountRepository,
         document_repo: IDocumentRepository,
         pdf_service: PdfService,
+        claim_repo: IPaymentClaimRepository | None = None,
     ) -> None:
         self.invoice_repo = invoice_repo
         self.charge_repo = charge_repo
@@ -46,6 +48,7 @@ class InvoiceService:
         self.account_repo = account_repo
         self.document_repo = document_repo
         self.pdf_service = pdf_service
+        self.claim_repo = claim_repo
 
     def _share_url(self, token: str) -> str:
         base = settings.FRONTEND_URL.rstrip("/")
@@ -154,6 +157,13 @@ class InvoiceService:
             if doc:
                 filename = doc.filename
 
+        has_pending_claim = False
+        if self.claim_repo is not None:
+            pending = self.claim_repo.get_pending_by_contract(
+                invoice.contract_id, invoice.account_id
+            )
+            has_pending_claim = pending is not None
+
         return PublicInvoiceDTO(
             landlord_name=account.name if account else "Арендодатель",
             property_address=prop.get_address() if prop else "",
@@ -168,6 +178,7 @@ class InvoiceService:
             status=status,
             payment_details=account.payment_details if account else None,
             filename=filename,
+            has_pending_claim=has_pending_claim,
         )
 
     def get_public_pdf_bytes(self, token: str) -> tuple[bytes, str]:

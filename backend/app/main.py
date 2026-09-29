@@ -128,6 +128,8 @@ def create_app() -> FastAPI:
     from app.api.v1.routes.reports import router as reports_router
     from app.api.v1.routes.public_invoices import router as public_invoices_router
     from app.api.v1.routes.public_invites import router as public_invites_router
+    from app.api.v1.routes.public_portal import router as public_portal_router
+    from app.api.v1.routes.claims import router as claims_router
 
     app.include_router(auth_router)
     app.include_router(account_router)
@@ -137,6 +139,7 @@ def create_app() -> FastAPI:
     app.include_router(contract_templates_router)
     app.include_router(charges_router)
     app.include_router(payments_router)
+    app.include_router(claims_router)
     app.include_router(expenses_router)
     app.include_router(dashboard_router)
     app.include_router(calendar_router)
@@ -147,6 +150,7 @@ def create_app() -> FastAPI:
     app.include_router(reports_router)
     app.include_router(public_invoices_router)
     app.include_router(public_invites_router)
+    app.include_router(public_portal_router)
 
     return app
 
