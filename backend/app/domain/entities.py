@@ -247,6 +247,33 @@ class NotificationDismissalEntity:
 
 
 @dataclass
+class EmailDispatchLogEntity:
+    """Лог отправленных email-уведомлений (дедуп)."""
+
+    id: UUID
+    account_id: UUID
+    notification_key: str
+    sent_at: datetime = field(default_factory=_utc_now)
+
+
+@dataclass
+class AccountInviteEntity:
+    """Приглашение в аккаунт по ссылке."""
+
+    id: UUID
+    account_id: UUID
+    email: str
+    full_name: str
+    role: str  # manager | accountant
+    token: str
+    expires_at: datetime
+    invited_by_user_id: UUID
+    accepted_at: datetime | None = None
+    created_at: datetime = field(default_factory=_utc_now)
+    updated_at: datetime = field(default_factory=_utc_now)
+
+
+@dataclass
 class FeedbackEntity:
     id: UUID
     account_id: UUID

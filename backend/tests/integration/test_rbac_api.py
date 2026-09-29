@@ -18,6 +18,30 @@ def _headers(token: str) -> dict:
     return {"Authorization": f"Bearer {token}"}
 
 
+def _invite_and_accept(
+    client: TestClient,
+    owner_headers: dict,
+    email: str,
+    role: str = "manager",
+    name: str = "Member",
+    password: str = "secret123",
+) -> dict:
+    """Создать invite и принять — возвращает AuthResponse принявшего."""
+    create = client.post(
+        "/v1/account/invites",
+        headers=owner_headers,
+        json={"email": email, "full_name": name, "role": role},
+    )
+    assert create.status_code == 201, create.text
+    token = create.json()["data"]["token"]
+    accept = client.post(
+        f"/v1/public/invites/{token}/accept",
+        json={"password": password, "full_name": name},
+    )
+    assert accept.status_code == 200, accept.text
+    return accept.json()
+
+
 class TestMeIncludesRole:
     def test_me_returns_account_and_role(self, client: TestClient, auth_headers):
         resp = client.get("/v1/auth/me", headers=auth_headers)
@@ -30,21 +54,11 @@ class TestMeIncludesRole:
 
 
 class TestTeamMembers:
-    def test_owner_creates_and_lists_members(self, client: TestClient, auth_headers):
-        create = client.post(
-            "/v1/account/members",
-            headers=auth_headers,
-            json={
-                "email": "manager@example.com",
-                "full_name": "Manager",
-                "password": "secret123",
-                "role": "manager",
-            },
+    def test_owner_invites_and_lists_members(self, client: TestClient, auth_headers):
+        accepted = _invite_and_accept(
+            client, auth_headers, "manager@example.com", role="manager", name="Manager"
         )
-        assert create.status_code == 201
-        member = create.json()["data"]
-        assert member["role"] == "manager"
-        assert member["email"] == "manager@example.com"
+        assert accepted["user"]["email"] == "manager@example.com"
 
         listed = client.get("/v1/account/members", headers=auth_headers)
         assert listed.status_code == 200
@@ -53,17 +67,9 @@ class TestTeamMembers:
         assert "test@example.com" in emails
 
     def test_member_login_and_shared_account(self, client: TestClient, auth_headers):
-        client.post(
-            "/v1/account/members",
-            headers=auth_headers,
-            json={
-                "email": "acc@example.com",
-                "full_name": "Accountant",
-                "password": "secret123",
-                "role": "accountant",
-            },
+        _invite_and_accept(
+            client, auth_headers, "acc@example.com", role="accountant", name="Accountant"
         )
-        # Owner creates property
         prop = client.post(
             "/v1/properties",
             headers=auth_headers,
@@ -87,25 +93,12 @@ class TestTeamMembers:
         assert any("Shared" in a for a in addresses)
 
     def test_accountant_forbidden_create_property(self, client: TestClient, auth_headers):
-        client.post(
-            "/v1/account/members",
-            headers=auth_headers,
-            json={
-                "email": "acc2@example.com",
-                "full_name": "Acc",
-                "password": "secret123",
-                "role": "accountant",
-            },
+        accepted = _invite_and_accept(
+            client, auth_headers, "acc2@example.com", role="accountant", name="Acc"
         )
-        login = client.post(
-            "/v1/auth/login",
-            json={"email": "acc2@example.com", "password": "secret123"},
-        )
-        member_headers = _headers(login.json()["token"])
+        member_headers = _headers(accepted["token"])
 
-        # Read ok
         assert client.get("/v1/properties", headers=member_headers).status_code == 200
-        # Write forbidden
         resp = client.post(
             "/v1/properties",
             headers=member_headers,
@@ -114,21 +107,10 @@ class TestTeamMembers:
         assert resp.status_code == 403
 
     def test_manager_can_create_property_not_team(self, client: TestClient, auth_headers):
-        client.post(
-            "/v1/account/members",
-            headers=auth_headers,
-            json={
-                "email": "mgr@example.com",
-                "full_name": "Mgr",
-                "password": "secret123",
-                "role": "manager",
-            },
+        accepted = _invite_and_accept(
+            client, auth_headers, "mgr@example.com", role="manager", name="Mgr"
         )
-        login = client.post(
-            "/v1/auth/login",
-            json={"email": "mgr@example.com", "password": "secret123"},
-        )
-        member_headers = _headers(login.json()["token"])
+        member_headers = _headers(accepted["token"])
 
         prop = client.post(
             "/v1/properties",
@@ -141,17 +123,10 @@ class TestTeamMembers:
         assert team.status_code == 403
 
     def test_remove_member_blocks_login(self, client: TestClient, auth_headers):
-        created = client.post(
-            "/v1/account/members",
-            headers=auth_headers,
-            json={
-                "email": "temp@example.com",
-                "full_name": "Temp",
-                "password": "secret123",
-                "role": "manager",
-            },
+        accepted = _invite_and_accept(
+            client, auth_headers, "temp@example.com", role="manager", name="Temp"
         )
-        user_id = created.json()["data"]["user_id"]
+        user_id = accepted["user"]["id"]
 
         delete = client.delete(
             f"/v1/account/members/{user_id}",
@@ -166,21 +141,10 @@ class TestTeamMembers:
         assert login.status_code == 401
 
     def test_non_owner_cannot_delete_account(self, client: TestClient, auth_headers):
-        client.post(
-            "/v1/account/members",
-            headers=auth_headers,
-            json={
-                "email": "mgrdel@example.com",
-                "full_name": "Mgr",
-                "password": "secret123",
-                "role": "manager",
-            },
+        accepted = _invite_and_accept(
+            client, auth_headers, "mgrdel@example.com", role="manager", name="Mgr"
         )
-        login = client.post(
-            "/v1/auth/login",
-            json={"email": "mgrdel@example.com", "password": "secret123"},
-        )
-        member_headers = _headers(login.json()["token"])
+        member_headers = _headers(accepted["token"])
         resp = client.request(
             "DELETE",
             "/v1/auth/me",
@@ -194,15 +158,8 @@ class TestMemberIsolation:
     def test_member_does_not_see_other_account(self, client: TestClient):
         owner_a = _register(client, "ownera@test.com", "Owner A")
         headers_a = _headers(owner_a["token"])
-        client.post(
-            "/v1/account/members",
-            headers=headers_a,
-            json={
-                "email": "membera@test.com",
-                "full_name": "Member A",
-                "password": "secret123",
-                "role": "manager",
-            },
+        _invite_and_accept(
+            client, headers_a, "membera@test.com", role="manager", name="Member A"
         )
         client.post(
             "/v1/properties",

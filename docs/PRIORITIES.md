@@ -1,78 +1,78 @@
 # Landlords — приоритеты (сентябрь 2026)
 
-Сводка «что дальше» поверх [ROADMAP.md](./ROADMAP.md).  
-Техдолг: [backend/TODO.md](../backend/TODO.md), [frontend/TODO.md](../frontend/TODO.md).
-
----
-
-## Реализовано в ядре
-
-Объекты, арендаторы, договоры (draft→active, renew/terminate), начисления/платежи/ledger, расходы по объекту, календарь, автонапоминания, документы и вложения, дашборд (ROI/forecast), credit score, onboarding, RBAC (owner/manager/accountant), UI-уведомления (#10), экспорт отчётов (#9), шаблоны договоров (#8).
-
----
-
-## Сейчас — фундамент (до крупных фич)
-
-| Задача | Где | Зачем |
-|--------|-----|-------|
-| Reproducible Docker (`pip install -r requirements.txt`, не `.venv` в образе) | `backend/Dockerfile` | Предсказуемые деплои |
-| Полный CI | `.github/workflows/ci.yml` | lint → unit → **integration** → build image → frontend `tsc`/build |
-| Зелёный frontend build | `frontend/TODO.md` P0 | `tsc` / `npm run build` без ошибок |
-
-Volume `storage/documents` для api и celery — **готово** (`docker-compose.yml`).
-
----
-
-## Продукт — рекомендуемый порядок
+Короткий чеклист поверх стратегии в [ROADMAP.md](./ROADMAP.md).  
+Инфра: [INFRA.md](./INFRA.md).  
+Техдолг: [backend/TODO.md](../backend/TODO.md), [frontend/TODO.md](../frontend/TODO.md).  
+Код (без rewrite): [backend/ARCHITECTURE.md](../backend/ARCHITECTURE.md).
 
 ```mermaid
 flowchart LR
-  infra[Infra CI + build]
-  tenant[#12 Tenant portal]
-  bank[#11 Bank import]
+  deploy[1 Deployable]
+  daily[2 Daily use]
+  saas[3 SaaS]
+  diffs[Differentiators]
 
-  infra --> tenant
-  tenant --> bank
+  deploy --> daily
+  daily --> saas
+  daily --> diffs
 ```
 
-### 1. ~~Инвойсы / квитанции (#2)~~ — готово
+---
 
-PDF + публичная страница по токену, связка с charge, реквизиты в настройках аккаунта.
+## 1. Чтобы можно было задеплоить
 
-### 2. ~~Уведомления в UI (#10)~~ — готово
+| Задача | Где | Зачем |
+|--------|-----|-------|
+| Docker: online (`pip install`) **и** offline (`COPY .venv`) | `backend/Dockerfile`, [INFRA.md](./INFRA.md) | CI/чужая машина + твоя офлайн-сборка |
+| Один вход: nginx → API + статика; без конфликта порта 80 | `docker-compose.yml`, `nginx/` | Прод-профиль взлетает |
+| Секреты только из env; заполнить `.env.example` | `.env`, compose | Не дефолтные пароли |
+| Полный CI: ruff → unit → integration → `tsc`/build → online image | `.github/workflows/ci.yml` | `git push` не пропускает красное |
+| Зелёный frontend `tsc` | `frontend/TODO.md` | Честный UI-билд |
+| Бэкап Postgres + `storage/documents`, runbook | [deploy.md](./deploy.md) | Можно откатить |
+| Root README + демо-аккаунт | `README.md` | Вход через месяц |
 
-Колокольчик: просрочки и окончание договоров; dismiss. Failed reminder — после канала отправки.
+Volume `storage/documents` для api и celery — **готово**.
 
-### 3. ~~Экспорт отчётов (#9)~~ — готово
-
-CSV/XLSX за период (`/reports`); листы платежи / начисления / расходы / сводка.
-
-### 4. ~~Шаблоны договоров (#8)~~ — готово
-
-Текст с `{{placeholders}}`, seed по типу объекта, CRUD в настройках, выбор при генерации PDF.
-
-### 5. Дифференциаторы (дальше)
-
-| # | Фича | Комментарий |
-|---|------|-------------|
-| 12 | Публичная страница арендатора | Отдельная auth-модель (magic link); хорошо стыкуется с инвойсами |
-| 11 | Импорт выписки | Парсеры банков, много edge cases |
-| 13 | Заявки на ремонт | Статусы → расходы |
-| 14 | Мультивалюта / индексация | |
-| 15 | Интеграции (Telegram, Calendar, 1С) | |
+После этого — VPS и пользование самому. Критерии «готово» — в [ROADMAP.md](./ROADMAP.md).
 
 ---
 
-## Вне roadmap (пробелы)
+## 2. Чтобы чужой человек работал каждый день
 
-- **Billing SaaS** — лендинг на waitlist; в CRM нет plans/subscription.
-- **Аудит в UI** — contract events пишутся; owner не видит «кто что изменил» в интерфейсе.
-- **Массовые операции** — generate/remind/export по нескольким договорам.
-- **Каналы reminders** — SMS/Telegram без провайдера = половина фичи.
+| Задача | Комментарий |
+|--------|-------------|
+| ~~Реальная почта (SMTP)~~ | Готово: EmailService, welcome/reset, Celery-письма owner о просрочке/конце договора |
+| ~~Invite по ссылке~~ | Готово: invite link для manager/accountant |
+| Публичная страница арендатора (**#12**) | Баланс, инвойс, «я оплатил» по magic link |
+| Аудит в UI | Contract events уже пишутся — показать owner |
+| Массовые действия | Начисления / экспорт по нескольким договорам |
+| UX-долг | Error Boundary; убрать мёртвый `ForecastWidget` и лишний `antd` |
+
+Импорт выписки (**#11**) — после почты и #12.
 
 ---
 
-## Два стратегических пути
+## 3. Чтобы это был SaaS
 
-1. **B2B рантье / микро-УК** — invoices → notifications → export → templates → tenant portal. Быстрее к ежедневному использованию.
-2. **Дифференциатор** — tenant portal (#12) раньше bank import. Сильнее на рынке, дольше и рискованнее без стабильного CI.
+| Задача | Комментарий |
+|--------|-------------|
+| Тарифы и лимиты | Объекты, пользователи, хранилище (plans/subscription) |
+| Оплата | Stripe или ЮKassa, webhooks, отключение при неоплате |
+| Юридическое | Оферта, политика данных, удаление аккаунта, выгрузка |
+| Наблюдаемость | Sentry + алерты на beat и диск документов |
+| Поддержка | Почта «написать нам», статус инцидентов |
+
+---
+
+## Не сейчас
+
+Мультивалюта (**#14**), заявки на ремонт (**#13**), Google Calendar / 1С / мобильное приложение (**#15** без Telegram как канала напоминаний). Не двигают «можно пользоваться».
+
+---
+
+## Связанные спеки
+
+- Стратегия и критерии: [ROADMAP.md](./ROADMAP.md)
+- Инфра: [INFRA.md](./INFRA.md)
+- Деньги: [MONEY_FLOW.md](./MONEY_FLOW.md), [use-cases-contracts-payments.md](./use-cases-contracts-payments.md)
+- Роли: [multi-user-roles.md](./multi-user-roles.md)

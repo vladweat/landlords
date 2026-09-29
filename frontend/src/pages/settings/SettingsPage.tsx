@@ -35,10 +35,9 @@ const accountSchema = z.object({
   payment_details: z.string().optional(),
 });
 
-const memberSchema = z.object({
+const inviteSchema = z.object({
   email: z.string().email('Некорректный email'),
   full_name: z.string().min(1, 'Имя обязательно'),
-  password: z.string().min(6, 'Минимум 6 символов'),
   role: z.enum(['manager', 'accountant']),
 });
 
@@ -49,6 +48,7 @@ export default function SettingsPage() {
   const canManageTeam = useCan('manage_team');
   const canManageAccount = useCan('manage_account');
   const [removingUserId, setRemovingUserId] = useState<string | null>(null);
+  const [revokingInviteId, setRevokingInviteId] = useState<string | null>(null);
 
   const { register: profileRegister, handleSubmit: handleProfileSubmit, formState: { errors: profileErrors } } = useForm({
     resolver: zodResolver(profileSchema),
@@ -69,14 +69,20 @@ export default function SettingsPage() {
     },
   });
 
-  const { register: memberRegister, handleSubmit: handleMemberSubmit, reset: resetMember, formState: { errors: memberErrors } } = useForm({
-    resolver: zodResolver(memberSchema),
-    defaultValues: { email: '', full_name: '', password: '', role: 'manager' as const },
+  const { register: inviteRegister, handleSubmit: handleInviteSubmit, reset: resetInvite, formState: { errors: inviteErrors } } = useForm({
+    resolver: zodResolver(inviteSchema),
+    defaultValues: { email: '', full_name: '', role: 'manager' as const },
   });
 
   const { data: members = [], isLoading: membersLoading } = useQuery({
     queryKey: ['account-members'],
     queryFn: accountApi.listMembers,
+    enabled: canManageTeam,
+  });
+
+  const { data: invites = [], isLoading: invitesLoading } = useQuery({
+    queryKey: ['account-invites'],
+    queryFn: accountApi.listInvites,
     enabled: canManageTeam,
   });
 
@@ -108,14 +114,29 @@ export default function SettingsPage() {
     onError: (error) => showError(error, 'Ошибка сохранения'),
   });
 
-  const createMemberMutation = useMutation({
-    mutationFn: accountApi.createMember,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['account-members'] });
-      resetMember();
-      toast.success('Участник добавлен');
+  const createInviteMutation = useMutation({
+    mutationFn: accountApi.createInvite,
+    onSuccess: async (invite) => {
+      queryClient.invalidateQueries({ queryKey: ['account-invites'] });
+      resetInvite();
+      try {
+        await navigator.clipboard.writeText(invite.invite_url);
+        toast.success('Приглашение отправлено, ссылка скопирована');
+      } catch {
+        toast.success('Приглашение создано');
+      }
     },
-    onError: (error) => showError(error, 'Ошибка добавления'),
+    onError: (error) => showError(error, 'Ошибка приглашения'),
+  });
+
+  const revokeInviteMutation = useMutation({
+    mutationFn: accountApi.revokeInvite,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['account-invites'] });
+      setRevokingInviteId(null);
+      toast.success('Приглашение отозвано');
+    },
+    onError: (error) => showError(error, 'Ошибка отзыва'),
   });
 
   const updateRoleMutation = useMutation({
@@ -268,33 +289,88 @@ export default function SettingsPage() {
             </div>
           )}
 
-          <h3 className="text-sm font-medium text-gray-700 mb-3">Добавить участника</h3>
+          {(invitesLoading || invites.length > 0) && (
+            <div className="mb-6">
+              <h3 className="text-sm font-medium text-gray-700 mb-2">Ожидают принятия</h3>
+              {invitesLoading ? (
+                <p className="text-sm text-gray-500">Загрузка…</p>
+              ) : (
+                <div className="overflow-hidden rounded-lg border border-gray-100">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+                        <th className="px-3 py-2 font-medium">Email</th>
+                        <th className="px-3 py-2 font-medium">Роль</th>
+                        <th className="px-3 py-2 font-medium w-28"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {invites.map((inv) => (
+                        <tr key={inv.id}>
+                          <td className="px-3 py-2">
+                            <div className="font-medium text-gray-900">{inv.full_name}</div>
+                            <div className="text-gray-500">{inv.email}</div>
+                          </td>
+                          <td className="px-3 py-2">
+                            {ROLE_LABELS[inv.role as Exclude<Role, 'owner'>] ?? inv.role}
+                          </td>
+                          <td className="px-3 py-2 text-right space-x-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={async () => {
+                                try {
+                                  await navigator.clipboard.writeText(inv.invite_url);
+                                  toast.success('Ссылка скопирована');
+                                } catch {
+                                  toast.error('Не удалось скопировать');
+                                }
+                              }}
+                            >
+                              Ссылка
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setRevokingInviteId(inv.id)}
+                            >
+                              Отозвать
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          <h3 className="text-sm font-medium text-gray-700 mb-3">Пригласить участника</h3>
           <form
-            onSubmit={handleMemberSubmit((d) =>
-              createMemberMutation.mutate({
+            onSubmit={handleInviteSubmit((d) =>
+              createInviteMutation.mutate({
                 email: d.email,
                 full_name: d.full_name,
-                password: d.password,
                 role: d.role as Exclude<Role, 'owner'>,
               })
             )}
             className="space-y-3 max-w-md"
           >
-            <Input label="Email" error={memberErrors.email?.message} {...memberRegister('email')} />
-            <Input label="Имя" error={memberErrors.full_name?.message} {...memberRegister('full_name')} />
-            <Input label="Временный пароль" type="password" error={memberErrors.password?.message} {...memberRegister('password')} />
+            <Input label="Email" error={inviteErrors.email?.message} {...inviteRegister('email')} />
+            <Input label="Имя" error={inviteErrors.full_name?.message} {...inviteRegister('full_name')} />
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">Роль</label>
               <select
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-                {...memberRegister('role')}
+                {...inviteRegister('role')}
               >
                 <option value="manager">{ROLE_LABELS.manager}</option>
                 <option value="accountant">{ROLE_LABELS.accountant}</option>
               </select>
             </div>
-            <Button type="submit" size="sm" isLoading={createMemberMutation.isPending}>
-              Добавить
+            <Button type="submit" size="sm" isLoading={createInviteMutation.isPending}>
+              Отправить приглашение
             </Button>
           </form>
         </Card>
@@ -315,6 +391,15 @@ export default function SettingsPage() {
         title="Удалить участника?"
         message="Пользователь будет удалён из аккаунта без возможности восстановления."
         isLoading={removeMemberMutation.isPending}
+      />
+
+      <ConfirmDialog
+        isOpen={!!revokingInviteId}
+        onClose={() => setRevokingInviteId(null)}
+        onConfirm={() => revokingInviteId && revokeInviteMutation.mutate(revokingInviteId)}
+        title="Отозвать приглашение?"
+        message="Ссылка перестанет работать."
+        isLoading={revokeInviteMutation.isPending}
       />
     </div>
   );

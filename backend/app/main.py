@@ -86,8 +86,10 @@ def create_app() -> FastAPI:
         from app.db.session import SessionLocal
 
         try:
+            from sqlalchemy import text
+
             session = SessionLocal()
-            session.execute("SELECT 1")
+            session.execute(text("SELECT 1"))
             session.close()
         except Exception:
             return JSONResponse(status_code=503, content={"status": "error", "message": "db_unavailable"})
@@ -125,6 +127,7 @@ def create_app() -> FastAPI:
     from app.api.v1.routes.notifications import router as notifications_router
     from app.api.v1.routes.reports import router as reports_router
     from app.api.v1.routes.public_invoices import router as public_invoices_router
+    from app.api.v1.routes.public_invites import router as public_invites_router
 
     app.include_router(auth_router)
     app.include_router(account_router)
@@ -143,6 +146,7 @@ def create_app() -> FastAPI:
     app.include_router(notifications_router)
     app.include_router(reports_router)
     app.include_router(public_invoices_router)
+    app.include_router(public_invites_router)
 
     return app
 

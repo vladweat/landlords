@@ -20,6 +20,27 @@ export interface Member {
   created_at: string;
 }
 
+export interface Invite {
+  id: string;
+  account_id: string;
+  email: string;
+  full_name: string;
+  role: Role;
+  token: string;
+  invite_url: string;
+  expires_at: string;
+  invited_by_user_id: string;
+  created_at: string;
+}
+
+export interface InvitePreview {
+  email: string;
+  full_name: string;
+  role: Role;
+  account_name: string;
+  expires_at: string;
+}
+
 export type Permission =
   | 'manage_team'
   | 'manage_account'
