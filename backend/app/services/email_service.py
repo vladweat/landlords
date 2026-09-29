@@ -14,12 +14,41 @@ from loguru import logger
 class EmailService:
     """Единая точка отправки писем приложения."""
 
+    SMTP_TIMEOUT_SEC = 8
+
     def send(self, to: str, subject: str, body_text: str) -> None:
-        """Отправить plain-text письмо. Без SMTP пишет в storage/emails/."""
+        """Отправить plain-text письмо. Без SMTP/Resend пишет в storage/emails/."""
+        if self._smtp_settings() is not None:
+            try:
+                self._send_smtp(to, subject, body_text)
+                return
+            except Exception:
+                logger.exception("SMTP send failed to={}", to)
+                if settings.APP_ENV == "production":
+                    raise
+                logger.warning("Falling back to storage/emails (APP_ENV != production)")
+        self._write_file(to, subject, body_text)
+
+    def _smtp_settings(self) -> tuple[str, int, str | None, str | None, str] | None:
+        """Host, port, user, password, from — или None, если отправка недоступна."""
+        from_addr = settings.SMTP_FROM or "no-reply@example.com"
         if settings.SMTP_HOST:
-            self._send_smtp(to, subject, body_text)
-        else:
-            self._write_file(to, subject, body_text)
+            return (
+                settings.SMTP_HOST,
+                settings.SMTP_PORT or 25,
+                settings.SMTP_USER,
+                settings.SMTP_PASSWORD,
+                from_addr,
+            )
+        if settings.RESEND_API_KEY:
+            return (
+                "smtp.resend.com",
+                settings.SMTP_PORT or 587,
+                settings.SMTP_USER or "resend",
+                settings.RESEND_API_KEY,
+                from_addr,
+            )
+        return None
 
     def send_password_reset(self, to: str, reset_link: str) -> None:
         """Письмо со ссылкой сброса пароля."""
@@ -109,20 +138,23 @@ class EmailService:
         )
 
     def _send_smtp(self, to: str, subject: str, body_text: str) -> None:
+        cfg = self._smtp_settings()
+        if cfg is None:
+            raise RuntimeError("SMTP is not configured")
+        host, port, user, password, from_addr = cfg
         msg = EmailMessage()
         msg["Subject"] = subject
-        msg["From"] = settings.SMTP_FROM or "no-reply@example.com"
+        msg["From"] = from_addr
         msg["To"] = to
         msg.set_content(body_text)
         try:
-            smtp_port = settings.SMTP_PORT or 25
-            with smtplib.SMTP(settings.SMTP_HOST, smtp_port) as smtp:
-                if settings.SMTP_USER and settings.SMTP_PASSWORD:
+            with smtplib.SMTP(host, port, timeout=self.SMTP_TIMEOUT_SEC) as smtp:
+                if user and password:
                     try:
                         smtp.starttls()
                     except Exception:
                         pass
-                    smtp.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+                    smtp.login(user, password)
                 smtp.send_message(msg)
             logger.info("Email sent to={} subject={!r}", to, subject)
         except Exception:

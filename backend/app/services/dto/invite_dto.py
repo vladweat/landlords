@@ -29,6 +29,7 @@ class InviteDTO(BaseModel):
     expires_at: datetime
     invited_by_user_id: UUID
     created_at: datetime
+    email_sent: bool = True
 
 
 class InvitePreviewDTO(BaseModel):

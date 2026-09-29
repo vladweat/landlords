@@ -118,6 +118,7 @@ class TestPasswordReset:
         """Сброс пароля: forgot пишет письмо в файл, reset меняет пароль."""
         monkeypatch.chdir(tmp_path)
         monkeypatch.setattr("app.services.email_service.settings.SMTP_HOST", None)
+        monkeypatch.setattr("app.services.email_service.settings.RESEND_API_KEY", None)
 
         me = client.get("/v1/auth/me", headers=auth_headers)
         user_id = me.json()["data"]["user"]["id"]

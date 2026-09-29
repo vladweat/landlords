@@ -31,6 +31,7 @@ export interface Invite {
   expires_at: string;
   invited_by_user_id: string;
   created_at: string;
+  email_sent?: boolean;
 }
 
 export interface InvitePreview {
