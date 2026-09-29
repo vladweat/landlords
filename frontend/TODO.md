@@ -42,9 +42,9 @@
 
 ## P2 — техдолг и полиш
 
-- [ ] Удалить мёртвое: `ForecastWidget.tsx`, `dashboardApi.getPropertiesOverview` (endpoint нет на backend), дубли `DashboardSummary` в `entities/payment.ts`.
-- [ ] Убрать неиспользуемые deps: `antd`, `@ant-design/*`, `dayjs`, `magic-string` (в `src` не импортируются).
-- [ ] Error Boundary вокруг protected layout.
+- [x] Удалить мёртвое: `ForecastWidget.tsx`, `dashboardApi.getPropertiesOverview` (endpoint нет на backend), дубли `DashboardSummary` в `entities/payment.ts`.
+- [x] Убрать неиспользуемые deps: `antd`, `@ant-design/*`, `dayjs`, `magic-string` (в `src` не импортируются).
+- [x] Error Boundary вокруг protected layout.
 - [ ] Mutations: `retry: 0` для create/delete платежей и договоров (избежать дублей).
 - [ ] Единые toast-хелперы (`showSuccess` / `showError`); invalidate связанных query keys после payment create (dashboard, ledger).
 - [ ] a11y: `aria-label` на search inputs списках.

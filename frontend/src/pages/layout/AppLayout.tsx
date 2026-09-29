@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
+import { ErrorBoundary } from '@/shared/ui/ErrorBoundary';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 
@@ -23,7 +24,9 @@ export default function AppLayout() {
       <div className="flex flex-1 flex-col overflow-hidden">
         <Header onMenuClick={() => setSidebarOpen(prev => !prev)} />
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
-          <Outlet />
+          <ErrorBoundary>
+            <Outlet />
+          </ErrorBoundary>
         </main>
       </div>
     </div>

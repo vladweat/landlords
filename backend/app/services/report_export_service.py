@@ -61,6 +61,7 @@ class ReportExportService:
         start_date: date,
         end_date: date,
         fmt: str = "xlsx",
+        contract_ids: list[UUID] | None = None,
     ) -> tuple[bytes, str, str]:
         """Вернуть (content, media_type, filename)."""
         if end_date < start_date:
@@ -68,9 +69,14 @@ class ReportExportService:
         if fmt not in ("xlsx", "csv"):
             raise ValidationError("format должен быть xlsx или csv")
 
-        payments = self._payment_rows(account_id, start_date, end_date)
-        charges = self._charge_rows(account_id, start_date, end_date)
-        expenses = self._expense_rows(account_id, start_date, end_date)
+        id_set = set(contract_ids) if contract_ids else None
+        property_ids = (
+            self._property_ids_for_contracts(account_id, id_set) if id_set else None
+        )
+
+        payments = self._payment_rows(account_id, start_date, end_date, id_set)
+        charges = self._charge_rows(account_id, start_date, end_date, id_set)
+        expenses = self._expense_rows(account_id, start_date, end_date, property_ids)
         summary = self._summary_rows(payments, charges, expenses, start_date, end_date)
 
         period = f"{start_date.isoformat()}_{end_date.isoformat()}"
@@ -84,6 +90,16 @@ class ReportExportService:
 
         content = self._build_csv(payments, charges, expenses, summary)
         return content, "text/csv; charset=utf-8", f"report_{period}.csv"
+
+    def _property_ids_for_contracts(
+        self, account_id: UUID, contract_ids: set[UUID]
+    ) -> set[UUID]:
+        property_ids: set[UUID] = set()
+        for cid in contract_ids:
+            contract = self.contract_repo.get_by_id(cid, account_id)
+            if contract is not None:
+                property_ids.add(contract.property_id)
+        return property_ids
 
     def _resolve_labels(
         self,
@@ -103,7 +119,11 @@ class ReportExportService:
         return address_cache[contract.property_id], tenant_cache[contract.tenant_id]
 
     def _payment_rows(
-        self, account_id: UUID, start_date: date, end_date: date
+        self,
+        account_id: UUID,
+        start_date: date,
+        end_date: date,
+        contract_ids: set[UUID] | None = None,
     ) -> list[dict[str, str]]:
         payments = self.payment_repo.list_by_account(
             account_id,
@@ -116,6 +136,8 @@ class ReportExportService:
         tenant_cache: dict[UUID, str] = {}
         rows: list[dict[str, str]] = []
         for p in payments:
+            if contract_ids is not None and p.contract_id not in contract_ids:
+                continue
             if p.contract_id not in contract_cache:
                 contract_cache[p.contract_id] = self.contract_repo.get_by_id(
                     p.contract_id, account_id
@@ -140,12 +162,17 @@ class ReportExportService:
         return rows
 
     def _charge_rows(
-        self, account_id: UUID, start_date: date, end_date: date
+        self,
+        account_id: UUID,
+        start_date: date,
+        end_date: date,
+        contract_ids: set[UUID] | None = None,
     ) -> list[dict[str, str]]:
         charges = [
             c
             for c in self.charge_repo.list_by_account(account_id)
             if start_date <= c.due_date <= end_date
+            and (contract_ids is None or c.contract_id in contract_ids)
         ]
         contract_cache: dict[UUID, ContractEntity | None] = {}
         address_cache: dict[UUID, str] = {}
@@ -181,7 +208,11 @@ class ReportExportService:
         return rows
 
     def _expense_rows(
-        self, account_id: UUID, start_date: date, end_date: date
+        self,
+        account_id: UUID,
+        start_date: date,
+        end_date: date,
+        property_ids: set[UUID] | None = None,
     ) -> list[dict[str, str]]:
         expenses = self.expense_repo.list_by_account(
             account_id, start_date=start_date, end_date=end_date
@@ -189,6 +220,8 @@ class ReportExportService:
         address_cache: dict[UUID, str] = {}
         rows: list[dict[str, str]] = []
         for e in expenses:
+            if property_ids is not None and e.property_id not in property_ids:
+                continue
             if e.property_id not in address_cache:
                 prop = self.property_repo.get_by_id(e.property_id, account_id)
                 address_cache[e.property_id] = prop.get_address() if prop else ""

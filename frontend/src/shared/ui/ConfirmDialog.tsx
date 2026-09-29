@@ -10,9 +10,20 @@ interface ConfirmDialogProps {
   title: string;
   message: string;
   isLoading?: boolean;
+  confirmLabel?: string;
+  confirmVariant?: 'primary' | 'danger';
 }
 
-export function ConfirmDialog({ isOpen, onClose, onConfirm, title, message, isLoading }: ConfirmDialogProps) {
+export function ConfirmDialog({
+  isOpen,
+  onClose,
+  onConfirm,
+  title,
+  message,
+  isLoading,
+  confirmLabel = 'Удалить',
+  confirmVariant = 'danger',
+}: ConfirmDialogProps) {
   useEscapeKey(onClose);
   return (
     <AnimatePresence>
@@ -33,8 +44,8 @@ export function ConfirmDialog({ isOpen, onClose, onConfirm, title, message, isLo
           >
             <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl">
               <div className="flex items-center gap-3 mb-4">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100">
-                  <AlertTriangle className="h-5 w-5 text-red-600" />
+                <div className={`flex h-10 w-10 items-center justify-center rounded-full ${confirmVariant === 'danger' ? 'bg-red-100' : 'bg-blue-100'}`}>
+                  <AlertTriangle className={`h-5 w-5 ${confirmVariant === 'danger' ? 'text-red-600' : 'text-blue-600'}`} />
                 </div>
                 <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
               </div>
@@ -43,8 +54,8 @@ export function ConfirmDialog({ isOpen, onClose, onConfirm, title, message, isLo
                 <Button variant="secondary" onClick={onClose} className="flex-1">
                   Отмена
                 </Button>
-                <Button variant="danger" onClick={onConfirm} className="flex-1" isLoading={isLoading}>
-                  Удалить
+                <Button variant={confirmVariant} onClick={onConfirm} className="flex-1" isLoading={isLoading}>
+                  {confirmLabel}
                 </Button>
               </div>
             </div>

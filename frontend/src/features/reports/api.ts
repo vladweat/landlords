@@ -6,6 +6,7 @@ export interface ReportExportParams {
   start_date: string;
   end_date: string;
   format: ReportFormat;
+  contract_ids?: string[];
 }
 
 function filenameFromDisposition(header: string | undefined, fallback: string): string {

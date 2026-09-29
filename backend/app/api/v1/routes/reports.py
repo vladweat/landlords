@@ -17,12 +17,19 @@ def export_report(
     start_date: date = Query(..., description="Начало периода"),
     end_date: date = Query(..., description="Конец периода"),
     format: str = Query("xlsx", pattern="^(xlsx|csv)$"),
+    contract_ids: list[UUID] | None = Query(
+        None, description="Ограничить отчёт выбранными договорами"
+    ),
     account_id: UUID = Depends(get_current_account_id),
     service: ReportExportService = Depends(get_report_export_service),
 ) -> Response:
     """Скачать отчёт за период (XLSX или CSV) для налоговой/бухгалтерии."""
     content, media_type, filename = service.export(
-        account_id, start_date, end_date, fmt=format
+        account_id,
+        start_date,
+        end_date,
+        fmt=format,
+        contract_ids=contract_ids,
     )
     return Response(
         content=content,
