@@ -36,3 +36,4 @@ class PublicInvoiceDTO(BaseModel):
     status: str
     payment_details: str | None = None
     filename: str | None = None
+    has_pending_claim: bool = False

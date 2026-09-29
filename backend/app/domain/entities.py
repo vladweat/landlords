@@ -111,6 +111,7 @@ class ContractEntity:
     auto_generate_charges: bool = False
     status: str = "draft"  # draft, active, ended, terminated, overdue
     termination_reason: str | None = None
+    portal_token: str | None = None
     created_at: datetime = field(default_factory=_utc_now)
     updated_at: datetime = field(default_factory=_utc_now)
     
@@ -294,3 +295,20 @@ class ContractEventEntity:
     event_metadata: dict | None = None  # ← переименовано
     created_by: UUID | None = None
     created_at: datetime = field(default_factory=_utc_now)
+
+
+@dataclass
+class PaymentClaimEntity:
+    """Заявка арендатора «я оплатил» (без записи в ledger)."""
+
+    id: UUID
+    account_id: UUID
+    contract_id: UUID
+    status: str  # pending | dismissed | confirmed
+    charge_id: UUID | None = None
+    amount: Decimal | None = None
+    note: str | None = None
+    resolved_at: datetime | None = None
+    resolved_by: UUID | None = None
+    created_at: datetime = field(default_factory=_utc_now)
+    updated_at: datetime = field(default_factory=_utc_now)

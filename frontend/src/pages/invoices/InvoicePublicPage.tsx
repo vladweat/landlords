@@ -1,9 +1,11 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import { Download } from 'lucide-react';
 import { invoicesApi } from '@/features/invoices/api';
 import { formatDate } from '@/shared/lib/utils';
+import { showError } from '@/shared/lib/toast';
 import { FullPageLoader } from '@/shared/ui/FullPageLoader';
+import { Button } from '@/shared/ui/Button';
 
 const statusLabels: Record<string, string> = {
   paid: 'Оплачено',
@@ -20,12 +22,24 @@ function money(value: string | number, currency: string): string {
 
 export default function InvoicePublicPage() {
   const { token = '' } = useParams<{ token: string }>();
+  const queryClient = useQueryClient();
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['public-invoice', token],
     queryFn: () => invoicesApi.getPublic(token),
     enabled: Boolean(token),
     retry: false,
+  });
+
+  const claimMutation = useMutation({
+    mutationFn: () =>
+      invoicesApi.createClaim(token, {
+        amount: data?.amount_remaining,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['public-invoice', token] });
+    },
+    onError: (error) => showError(error, 'Не удалось отправить заявку'),
   });
 
   if (isLoading) return <FullPageLoader />;
@@ -42,6 +56,13 @@ export default function InvoicePublicPage() {
       </div>
     );
   }
+
+  const remaining = Number(data.amount_remaining);
+  const canClaim =
+    remaining > 0 &&
+    !data.has_pending_claim &&
+    data.status !== 'paid' &&
+    !claimMutation.isPending;
 
   return (
     <div className="min-h-screen bg-gray-50 px-4 py-10">
@@ -93,13 +114,39 @@ export default function InvoicePublicPage() {
           </p>
         </div>
 
-        <a
-          href={invoicesApi.publicPdfUrl(token)}
-          className="mt-8 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-3 text-sm font-medium text-white hover:bg-blue-700"
-        >
-          <Download className="h-4 w-4" />
-          Скачать PDF
-        </a>
+        {data.has_pending_claim && (
+          <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            Заявка об оплате уже отправлена. Арендодатель подтвердит поступление денег.
+          </div>
+        )}
+
+        <div className="mt-6 space-y-3">
+          {remaining > 0 && (
+            <Button
+              className="w-full"
+              disabled={!canClaim}
+              isLoading={claimMutation.isPending}
+              onClick={() => claimMutation.mutate()}
+            >
+              {data.has_pending_claim
+                ? 'Заявка уже отправлена'
+                : `Я оплатил ${money(data.amount_remaining, data.currency)}`}
+            </Button>
+          )}
+          <a
+            href={invoicesApi.publicPdfUrl(token)}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-800 hover:bg-gray-50"
+          >
+            <Download className="h-4 w-4" />
+            Скачать PDF
+          </a>
+          {remaining > 0 && (
+            <p className="text-center text-xs text-gray-400">
+              Сначала переведите по реквизитам, затем нажмите «Я оплатил» — это заявка арендодателю,
+              не автоплатёж.
+            </p>
+          )}
+        </div>
 
         <p className="mt-8 text-center text-xs text-gray-400">
           <Link to="/login" className="hover:text-gray-600">

@@ -14,6 +14,7 @@ from app.api.deps import (
     get_ledger_service,
     get_payment_service,
     get_pdf_service,
+    get_tenant_portal_service,
     require_permissions,
 )
 from app.api.pagination import PaginationParams
@@ -30,6 +31,12 @@ from app.api.v1.schemas.contract_schema import (
     ContractLedgerResponse,
     LedgerResponse,
 )
+from app.api.v1.schemas.portal_schema import (
+    PaymentClaimListResponse,
+    PaymentClaimResponse,
+    PortalLinkResponse,
+    PortalLinkSingleResponse,
+)
 from app.domain.entities import MembershipEntity
 from app.domain.permissions import Permission
 from app.services.contract_event_service import ContractEventService
@@ -39,6 +46,7 @@ from app.services.dto.contract_event_dto import CreateNoteDTO
 from app.services.ledger_service import LedgerService
 from app.services.payment_service import PaymentService
 from app.services.pdf_service import PdfService
+from app.services.tenant_portal_service import TenantPortalService
 
 router = APIRouter(prefix="/v1/contracts", tags=["Contracts"])
 
@@ -351,4 +359,49 @@ def refresh_contract_status(
             "id": str(contract.id),
             "status": contract.status,
         },
+    }
+
+
+@router.post("/{contract_id}/portal", response_model=PortalLinkSingleResponse)
+def ensure_contract_portal(
+    contract_id: UUID,
+    account_id: UUID = Depends(get_current_account_id),
+    service: TenantPortalService = Depends(get_tenant_portal_service),
+    _: MembershipEntity = Depends(require_permissions(Permission.WRITE_CONTRACTS)),
+) -> dict:
+    """Создать или вернуть magic link портала арендатора."""
+    dto = service.ensure_portal(contract_id, account_id)
+    return {
+        "status": "success",
+        "data": PortalLinkResponse.model_validate(dto),
+    }
+
+
+@router.post("/{contract_id}/portal/rotate", response_model=PortalLinkSingleResponse)
+def rotate_contract_portal(
+    contract_id: UUID,
+    account_id: UUID = Depends(get_current_account_id),
+    service: TenantPortalService = Depends(get_tenant_portal_service),
+    _: MembershipEntity = Depends(require_permissions(Permission.WRITE_CONTRACTS)),
+) -> dict:
+    """Перевыпустить токен портала (старая ссылка перестаёт работать)."""
+    dto = service.rotate_portal(contract_id, account_id)
+    return {
+        "status": "success",
+        "data": PortalLinkResponse.model_validate(dto),
+    }
+
+
+@router.get("/{contract_id}/claims", response_model=PaymentClaimListResponse)
+def list_contract_claims(
+    contract_id: UUID,
+    status: str | None = Query(None),
+    account_id: UUID = Depends(get_current_account_id),
+    service: TenantPortalService = Depends(get_tenant_portal_service),
+) -> dict:
+    """Список заявок «я оплатил» по договору."""
+    items = service.list_claims(contract_id, account_id, status=status)
+    return {
+        "status": "success",
+        "data": [PaymentClaimResponse.model_validate(i) for i in items],
     }

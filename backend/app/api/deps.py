@@ -19,6 +19,7 @@ from app.db.repositories.membership_repo import MembershipRepository
 from app.db.repositories.notification_dismissal_repo import (
     NotificationDismissalRepository,
 )
+from app.db.repositories.payment_claim_repo import PaymentClaimRepository
 from app.db.repositories.payment_repo import PaymentRepository
 from app.db.repositories.property_expense_repo import PropertyExpenseRepository
 from app.db.repositories.property_repo import PropertyRepository
@@ -55,6 +56,7 @@ from app.services.reminder_service import ReminderService
 from app.services.rent_charge_service import RentChargeService
 from app.services.report_export_service import ReportExportService
 from app.services.roi_service import RoiService
+from app.services.tenant_portal_service import TenantPortalService
 from app.services.tenant_service import TenantService
 from app.services.user_service import UserService
 from fastapi import Depends, Header
@@ -115,6 +117,11 @@ def get_feedback_repo(session: Session = Depends(get_db_session)) -> FeedbackRep
 
 def get_invoice_repo(session: Session = Depends(get_db_session)) -> InvoiceRepository:
     return InvoiceRepository(session)
+
+def get_payment_claim_repo(
+    session: Session = Depends(get_db_session),
+) -> PaymentClaimRepository:
+    return PaymentClaimRepository(session)
 
 def get_notification_dismissal_repo(
     session: Session = Depends(get_db_session),
@@ -287,6 +294,7 @@ def get_invoice_service(
     account_repo: AccountRepository = Depends(get_account_repo),
     document_repo: DocumentRepository = Depends(get_document_repo),
     pdf_service: PdfService = Depends(get_pdf_service),
+    claim_repo: PaymentClaimRepository = Depends(get_payment_claim_repo),
 ) -> InvoiceService:
     return InvoiceService(
         invoice_repo,
@@ -298,6 +306,37 @@ def get_invoice_service(
         account_repo,
         document_repo,
         pdf_service,
+        claim_repo,
+    )
+
+
+def get_tenant_portal_service(
+    contract_repo: ContractRepository = Depends(get_contract_repo),
+    claim_repo: PaymentClaimRepository = Depends(get_payment_claim_repo),
+    event_repo: ContractEventRepository = Depends(get_contract_event_repo),
+    charge_repo: RentChargeRepository = Depends(get_rent_charge_repo),
+    payment_repo: PaymentRepository = Depends(get_payment_repo),
+    property_repo: PropertyRepository = Depends(get_property_repo),
+    tenant_repo: TenantRepository = Depends(get_tenant_repo),
+    account_repo: AccountRepository = Depends(get_account_repo),
+    invoice_repo: InvoiceRepository = Depends(get_invoice_repo),
+    ledger_service: LedgerService = Depends(get_ledger_service),
+    invoice_service: InvoiceService = Depends(get_invoice_service),
+    payment_service: PaymentService = Depends(get_payment_service),
+) -> TenantPortalService:
+    return TenantPortalService(
+        contract_repo,
+        claim_repo,
+        event_repo,
+        charge_repo,
+        payment_repo,
+        property_repo,
+        tenant_repo,
+        account_repo,
+        invoice_repo,
+        ledger_service,
+        invoice_service,
+        payment_service,
     )
 
 def get_credit_score_service(

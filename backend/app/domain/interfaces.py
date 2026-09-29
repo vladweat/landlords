@@ -18,6 +18,7 @@ from app.domain.entities import (
     InvoiceEntity,
     MembershipEntity,
     NotificationDismissalEntity,
+    PaymentClaimEntity,
     PaymentEntity,
     PropertyEntity,
     PropertyExpenseEntity,
@@ -261,6 +262,11 @@ class IContractRepository(ABC):
         self, tenant_id: UUID, account_id: UUID
     ) -> Sequence[ContractEntity]:
         """Получить активные контракты арендатора."""
+        ...
+
+    @abstractmethod
+    def get_by_portal_token(self, portal_token: str) -> ContractEntity | None:
+        """Получить контракт по публичному токену портала."""
         ...
 
 class IRentChargeRepository(ABC):
@@ -662,4 +668,40 @@ class IInvoiceRepository(ABC):
     @abstractmethod
     def get_by_id(self, invoice_id: UUID, account_id: UUID) -> InvoiceEntity | None:
         """Получить квитанцию по ID."""
+        ...
+
+
+class IPaymentClaimRepository(ABC):
+    """Интерфейс репозитория заявок «я оплатил»."""
+
+    @abstractmethod
+    def create(self, entity: PaymentClaimEntity) -> PaymentClaimEntity:
+        """Создать заявку."""
+        ...
+
+    @abstractmethod
+    def update(self, entity: PaymentClaimEntity) -> PaymentClaimEntity:
+        """Обновить заявку."""
+        ...
+
+    @abstractmethod
+    def get_by_id(self, claim_id: UUID, account_id: UUID) -> PaymentClaimEntity | None:
+        """Получить заявку по ID."""
+        ...
+
+    @abstractmethod
+    def get_pending_by_contract(
+        self, contract_id: UUID, account_id: UUID
+    ) -> PaymentClaimEntity | None:
+        """Активная (pending) заявка по договору."""
+        ...
+
+    @abstractmethod
+    def list_by_contract(
+        self,
+        contract_id: UUID,
+        account_id: UUID,
+        status: str | None = None,
+    ) -> Sequence[PaymentClaimEntity]:
+        """Список заявок по договору."""
         ...

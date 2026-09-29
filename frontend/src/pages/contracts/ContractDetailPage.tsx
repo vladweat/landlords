@@ -6,6 +6,7 @@ import {
   FileDown,
   FileText,
   FileX,
+  Link2,
   Phone,
   Play,
   RefreshCw,
@@ -19,6 +20,8 @@ import { contractsApi } from '@/features/contracts/api';
 import { propertiesApi } from '@/features/properties/api';
 import { tenantsApi } from '@/features/tenants/api';
 import { paymentsApi } from '@/features/payments/api';
+import { portalApi } from '@/features/portal/api';
+import { useCan } from '@/features/auth/permissions';
 import { Card } from '@/shared/ui/Card';
 import { Button } from '@/shared/ui/Button';
 import { Skeleton, LedgerSkeleton } from '@/shared/ui/Skeleton';
@@ -85,6 +88,8 @@ export default function ContractDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const canWriteContracts = useCan('write_contracts');
+  const canWritePayments = useCan('write_payments');
   const [terminateOpen, setTerminateOpen] = useState(false);
   const [renewOpen, setRenewOpen] = useState(false);
   const [paymentOpen, setPaymentOpen] = useState(false);
@@ -114,6 +119,11 @@ export default function ContractDetailPage() {
   const { data: charges } = useQuery({
     queryKey: ['contract-charges', id],
     queryFn: () => paymentsApi.getCharges(id!),
+    enabled: !!id,
+  });
+  const { data: pendingClaims } = useQuery({
+    queryKey: ['contract-claims', id, 'pending'],
+    queryFn: () => portalApi.listClaims(id!, 'pending'),
     enabled: !!id,
   });
 
@@ -153,6 +163,38 @@ export default function ContractDetailPage() {
       });
     },
     onError: (error) => showError(error, 'Не удалось запустить генерацию'),
+  });
+
+  const copyPortalMutation = useMutation({
+    mutationFn: () => portalApi.ensureLink(id!),
+    onSuccess: async (data) => {
+      await copyToClipboard(data.share_url);
+    },
+    onError: (error) => showError(error, 'Не удалось получить ссылку'),
+  });
+
+  const dismissClaimMutation = useMutation({
+    mutationFn: (claimId: string) => portalApi.dismissClaim(claimId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['contract-claims', id] });
+      queryClient.invalidateQueries({ queryKey: ['contract-events', id] });
+      toast.success('Заявка отклонена');
+    },
+    onError: (error) => showError(error, 'Не удалось отклонить заявку'),
+  });
+
+  const confirmClaimMutation = useMutation({
+    mutationFn: (claimId: string) => portalApi.confirmClaim(claimId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['contract-claims', id] });
+      queryClient.invalidateQueries({ queryKey: ['contract-events', id] });
+      queryClient.invalidateQueries({ queryKey: ['contract-ledger', id] });
+      queryClient.invalidateQueries({ queryKey: ['contract-charges', id] });
+      queryClient.invalidateQueries({ queryKey: ['payments'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
+      toast.success('Платёж проведён');
+    },
+    onError: (error) => showError(error, 'Не удалось подтвердить оплату'),
   });
 
   const isLoading = contractLoading || propsLoading || tenantsLoading;
@@ -212,6 +254,7 @@ export default function ContractDetailPage() {
         queryClient.invalidateQueries({ queryKey: ['contract-charges', id] }),
         queryClient.invalidateQueries({ queryKey: ['contract-ledger', id] }),
         queryClient.invalidateQueries({ queryKey: ['contract-events', id] }),
+        queryClient.invalidateQueries({ queryKey: ['contract-claims', id] }),
         queryClient.invalidateQueries({ queryKey: ['contracts'] }),
         queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] }),
       ]);
@@ -269,10 +312,19 @@ export default function ContractDetailPage() {
       icon: <FileText className="h-4 w-4" />,
       onClick: () => copyToClipboard(contract.id),
     },
+    ...(canWriteContracts
+      ? [{
+          label: copyPortalMutation.isPending ? 'Ссылка…' : 'Ссылка для арендатора',
+          icon: <Link2 className="h-4 w-4" />,
+          onClick: () => copyPortalMutation.mutate(),
+        }]
+      : []),
     ...(canTerminate
       ? [{ label: 'Расторгнуть', icon: <FileX className="h-4 w-4" />, danger: true, onClick: () => setTerminateOpen(true) }]
       : []),
   ];
+
+  const pendingClaim = pendingClaims?.[0] ?? null;
 
   return (
     <div className="space-y-6">
@@ -282,6 +334,41 @@ export default function ContractDetailPage() {
       >
         <ArrowLeft className="h-4 w-4" /> Назад
       </button>
+
+      {pendingClaim && (
+        <div className="rounded-xl border border-teal-200 bg-teal-50 px-4 py-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-teal-900">Арендатор сообщил об оплате</p>
+              <p className="mt-0.5 text-sm text-teal-800">
+                {pendingClaim.amount
+                  ? money(pendingClaim.amount, contract.currency)
+                  : 'Сумма не указана'}
+                {pendingClaim.note ? ` · ${pendingClaim.note}` : ''}
+              </p>
+            </div>
+            {canWritePayments && (
+              <div className="flex flex-wrap gap-2 shrink-0">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  isLoading={dismissClaimMutation.isPending}
+                  onClick={() => dismissClaimMutation.mutate(pendingClaim.id)}
+                >
+                  Отклонить
+                </Button>
+                <Button
+                  size="sm"
+                  isLoading={confirmClaimMutation.isPending}
+                  onClick={() => confirmClaimMutation.mutate(pendingClaim.id)}
+                >
+                  Подтвердить платёж
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Шапка */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
