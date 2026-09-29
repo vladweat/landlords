@@ -21,8 +21,9 @@ const dots: Record<CreditScore, string> = {
 
 export function CreditScoreBadge({ score = 'no_data', size = 'md' }: CreditScoreBadgeProps) {
   const c = config[score];
+  const padding = size === 'sm' ? 'px-1.5 py-0.5' : 'px-2 py-0.5';
   return (
-    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${c.bg} ${c.color}`}>
+    <span className={`inline-flex items-center gap-1 rounded-full ${padding} text-xs font-medium ${c.bg} ${c.color}`}>
       <span className="text-xs">{dots[score]}</span>
       {c.label}
     </span>

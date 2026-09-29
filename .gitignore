@@ -28,6 +28,8 @@ frontend/dist/
 # Storage (uploaded documents)
 storage/documents/*
 !storage/documents/.gitkeep
+storage/emails/
+backend/storage/
 
 # Logs
 *.log

@@ -1,5 +1,4 @@
 import { RefreshCw } from 'lucide-react';
-import { Button } from './Button';
 
 interface RefreshButtonProps {
   onClick: () => void;

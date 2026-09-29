@@ -4,7 +4,8 @@
 
 Справочник по архитектуре: [ARCHITECTURE.md](./ARCHITECTURE.md)
 
-**Статус:** 61 / 64 выполнено (3 открыты: reproducible Docker ×2, полный CI)
+**Статус:** 61 / 64 infra + открытый код-долг ниже.  
+Актуальный обзор долга: [ARCHITECTURE.md](./ARCHITECTURE.md) § «Стоит поменять в коде».
 
 ---
 
@@ -20,9 +21,25 @@
 - [X] Ужесточить CORS и security headers в prod — `nginx/nginx.conf`, `app/main.py`.
 
 ### Инфраструктура и CI
-- [ ] Reproducible Docker build из `requirements.txt` (не копировать `.venv`) — `Dockerfile`, CI.
+> Детали и порядок: [docs/INFRA.md](../docs/INFRA.md). Offline-`.venv` **не удалять** — нужен для офлайн-сборки.
+
+- [x] Docker: online-режим (`pip install -r requirements.txt`) рядом с offline (`COPY .venv`) — build-arg / target — `Dockerfile`, CI.
 - [x] Добавить volume `storage/documents` для API и Celery worker — `docker-compose.yml`.
-- [ ] CI: lint → unit → integration → build image → security scan → smoke tests.
+- [x] Старт контейнера: `alembic upgrade head` → uvicorn; healthcheck на `/ready`.
+- [x] CI: lint → unit → integration (Postgres/Redis) → frontend `tsc`/build → online image. Деплой — отдельный job.
+- [x] Заполнить root `.env.example` (SECRET_KEY, Postgres, SMTP).
+- [x] Один вход: nginx → API + Vite-статика; убрать конфликт порта 80 с `frontend`.
+- [x] Prod: Postgres/Redis без `ports` на хост; TLS; CORS не localhost.
+- [x] Бэкап/restore: Postgres + `storage/documents` → записать в [docs/deploy.md](../docs/deploy.md).
+
+### Код (без смены поведения) — порядок в ARCHITECTURE.md
+- [ ] Убрать `float()` из `forecast_service.py` / `roi_service.py` — отдавать строки.
+- [ ] N+1: батч-выборки charges/properties в forecast, ROI, обзоре объектов.
+- [ ] Разрезать `contract_service` (lifecycle), `pdf_service` (layout vs data), `routes/contracts.py` (документы/ledger/заметки).
+- [ ] Слить `get_active_by_property` → один метод с `get_active_for_property`.
+- [ ] Резать `deps.py` по доменам при следующем новом сервисе.
+- [ ] Celery: не ловить голый `Exception`; лог с `account_id` / `contract_id` — `charge_tasks.py`.
+- [ ] mypy хотя бы на `domain/` и `services/`.
 
 ### Тесты, миграции и БД
 - [x] Исправить `confest.py` → `conftest.py`; адаптировать integration tests к `/v1/...` и новой схеме property.
@@ -36,7 +53,8 @@
 ### Наблюдаемость и безопасность
 - [x] Подключить Sentry и структурированные логи; экспорт базовых метрик (Prometheus) — `app/main.py`, `app/core/config.py`.
 - [x] Настроить rate‑limit для чувствительных endpoint'ов (login, forgot-password, reminders).
-- [x] Health/readiness endpoints, deploy runbook и backup/restore план.
+- [x] Health/readiness endpoints (`/health`, `/ready`) в API.
+- [x] Deploy runbook и backup/restore — процедуры в репозитории нет → [docs/deploy.md](../docs/deploy.md), [INFRA.md](../docs/INFRA.md).
 
 ### Мелочи / техдолг
 - [x] Удалить неиспользуемые настройки и зависимости (`CACHE_DEFAULT_TTL`, `APP_TIMEZONE`, `testcontainers` в requirements).
@@ -73,7 +91,8 @@
 
 - [x] Guard на событие смены статуса: только при `dto.status != old_status` — `app/services/contract_service.py`
 - [x] Audit log: писать `user_id`, не `account_id` — `app/services/contract_service.py:136`
-- [x] Унифицировать `get_active_by_property` / `get_active_for_property` (включать `overdue`) — `contract_repo.py`, сервисы
+- [x] Семантика active+overdue в `get_active_for_property` — `contract_repo.py`, сервисы
+- [ ] Слить дубль `get_active_by_property` → один метод (сейчас просто делегирует)
 - [x] Оборачивать `ValueError` из `domain/rules.py` в `ValidationError` в сервисах
 - [x] `update_payment`: вернуть валидацию суммы + пересчёт charge/contract — `payment_service.py`
 - [x] `delete_payment`: использовать `_check_and_update_contract_status` + пересчёт charges — `payment_service.py`
@@ -101,7 +120,7 @@
 ## P4 — инфраструктура и тесты
 
 - [x] Дополнить `requirements.txt`: `python-jose`, `passlib[bcrypt]`, `reportlab`, `python-dateutil`
-- [ ] Reproducible Docker build из requirements (не копировать `.venv/site-packages`)
+- [ ] Docker online-режим из requirements (+ сохранить offline `.venv`) — см. INFRA.md
 - [x] Volume `storage/documents` для celery-worker — `docker-compose.yml`
 - [x] Переименовать `tests/confest.py` → `conftest.py`
 - [x] Integration tests: URL `/v1/...` вместо `/auth/`, `/properties/` …
@@ -117,7 +136,7 @@
 
 - [x] Убрать дублированный import — `auth.py:65-66`
 - [x] Заменить `datetime.utcnow()` на timezone-aware — `entities.py`, `pdf_service.py`
-- [x] Убрать `float()` для денег в dashboard/ROI (оставить Decimal/str)
+- [ ] Убрать `float()` для денег в forecast/ROI (оставить Decimal/str) — снова открыто: `forecast_service.py`, `roi_service.py`
 - [x] Вернуть rate-limit напоминаний — `reminder_service.py`
 - [x] Удалить комментарий-артеfact «В app/api/v1/routes/contracts.py добавить»
 - [x] Почистить неиспользуемые настройки: `CACHE_DEFAULT_TTL`, `APP_TIMEZONE`, `CELERY_BROKER_URL`
