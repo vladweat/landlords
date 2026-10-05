@@ -1,65 +1,127 @@
-import { motion } from 'framer-motion';
+import { Link } from 'react-router-dom';
 import { Building2 } from 'lucide-react';
-import { Card } from '@/shared/ui/Card';
 import type { PropertyOverviewItem } from '@/entities/dashboard';
+import { DashboardSection } from './DashboardSection';
+import { shortAddress } from '@/shared/lib/address';
 
-const statusLabels: Record<string, string> = { active: 'Активен', overdue: 'Просрочка' };
-const statusColors: Record<string, string> = { active: 'bg-green-100 text-green-700', overdue: 'bg-red-100 text-red-700' };
+const statusLabels: Record<string, string> = {
+  active: 'Активен',
+  overdue: 'Просрочка',
+  vacant: 'Свободен',
+};
+const statusColors: Record<string, string> = {
+  active: 'bg-green-100 text-green-700',
+  overdue: 'bg-red-100 text-red-700',
+  vacant: 'bg-gray-100 text-gray-600',
+};
 
 interface PropertiesOverviewProps {
   data: PropertyOverviewItem[];
 }
 
+function StatusBadge({ status }: { status: 'active' | 'overdue' | null }) {
+  const key = status ?? 'vacant';
+  return (
+    <span
+      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusColors[key]}`}
+    >
+      {statusLabels[key]}
+    </span>
+  );
+}
+
 export function PropertiesOverview({ data }: PropertiesOverviewProps) {
-  if (!data || data.length < 3) return null;
+  if (!data || data.length === 0) {
+    return (
+      <DashboardSection
+        title="Объекты"
+        icon={<Building2 className="h-4 w-4 text-blue-600" />}
+        action={{ label: 'Все объекты', to: '/properties' }}
+      >
+        <div className="py-4 text-center">
+          <p className="text-sm text-gray-500 mb-3">Пока нет объектов в портфеле</p>
+          <Link
+            to="/properties"
+            className="text-sm font-medium text-blue-600 hover:text-blue-800"
+          >
+            Добавить объект
+          </Link>
+        </div>
+      </DashboardSection>
+    );
+  }
 
   return (
-    <Card>
-      <h2 className="text-lg font-semibold mb-3 flex items-center gap-2"><Building2 className="h-5 w-5" /> Объекты</h2>
-
-      <div className="hidden sm:block">
+    <DashboardSection
+      title="Объекты"
+      icon={<Building2 className="h-4 w-4 text-blue-600" />}
+      action={{ label: 'Все объекты', to: '/properties' }}
+      bodyClassName="p-0"
+      flush
+    >
+      <div className="hidden sm:block overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-100 text-left text-gray-500">
-              <th className="py-2 font-medium">Объект</th>
-              <th className="py-2 font-medium">Арендатор</th>
-              <th className="py-2 font-medium">Статус</th>
-              <th className="py-2 font-medium text-right">Доход/мес</th>
+              <th className="px-4 py-2.5 font-medium">Объект</th>
+              <th className="px-4 py-2.5 font-medium">Арендатор</th>
+              <th className="px-4 py-2.5 font-medium">Статус</th>
+              <th className="px-4 py-2.5 font-medium text-right">Доход/мес</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
             {data.map((p) => (
-              <motion.tr key={p.property_id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="transition-colors">
-                <td className="py-2 font-medium truncate max-w-[200px]">{p.address}</td>
-                <td className="py-2 text-gray-500">{p.tenant_name || <span className="text-gray-300">—</span>}</td>
-                <td className="py-2">
-                  {p.contract_status ? (
-                    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusColors[p.contract_status]}`}>{statusLabels[p.contract_status]}</span>
-                  ) : <span className="text-gray-300">—</span>}
+              <tr key={p.property_id} className="hover:bg-gray-50 transition-colors">
+                <td className="px-4 py-2.5 font-medium truncate max-w-[220px]">
+                  <Link
+                    to={`/properties/${p.property_id}`}
+                    className="text-gray-900 hover:text-blue-700"
+                  >
+                    {shortAddress(p.address)}
+                  </Link>
                 </td>
-                <td className="py-2 text-right font-medium">
+                <td className="px-4 py-2.5 text-gray-500">
+                  {p.tenant_name || <span className="text-gray-300">—</span>}
+                </td>
+                <td className="px-4 py-2.5">
+                  <StatusBadge status={p.contract_status} />
+                </td>
+                <td className="px-4 py-2.5 text-right font-medium tabular-nums">
                   {Number(p.monthly_income).toLocaleString('ru-RU')} ₽
                   {p.income_is_forecast ? (
                     <span className="ml-1 text-[11px] font-normal text-amber-600">прогноз</span>
                   ) : null}
                 </td>
-              </motion.tr>
+              </tr>
             ))}
           </tbody>
         </table>
       </div>
 
-      <div className="sm:hidden space-y-2">
+      <div className="sm:hidden divide-y divide-gray-50">
         {data.map((p) => (
-          <div key={p.property_id} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
-            <div>
-              <p className="text-sm font-medium">{p.address}</p>
-              <p className="text-xs text-gray-400">{p.tenant_name || 'Свободен'}</p>
+          <Link
+            key={p.property_id}
+            to={`/properties/${p.property_id}`}
+            className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-gray-50"
+          >
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-gray-900 truncate">
+                {shortAddress(p.address)}
+              </p>
+              <div className="mt-1 flex items-center gap-2">
+                <StatusBadge status={p.contract_status} />
+                <span className="text-xs text-gray-400 truncate">
+                  {p.tenant_name || 'Свободен'}
+                </span>
+              </div>
             </div>
-            <span className="text-sm font-semibold">{Number(p.monthly_income).toLocaleString('ru-RU')} ₽</span>
-          </div>
+            <span className="text-sm font-semibold tabular-nums flex-shrink-0">
+              {Number(p.monthly_income).toLocaleString('ru-RU')} ₽
+            </span>
+          </Link>
         ))}
       </div>
-    </Card>
+    </DashboardSection>
   );
 }

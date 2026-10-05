@@ -33,7 +33,7 @@ export function ForecastChart({ months }: ForecastChartProps) {
         <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={45} tickFormatter={(v: number) => `${(v / 1000).toFixed(0)}k`} />
         <Tooltip
           formatter={(value) => [`${Number(value ?? 0).toLocaleString('ru-RU')} ₽`, 'Доход']}
-          labelFormatter={(label) => `${String(label)} 2026`}
+          labelFormatter={(label) => String(label)}
           contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', fontSize: '12px', padding: '6px 10px' }}
         />
         <Bar dataKey="income" radius={[6, 6, 0, 0]}>

@@ -1,16 +1,17 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { addDays, format } from 'date-fns';
-import { ArrowRight, CalendarDays } from 'lucide-react';
+import { CalendarDays } from 'lucide-react';
 import { calendarApi } from '@/features/calendar/api';
 import { CalendarEventRow } from '@/features/calendar/components/CalendarEventRow';
-import { Card } from '@/shared/ui/Card';
 import { Skeleton } from '@/shared/ui/Skeleton';
+import { DashboardSection } from './DashboardSection';
 
 const PREVIEW_LIMIT = 6;
 
 export function UpcomingEventsWidget() {
+  const queryClient = useQueryClient();
   const today = useMemo(() => {
     const d = new Date();
     return new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -19,7 +20,7 @@ export function UpcomingEventsWidget() {
   const from = format(today, 'yyyy-MM-dd');
   const to = format(addDays(today, 45), 'yyyy-MM-dd');
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, isFetching } = useQuery({
     queryKey: ['calendar-events', from, to],
     queryFn: () => calendarApi.getEvents({ from, to }),
   });
@@ -28,21 +29,16 @@ export function UpcomingEventsWidget() {
   const total = data?.items.length ?? 0;
 
   return (
-    <Card className="rounded-xl border border-gray-200 shadow-sm p-0 overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-        <h2 className="text-sm font-medium text-gray-700 flex items-center gap-2">
-          <CalendarDays className="h-4 w-4 text-blue-600" />
-          Ближайшие события
-        </h2>
-        <Link
-          to="/calendar"
-          className="flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-800"
-        >
-          Все {total > PREVIEW_LIMIT ? `(${total})` : ''}
-          <ArrowRight className="h-4 w-4" />
-        </Link>
-      </div>
-
+    <DashboardSection
+      title="Ближайшие события"
+      icon={<CalendarDays className="h-4 w-4 text-blue-600" />}
+      action={{
+        label: total > PREVIEW_LIMIT ? `Все (${total})` : 'Календарь',
+        to: '/calendar',
+      }}
+      flush
+      bodyClassName="p-0"
+    >
       {isLoading ? (
         <div className="p-4 space-y-2">
           <Skeleton className="h-10 w-full" />
@@ -50,9 +46,26 @@ export function UpcomingEventsWidget() {
           <Skeleton className="h-10 w-full" />
         </div>
       ) : isError ? (
-        <p className="px-4 py-6 text-sm text-red-500">Не удалось загрузить события</p>
+        <div className="px-4 py-6 text-center">
+          <p className="text-sm text-red-500 mb-2">Не удалось загрузить события</p>
+          <button
+            type="button"
+            onClick={() =>
+              queryClient.invalidateQueries({ queryKey: ['calendar-events', from, to] })
+            }
+            className="text-sm font-medium text-blue-600 hover:text-blue-800"
+            disabled={isFetching}
+          >
+            Повторить
+          </button>
+        </div>
       ) : preview.length === 0 ? (
-        <p className="px-4 py-6 text-sm text-gray-500">Нет ближайших событий</p>
+        <div className="px-4 py-6 text-center">
+          <p className="text-sm text-gray-500 mb-2">Нет ближайших событий</p>
+          <Link to="/contracts" className="text-sm font-medium text-blue-600 hover:text-blue-800">
+            Проверить договоры
+          </Link>
+        </div>
       ) : (
         <div>
           {preview.map((event) => (
@@ -60,10 +73,11 @@ export function UpcomingEventsWidget() {
               key={`${event.type}-${event.charge_id || event.contract_id}-${event.date}`}
               event={event}
               today={today}
+              showActionHint={false}
             />
           ))}
         </div>
       )}
-    </Card>
+    </DashboardSection>
   );
 }
