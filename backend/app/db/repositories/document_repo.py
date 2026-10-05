@@ -66,3 +66,13 @@ class DocumentRepository(IDocumentRepository):
             .scalar()
         )
         return int(total or 0)
+
+    def list_by_account(self, account_id: UUID) -> list[DocumentEntity]:
+        """Все документы аккаунта."""
+        models = (
+            self.session.query(DocumentModel)
+            .filter_by(account_id=account_id)
+            .order_by(DocumentModel.created_at.desc())
+            .all()
+        )
+        return [m.to_entity() for m in models]

@@ -102,11 +102,26 @@ def create_app() -> FastAPI:
         except Exception:
             return JSONResponse(status_code=503, content={"status": "error", "message": "redis_unavailable"})
 
+        # Beat stale → алерт (дедуп); readiness по DB/Redis не ломаем.
+        try:
+            from app.services.ops_alert_service import check_and_alert_beat_stale, update_ops_gauges
+
+            update_ops_gauges()
+            check_and_alert_beat_stale()
+        except Exception:
+            logger.exception("ops beat check failed during readiness")
+
         return JSONResponse(status_code=200, content={"status": "ok"})
 
     @app.get("/metrics")
     def metrics() -> Response:
         """Prometheus metrics endpoint."""
+        try:
+            from app.services.ops_alert_service import update_ops_gauges
+
+            update_ops_gauges()
+        except Exception:
+            logger.exception("ops gauges update failed")
         data = generate_latest()
         return Response(content=data, media_type=CONTENT_TYPE_LATEST)
 
@@ -129,6 +144,7 @@ def create_app() -> FastAPI:
     from app.api.v1.routes.public_invoices import router as public_invoices_router
     from app.api.v1.routes.public_invites import router as public_invites_router
     from app.api.v1.routes.public_portal import router as public_portal_router
+    from app.api.v1.routes.public_status import router as public_status_router
     from app.api.v1.routes.claims import router as claims_router
     from app.api.v1.routes.billing import router as billing_router
 
@@ -153,6 +169,7 @@ def create_app() -> FastAPI:
     app.include_router(public_invoices_router)
     app.include_router(public_invites_router)
     app.include_router(public_portal_router)
+    app.include_router(public_status_router)
 
     return app
 

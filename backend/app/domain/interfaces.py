@@ -531,6 +531,11 @@ class IDocumentRepository(ABC):
         """Суммарный размер документов аккаунта в байтах."""
         ...
 
+    @abstractmethod
+    def list_by_account(self, account_id: UUID) -> list[DocumentEntity]:
+        """Все документы аккаунта (метаданные)."""
+        ...
+
 class IContractEventRepository(ABC):
 
     @abstractmethod
@@ -664,6 +669,11 @@ class IFeedbackRepository(ABC):
     @abstractmethod
     def create(self, entity: FeedbackEntity) -> FeedbackEntity:
         """Создать запись обратной связи."""
+        ...
+
+    @abstractmethod
+    def list_by_account(self, account_id: UUID) -> list[FeedbackEntity]:
+        """Список обратной связи аккаунта."""
         ...
 
 

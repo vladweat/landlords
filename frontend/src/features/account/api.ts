@@ -132,4 +132,21 @@ export const accountApi = {
     );
     return response.data;
   },
+
+  exportData: async (): Promise<void> => {
+    const response = await apiClient.get('/account/export', {
+      responseType: 'blob',
+    });
+    const header = response.headers['content-disposition'] as string | undefined;
+    const match = header ? /filename="?([^"]+)"?/i.exec(header) : null;
+    const filename = match?.[1] || 'landlords_export.zip';
+    const url = window.URL.createObjectURL(response.data as Blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  },
 };

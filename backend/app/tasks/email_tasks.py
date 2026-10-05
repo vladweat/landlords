@@ -52,6 +52,9 @@ def send_daily_reminder_emails() -> dict[str, Any]:
         )
         stats = service.send_daily_reminders()
         session.commit()
+        from app.services.ops_heartbeat import mark_beat_ok
+
+        mark_beat_ok()
         logger.info("Daily reminder emails: {}", stats)
         return {"status": "success", **stats}
     except Exception:

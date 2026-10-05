@@ -60,6 +60,12 @@ export default function LoginPage() {
             <Link to="/forgot-password" className="text-sm text-blue-600 hover:underline">Забыли пароль?</Link>
           </div>
         </Card>
+        <p className="mt-6 text-center text-xs text-gray-400 space-x-3">
+          <a href="/offer" className="hover:text-gray-600 hover:underline">Оферта</a>
+          <a href="/privacy" className="hover:text-gray-600 hover:underline">Конфиденциальность</a>
+          <a href="/terms" className="hover:text-gray-600 hover:underline">Условия</a>
+          <a href="/status" className="hover:text-gray-600 hover:underline">Статус</a>
+        </p>
       </motion.div>
     </div>
   );

@@ -36,6 +36,9 @@ def process_subscription_renewals() -> dict[str, Any]:
         service = BillingService(AccountRepository(session), YooKassaClient())
         result = service.process_renewals(now=datetime.now(timezone.utc))
         session.commit()
+        from app.services.ops_heartbeat import mark_beat_ok
+
+        mark_beat_ok()
         logger.info("Subscription renewals done: %s", result)
         return {"status": "success", **result}
     except Exception:
