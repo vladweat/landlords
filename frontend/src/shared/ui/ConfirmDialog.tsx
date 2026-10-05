@@ -1,7 +1,9 @@
+import { useEffect, useState } from 'react';
 import { useEscapeKey } from '@/shared/hooks/useEscapeKey';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle } from 'lucide-react';
 import { Button } from './Button';
+import { Input } from './Input';
 
 interface ConfirmDialogProps {
   isOpen: boolean;
@@ -12,6 +14,8 @@ interface ConfirmDialogProps {
   isLoading?: boolean;
   confirmLabel?: string;
   confirmVariant?: 'primary' | 'danger';
+  /** Если задано — подтверждение только после ввода этой строки. */
+  requireTypedConfirmation?: string;
 }
 
 export function ConfirmDialog({
@@ -23,8 +27,18 @@ export function ConfirmDialog({
   isLoading,
   confirmLabel = 'Удалить',
   confirmVariant = 'danger',
+  requireTypedConfirmation,
 }: ConfirmDialogProps) {
+  const [typed, setTyped] = useState('');
   useEscapeKey(onClose);
+
+  useEffect(() => {
+    if (!isOpen) setTyped('');
+  }, [isOpen]);
+
+  const canConfirm =
+    !requireTypedConfirmation || typed === requireTypedConfirmation;
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -49,12 +63,28 @@ export function ConfirmDialog({
                 </div>
                 <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
               </div>
-              <p className="text-sm text-gray-600 mb-6">{message}</p>
+              <p className={`text-sm text-gray-600 ${requireTypedConfirmation ? 'mb-4' : 'mb-6'}`}>{message}</p>
+              {requireTypedConfirmation && (
+                <div className="mb-6">
+                  <Input
+                    label={`Введите ${requireTypedConfirmation} для подтверждения`}
+                    value={typed}
+                    onChange={(e) => setTyped(e.target.value)}
+                    autoComplete="off"
+                  />
+                </div>
+              )}
               <div className="flex gap-3">
                 <Button variant="secondary" onClick={onClose} className="flex-1">
                   Отмена
                 </Button>
-                <Button variant={confirmVariant} onClick={onConfirm} className="flex-1" isLoading={isLoading}>
+                <Button
+                  variant={confirmVariant}
+                  onClick={onConfirm}
+                  className="flex-1"
+                  isLoading={isLoading}
+                  disabled={!canConfirm}
+                >
                   {confirmLabel}
                 </Button>
               </div>

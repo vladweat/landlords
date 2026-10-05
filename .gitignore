@@ -29,6 +29,7 @@ frontend/dist/
 storage/documents/*
 !storage/documents/.gitkeep
 storage/emails/
+# incidents.json в репо; локальные правки можно не коммитить
 backend/storage/
 
 # Logs

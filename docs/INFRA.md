@@ -66,7 +66,15 @@ Nginx проксирует `/api` на API и отдаёт собранный Vi
 
 ### 6. Наблюдаемость
 
-`/ready` в healthcheck API. Sentry DSN в проде. Алерт, если beat не создал начисления или кончилось место под документы. Prometheus можно оставить на потом: эндпоинт уже есть.
+`/ready` в healthcheck API (DB + Redis). В проде задай `SENTRY_DSN`.
+
+Алерты (письмо на `SUPPORT_EMAIL` + `capture_message` в Sentry, дедуп 1ч в Redis):
+- **Beat stale** — Redis-ключ `ops:beat:last_ok` обновляют daily/hourly scheduled-задачи; проверка при `/ready`, порог `OPS_BEAT_STALE_HOURS` (26).
+- **Диск документов** — hourly Celery `check_ops_health`, порог `OPS_DISK_MIN_FREE_MB` (500).
+
+Gauges на `/metrics`: `ops_beat_last_ok_timestamp`, `ops_documents_disk_free_bytes`. Полноценный Prometheus/Alertmanager — по желанию позже.
+
+Статус для пользователей: файл `storage/status/incidents.json` (volume), API `GET /v1/public/status`, UI `/status`.
 
 ---
 

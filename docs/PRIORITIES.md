@@ -58,9 +58,9 @@ Volume `storage/documents` для api и celery — **готово**.
 |--------|-------------|
 | ~~Тарифы и лимиты~~ | Готово: Free/Pro/Enterprise, enforcement, Settings UI (оплата — отдельно) |
 | ~~Оплата~~ | Готово: ЮKassa test/demo, Pro checkout + автоплатежи, webhook, grace → Free; Enterprise вручную |
-| Юридическое | Оферта, политика данных, удаление аккаунта, выгрузка |
-| Наблюдаемость | Sentry + алерты на beat и диск документов |
-| Поддержка | Почта «написать нам», статус инцидентов |
+| ~~Юридическое~~ | Готово: оферта/privacy/terms, DELETE + typed confirm, `GET /v1/account/export` |
+| ~~Наблюдаемость~~ | Готово: Sentry DSN, heartbeat beat, алерты email+Sentry (диск / stale beat), gauges |
+| ~~Поддержка~~ | Готово: feedback→SUPPORT_EMAIL, `/status` + `storage/status/incidents.json` |
 
 ---
 

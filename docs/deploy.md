@@ -94,6 +94,43 @@ curl -sf http://localhost/ready
 
 После старта API снова прогонит `alembic upgrade head` (идемпотентно, если схема уже на head).
 
+## Наблюдаемость и поддержка
+
+В `backend/.env` для прода:
+
+```bash
+SENTRY_DSN=https://...@sentry.io/...
+SUPPORT_EMAIL=hello@landlords.ru
+# OPS_DISK_MIN_FREE_MB=500
+# OPS_BEAT_STALE_HOURS=26
+# STATUS_INCIDENTS_PATH=/app/storage/status/incidents.json
+```
+
+Инциденты на публичной странице `/status` правятся без редеплоя — файл на хосте:
+
+```bash
+# пример: объявить деградацию
+cat > storage/status/incidents.json <<'EOF'
+{
+  "overall": "degraded",
+  "updated_at": "2026-10-05T12:00:00+00:00",
+  "incidents": [
+    {
+      "id": "smtp-2026-10-05",
+      "title": "Задержки почты",
+      "status": "investigating",
+      "started_at": "2026-10-05T11:00:00+00:00",
+      "message": "Письма с напоминаниями могут приходить с задержкой."
+    }
+  ]
+}
+EOF
+```
+
+`overall`: `operational` | `degraded` | `outage`. Volume `./storage/status` смонтирован в api и celery-worker.
+
+Алерты ops уходят на `SUPPORT_EMAIL` и в Sentry (если DSN задан). Проверка: `curl -sf http://localhost/metrics | grep ops_`.
+
 ## Чеклист перед продом
 
 - [ ] `APP_ENV=production`, свой `SECRET_KEY`
@@ -102,3 +139,5 @@ curl -sf http://localhost/ready
 - [ ] Пробный dump → restore на чистый volume
 - [ ] TLS и корректный `FRONTEND_URL`
 - [ ] SMTP (этап 2) или осознанный `ALLOW`/файл для reset только на self-hosted
+- [ ] `SENTRY_DSN` и `SUPPORT_EMAIL`
+- [ ] `storage/status/incidents.json` на месте

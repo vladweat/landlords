@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     # ==================== Frontend / Email ====================
     # Базовый URL фронтенда — используется для формирования ссылок в письмах (reset password).
     FRONTEND_URL: str = "http://localhost:3000"
+    SUPPORT_EMAIL: str = "hello@landlords.ru"
 
     # Почта: SMTP вручную и/или Resend API key (тогда smtp.resend.com).
     # Если нет ни SMTP_HOST, ни RESEND_API_KEY — письма в storage/emails/.
@@ -41,6 +42,13 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: str | None = None
     SMTP_FROM: str | None = None
     RESEND_API_KEY: str | None = None
+
+    # ==================== Ops / алерты ====================
+    # Файл статуса инцидентов (правка без редеплоя).
+    STATUS_INCIDENTS_PATH: str = "/app/storage/status/incidents.json"
+    OPS_DISK_MIN_FREE_MB: int = 500
+    OPS_BEAT_STALE_HOURS: int = 26
+    DOCUMENTS_STORAGE_DIR: str = "/app/storage/documents"
 
     # ==================== ЮKassa (SaaS billing) ====================
     # Демо-магазин: ключ начинается с test_. Без ключей checkout недоступен.

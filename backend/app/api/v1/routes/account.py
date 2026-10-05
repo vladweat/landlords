@@ -3,6 +3,7 @@
 from uuid import UUID
 
 from app.api.deps import (
+    get_account_export_service,
     get_account_service,
     get_current_account_id,
     get_current_user_id,
@@ -28,6 +29,7 @@ from app.api.v1.schemas.account_schema import (
 )
 from app.domain.entities import MembershipEntity
 from app.domain.permissions import Permission
+from app.services.account_export_service import AccountExportService
 from app.services.account_service import AccountService
 from app.services.dto.invite_dto import InviteCreateDTO
 from app.services.dto.membership_dto import (
@@ -37,6 +39,7 @@ from app.services.dto.membership_dto import (
 from app.services.invite_service import InviteService
 from app.services.plan_limit_service import PlanLimitService
 from fastapi import APIRouter, Depends
+from fastapi.responses import Response
 
 router = APIRouter(prefix="/v1/account", tags=["Account"])
 
@@ -94,6 +97,21 @@ def update_account(
         ),
     )
     return {"status": "success", "data": AccountResponse.model_validate(dto)}
+
+
+@router.get("/export")
+def export_account_data(
+    account_id: UUID = Depends(get_current_account_id),
+    service: AccountExportService = Depends(get_account_export_service),
+    _: MembershipEntity = Depends(require_permissions(Permission.MANAGE_ACCOUNT)),
+) -> Response:
+    """Скачать архив с данными аккаунта (owner)."""
+    content, filename = service.export_zip(account_id)
+    return Response(
+        content=content,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get("/members", response_model=MemberListResponse)

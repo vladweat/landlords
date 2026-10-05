@@ -26,6 +26,7 @@ services:
         INSTALL_MODE: ${INSTALL_MODE:-offline}
     volumes:
       - ./storage/documents:/app/storage/documents
+      - ./storage/status:/app/storage/status
     env_file:
       - backend/.env
     environment:
@@ -56,6 +57,7 @@ services:
     command: python -m celery -A worker.celery_app worker --loglevel=info --concurrency=4
     volumes:
       - ./storage/documents:/app/storage/documents
+      - ./storage/status:/app/storage/status
     env_file:
       - backend/.env
     environment:

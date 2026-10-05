@@ -131,6 +131,10 @@ def update_overdue_charges() -> dict[str, Any]:
 
         session.commit()
 
+        from app.services.ops_heartbeat import mark_beat_ok
+
+        mark_beat_ok()
+
         logger.info(
             "Updated overdue charges=%d contracts_to_overdue=%d contracts_to_active=%d",
             charges_updated,

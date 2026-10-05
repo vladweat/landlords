@@ -61,6 +61,12 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
                   <Button type="button" variant="secondary" onClick={onClose} className="flex-1">Отмена</Button>
                   <Button type="submit" className="flex-1" isLoading={mutation.isPending}>Отправить</Button>
                 </div>
+                <p className="text-xs text-gray-400 text-center pt-1">
+                  Или напишите на{' '}
+                  <a href="mailto:hello@landlords.ru" className="text-blue-600 hover:underline">hello@landlords.ru</a>
+                  {' · '}
+                  <a href="/status" className="text-blue-600 hover:underline">Статус сервиса</a>
+                </p>
               </form>
             </div>
           </motion.div>

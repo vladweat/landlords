@@ -35,6 +35,7 @@ from app.domain.entities import MembershipEntity
 from app.domain.permissions import Permission, has_permission
 
 # Сервисы
+from app.services.account_export_service import AccountExportService
 from app.services.account_service import AccountService
 from app.services.audit_log_service import AuditService
 from app.services.billing_service import BillingService
@@ -47,6 +48,7 @@ from app.services.dashboard_service import DashboardService
 from app.services.document_service import DocumentService
 from app.services.email_service import EmailService
 from app.services.feedback_service import FeedbackService
+from app.services.status_service import StatusService
 from app.services.yookassa_client import YooKassaClient
 from app.services.forecast_service import ForecastService
 from app.services.invite_service import InviteService
@@ -164,6 +166,38 @@ def get_account_service(
     user_repo: UserRepository = Depends(get_user_repo),
 ) -> AccountService:
     return AccountService(account_repo, membership_repo, user_repo)
+
+
+def get_account_export_service(
+    account_repo: AccountRepository = Depends(get_account_repo),
+    membership_repo: MembershipRepository = Depends(get_membership_repo),
+    user_repo: UserRepository = Depends(get_user_repo),
+    property_repo: PropertyRepository = Depends(get_property_repo),
+    tenant_repo: TenantRepository = Depends(get_tenant_repo),
+    contract_repo: ContractRepository = Depends(get_contract_repo),
+    charge_repo: RentChargeRepository = Depends(get_rent_charge_repo),
+    payment_repo: PaymentRepository = Depends(get_payment_repo),
+    expense_repo: PropertyExpenseRepository = Depends(get_property_expense_repo),
+    document_repo: DocumentRepository = Depends(get_document_repo),
+    feedback_repo: FeedbackRepository = Depends(get_feedback_repo),
+) -> AccountExportService:
+    return AccountExportService(
+        account_repo,
+        membership_repo,
+        user_repo,
+        property_repo,
+        tenant_repo,
+        contract_repo,
+        charge_repo,
+        payment_repo,
+        expense_repo,
+        document_repo,
+        feedback_repo,
+    )
+
+
+def get_status_service() -> StatusService:
+    return StatusService()
 
 
 def get_plan_limit_service(
@@ -416,8 +450,9 @@ def get_contract_event_service(
 
 def get_feedback_service(
     feedback_repo: FeedbackRepository = Depends(get_feedback_repo),
+    email_service: EmailService = Depends(get_email_service),
 ) -> FeedbackService:
-    return FeedbackService(feedback_repo)
+    return FeedbackService(feedback_repo, email_service)
 
 def get_notification_service(
     calendar_service: CalendarService = Depends(get_calendar_service),

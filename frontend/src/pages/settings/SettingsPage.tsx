@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import { User, Key, Trash2, Users, Building2 } from 'lucide-react';
+import { User, Key, Trash2, Users, Building2, Download, LifeBuoy } from 'lucide-react';
 import { authApi } from '@/features/auth/api';
 import { accountApi } from '@/features/account/api';
 import { PlanSection } from '@/features/account/components/PlanSection';
@@ -51,6 +51,7 @@ export default function SettingsPage() {
   const canManageAccount = useCan('manage_account');
   const [removingUserId, setRemovingUserId] = useState<string | null>(null);
   const [revokingInviteId, setRevokingInviteId] = useState<string | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const billingReturnHandled = useRef(false);
 
   useEffect(() => {
@@ -226,8 +227,19 @@ export default function SettingsPage() {
 
   const deleteMutation = useMutation({
     mutationFn: authApi.deleteAccount,
-    onSuccess: () => { toast.success('Аккаунт удалён'); logout(); navigate('/login'); },
+    onSuccess: () => {
+      setDeleteDialogOpen(false);
+      toast.success('Аккаунт удалён');
+      logout();
+      navigate('/login');
+    },
     onError: (error) => showError(error, 'Ошибка удаления'),
+  });
+
+  const exportMutation = useMutation({
+    mutationFn: accountApi.exportData,
+    onSuccess: () => toast.success('Архив с данными скачан'),
+    onError: (error) => showError(error, 'Ошибка выгрузки'),
   });
 
   return (
@@ -454,13 +466,73 @@ export default function SettingsPage() {
         </Card>
       )}
 
+      <Card>
+        <h2 className="text-lg font-medium text-gray-800 mb-2 flex items-center gap-2">
+          <LifeBuoy className="h-5 w-5" /> Поддержка
+        </h2>
+        <p className="text-sm text-gray-500 mb-3">
+          Напишите нам или посмотрите статус сервиса. Обратная связь также доступна из меню слева.
+        </p>
+        <div className="flex flex-wrap gap-3 text-sm">
+          <a href="mailto:hello@landlords.ru" className="text-blue-600 hover:underline">
+            hello@landlords.ru
+          </a>
+          <a href="/status" className="text-blue-600 hover:underline">Статус сервиса</a>
+          <a href="/offer" className="text-blue-600 hover:underline">Оферта</a>
+          <a href="/privacy" className="text-blue-600 hover:underline">Конфиденциальность</a>
+          <a href="/terms" className="text-blue-600 hover:underline">Условия</a>
+        </div>
+      </Card>
+
       {canManageAccount && (
-        <Card className="border-red-200">
-          <h2 className="text-lg font-medium text-red-600 mb-2 flex items-center gap-2"><Trash2 className="h-5 w-5" /> Удалить аккаунт</h2>
-          <p className="text-sm text-gray-500 mb-4">Все данные будут удалены без возможности восстановления.</p>
-          <Button variant="danger" size="sm" onClick={() => { if (confirm('Вы уверены? Это действие необратимо.')) deleteMutation.mutate(); }} isLoading={deleteMutation.isPending}>Удалить аккаунт</Button>
+        <Card>
+          <h2 className="text-lg font-medium text-gray-800 mb-2 flex items-center gap-2">
+            <Download className="h-5 w-5" /> Мои данные
+          </h2>
+          <p className="text-sm text-gray-500 mb-4">
+            Скачайте архив с данными аккаунта (JSON). Бинарные файлы документов не включаются — только метаданные.
+          </p>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => exportMutation.mutate()}
+            isLoading={exportMutation.isPending}
+            leftIcon={<Download className="h-4 w-4" />}
+          >
+            Скачать мои данные
+          </Button>
         </Card>
       )}
+
+      {canManageAccount && (
+        <Card className="border-red-200">
+          <h2 className="text-lg font-medium text-red-600 mb-2 flex items-center gap-2">
+            <Trash2 className="h-5 w-5" /> Удалить аккаунт
+          </h2>
+          <p className="text-sm text-gray-500 mb-4">
+            Все данные будут удалены без возможности восстановления. Перед удалением рекомендуется скачать выгрузку.
+          </p>
+          <Button
+            variant="danger"
+            size="sm"
+            onClick={() => setDeleteDialogOpen(true)}
+            isLoading={deleteMutation.isPending}
+          >
+            Удалить аккаунт
+          </Button>
+        </Card>
+      )}
+
+      <ConfirmDialog
+        isOpen={deleteDialogOpen}
+        onClose={() => setDeleteDialogOpen(false)}
+        onConfirm={() => deleteMutation.mutate()}
+        title="Удалить аккаунт?"
+        message="Действие необратимо. Для подтверждения введите DELETE."
+        isLoading={deleteMutation.isPending}
+        requireTypedConfirmation="DELETE"
+        confirmLabel="Удалить навсегда"
+      />
 
       <ConfirmDialog
         isOpen={!!removingUserId}
