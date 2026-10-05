@@ -340,73 +340,13 @@ export default function SettingsPage() {
     return Array.from(new Set(current ? [current, ...defaultTimezones] : defaultTimezones));
   }, [account?.timezone]);
 
-  const sections: Array<{
-    id: SectionId;
-    title: string;
-    description: string;
-    icon: LucideIcon;
-  }> = [
-    {
-      id: 'personal',
-      title: 'Личное',
-      description: 'Профиль, пароль и персональные уведомления.',
-      icon: User,
-    },
-    {
-      id: 'account',
-      title: 'Аккаунт',
-      description: 'Организация, реквизиты, тариф и лимиты.',
-      icon: Building2,
-    },
-    {
-      id: 'team',
-      title: 'Команда и роли',
-      description: 'Участники, приглашения и границы доступа.',
-      icon: Users,
-    },
-    {
-      id: 'documents',
-      title: 'Договоры и данные',
-      description: 'Шаблоны договоров, поддержка и данные аккаунта.',
-      icon: FileText,
-    },
-  ];
-
   return (
     <div className="space-y-8">
       <div>
         <h1 className="text-3xl font-semibold text-gray-900">Настройки</h1>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[250px_minmax(0,1fr)]">
-        <aside className="lg:sticky lg:top-6 lg:self-start">
-          <Card className="border-gray-100 bg-gray-50/70 p-2 shadow-none">
-            <nav className="space-y-1">
-              {sections.map(({ id, title, description, icon: Icon }) => (
-                <a
-                  key={id}
-                  href={`#${id}`}
-                  className="block rounded-xl border border-transparent bg-white px-3 py-3 transition-colors hover:border-gray-200 hover:bg-white"
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="rounded-lg bg-slate-100 p-2 text-slate-600">
-                      <Icon className="h-4 w-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-sm font-medium text-gray-900">{title}</div>
-                      <div className="mt-0.5 text-xs leading-5 text-gray-500">
-                        {description}
-                      </div>
-                    </div>
-                  </div>
-                </a>
-              ))}
-            </nav>
-          </Card>
-        </aside>
-
-        <div className="space-y-8">
-          <Section
+      <Section
             id="personal"
             title="Личное"
             description="Профиль, доступ в систему и персональные уведомления."
@@ -935,9 +875,7 @@ export default function SettingsPage() {
                 </Button>
               </Card>
             )}
-          </Section>
-        </div>
-      </div>
+      </Section>
 
       <ConfirmDialog
         isOpen={deleteDialogOpen}
