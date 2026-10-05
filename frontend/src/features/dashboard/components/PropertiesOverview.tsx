@@ -3,6 +3,7 @@ import { Building2 } from 'lucide-react';
 import type { PropertyOverviewItem } from '@/entities/dashboard';
 import { DashboardSection } from './DashboardSection';
 import { shortAddress } from '@/shared/lib/address';
+import { cn } from '@/shared/lib/utils';
 
 const statusLabels: Record<string, string> = {
   active: 'Активен',
@@ -10,8 +11,8 @@ const statusLabels: Record<string, string> = {
   vacant: 'Свободен',
 };
 const statusColors: Record<string, string> = {
-  active: 'bg-green-100 text-green-700',
-  overdue: 'bg-red-100 text-red-700',
+  active: 'bg-emerald-50 text-emerald-700',
+  overdue: 'bg-red-50 text-red-700',
   vacant: 'bg-gray-100 text-gray-600',
 };
 
@@ -23,27 +24,33 @@ function StatusBadge({ status }: { status: 'active' | 'overdue' | null }) {
   const key = status ?? 'vacant';
   return (
     <span
-      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusColors[key]}`}
+      className={cn(
+        'inline-flex rounded-md px-1.5 py-0.5 text-[11px] font-medium shrink-0',
+        statusColors[key],
+      )}
     >
       {statusLabels[key]}
     </span>
   );
 }
 
+/** Компактный портфель: плотные строки вместо широкой таблицы. */
 export function PropertiesOverview({ data }: PropertiesOverviewProps) {
-  if (!data || data.length === 0) {
+  const sorted = [...(data || [])].sort((a, b) => {
+    const rank = (s: string | null) => (s === 'overdue' ? 0 : s === null ? 2 : 1);
+    return rank(a.contract_status) - rank(b.contract_status);
+  });
+
+  if (sorted.length === 0) {
     return (
       <DashboardSection
-        title="Объекты"
+        title="Портфель"
         icon={<Building2 className="h-4 w-4 text-blue-600" />}
         action={{ label: 'Все объекты', to: '/properties' }}
       >
         <div className="py-4 text-center">
           <p className="text-sm text-gray-500 mb-3">Пока нет объектов в портфеле</p>
-          <Link
-            to="/properties"
-            className="text-sm font-medium text-blue-600 hover:text-blue-800"
-          >
+          <Link to="/properties" className="text-sm font-medium text-blue-600 hover:text-blue-800">
             Добавить объект
           </Link>
         </div>
@@ -53,72 +60,43 @@ export function PropertiesOverview({ data }: PropertiesOverviewProps) {
 
   return (
     <DashboardSection
-      title="Объекты"
+      title="Портфель"
       icon={<Building2 className="h-4 w-4 text-blue-600" />}
       action={{ label: 'Все объекты', to: '/properties' }}
-      bodyClassName="p-0"
       flush
+      bodyClassName="p-0"
     >
-      <div className="hidden sm:block overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-gray-100 text-left text-gray-500">
-              <th className="px-4 py-2.5 font-medium">Объект</th>
-              <th className="px-4 py-2.5 font-medium">Арендатор</th>
-              <th className="px-4 py-2.5 font-medium">Статус</th>
-              <th className="px-4 py-2.5 font-medium text-right">Доход/мес</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-50">
-            {data.map((p) => (
-              <tr key={p.property_id} className="hover:bg-gray-50 transition-colors">
-                <td className="px-4 py-2.5 font-medium truncate max-w-[220px]">
-                  <Link
-                    to={`/properties/${p.property_id}`}
-                    className="text-gray-900 hover:text-blue-700"
-                  >
-                    {shortAddress(p.address)}
-                  </Link>
-                </td>
-                <td className="px-4 py-2.5 text-gray-500">
-                  {p.tenant_name || <span className="text-gray-300">—</span>}
-                </td>
-                <td className="px-4 py-2.5">
-                  <StatusBadge status={p.contract_status} />
-                </td>
-                <td className="px-4 py-2.5 text-right font-medium tabular-nums">
-                  {Number(p.monthly_income).toLocaleString('ru-RU')} ₽
-                  {p.income_is_forecast ? (
-                    <span className="ml-1 text-[11px] font-normal text-amber-600">прогноз</span>
-                  ) : null}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="sm:hidden divide-y divide-gray-50">
-        {data.map((p) => (
+      <div className="divide-y divide-gray-50">
+        {sorted.map((p) => (
           <Link
             key={p.property_id}
             to={`/properties/${p.property_id}`}
-            className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-gray-50"
+            className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors"
           >
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-gray-900 truncate">
-                {shortAddress(p.address)}
-              </p>
-              <div className="mt-1 flex items-center gap-2">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 min-w-0">
+                <p className="text-sm font-medium text-gray-900 truncate">
+                  {shortAddress(p.address)}
+                </p>
                 <StatusBadge status={p.contract_status} />
-                <span className="text-xs text-gray-400 truncate">
-                  {p.tenant_name || 'Свободен'}
-                </span>
               </div>
+              <p className="text-xs text-gray-400 truncate mt-0.5">
+                {p.tenant_name || 'Свободен'}
+                {p.days_until_contract_end != null && p.days_until_contract_end <= 30
+                  ? ` · договор через ${p.days_until_contract_end} дн.`
+                  : ''}
+              </p>
             </div>
-            <span className="text-sm font-semibold tabular-nums flex-shrink-0">
-              {Number(p.monthly_income).toLocaleString('ru-RU')} ₽
-            </span>
+            <div className="text-right flex-shrink-0">
+              <p className="text-sm font-semibold text-gray-900 tabular-nums">
+                {Number(p.monthly_income).toLocaleString('ru-RU')} ₽
+              </p>
+              {p.income_is_forecast ? (
+                <p className="text-[11px] text-amber-600">прогноз</p>
+              ) : (
+                <p className="text-[11px] text-gray-400">/мес</p>
+              )}
+            </div>
           </Link>
         ))}
       </div>
