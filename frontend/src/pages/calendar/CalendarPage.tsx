@@ -5,7 +5,9 @@ import { CalendarDays } from 'lucide-react';
 import { calendarApi } from '@/features/calendar/api';
 import { CalendarAgenda } from '@/features/calendar/components/CalendarAgenda';
 import { EmptyState } from '@/shared/ui/EmptyState';
+import { ListErrorState } from '@/shared/ui/ListErrorState';
 import { TableSkeleton } from '@/shared/ui/Skeleton';
+import { RefreshButton } from '@/shared/ui/RefreshButton';
 
 export default function CalendarPage() {
   const today = useMemo(() => {
@@ -16,7 +18,7 @@ export default function CalendarPage() {
   const from = format(today, 'yyyy-MM-dd');
   const to = format(addDays(today, 45), 'yyyy-MM-dd');
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, isFetching, refetch } = useQuery({
     queryKey: ['calendar-events', from, to],
     queryFn: () => calendarApi.getEvents({ from, to }),
   });
@@ -32,19 +34,45 @@ export default function CalendarPage() {
     return { overdue: overdueItems, upcoming: upcomingItems };
   }, [data]);
 
+  const overdueTotal = useMemo(
+    () =>
+      overdue.reduce((sum, e) => sum + Number(e.remaining ?? e.amount ?? 0), 0),
+    [overdue],
+  );
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-gray-900">Календарь</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          Просрочки, ближайшие оплаты и окончания договоров
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold text-gray-900">Календарь</h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Просрочки, ближайшие оплаты и окончания договоров
+          </p>
+        </div>
+        <RefreshButton onClick={() => void refetch()} isLoading={isFetching} />
       </div>
+
+      {!isLoading && !isError && overdue.length > 0 && (
+        <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3">
+          <p className="text-sm font-medium text-red-800">
+            Просрочено: {overdue.length}{' '}
+            {overdue.length === 1 ? 'начисление' : 'начислений'} на{' '}
+            {overdueTotal.toLocaleString('ru-RU')} ₽
+          </p>
+          <p className="mt-0.5 text-xs text-red-700/80">
+            Откройте событие, чтобы перейти к договору и зафиксировать платёж
+          </p>
+        </div>
+      )}
 
       {isLoading ? (
         <TableSkeleton rows={6} cols={4} />
       ) : isError ? (
-        <p className="text-sm text-red-500">Не удалось загрузить календарь</p>
+        <ListErrorState
+          message="Не удалось загрузить календарь"
+          onRetry={() => void refetch()}
+          isRetrying={isFetching}
+        />
       ) : !data?.items.length ? (
         <EmptyState
           icon={CalendarDays}

@@ -43,15 +43,22 @@ function amountLabel(event: CalendarEvent): string | null {
   return null;
 }
 
+function actionHint(event: CalendarEvent): string {
+  if (event.type === 'charge_due' && event.status === 'overdue') return 'Записать платёж';
+  if (event.type === 'charge_due') return 'К договору';
+  return 'Продлить / открыть';
+}
+
 interface CalendarEventRowProps {
   event: CalendarEvent;
   today: Date;
+  /** Подсказка действия (на дашборде обычно скрыта). */
+  showActionHint?: boolean;
 }
 
-export function CalendarEventRow({ event, today }: CalendarEventRowProps) {
+export function CalendarEventRow({ event, today, showActionHint = true }: CalendarEventRowProps) {
   const isOverdue = event.type === 'charge_due' && event.status === 'overdue';
-  const badge =
-    isOverdue ? 'Просрочка' : typeLabels[event.type] || event.type;
+  const badge = isOverdue ? 'Просрочка' : typeLabels[event.type] || event.type;
   const amount = amountLabel(event);
   const dotClass =
     event.type === 'charge_due'
@@ -61,38 +68,54 @@ export function CalendarEventRow({ event, today }: CalendarEventRowProps) {
   return (
     <Link
       to={`/contracts/${event.contract_id}`}
-      className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0"
+      className="flex items-start gap-2.5 px-4 py-3 hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0"
     >
-      <div className="w-16 flex-shrink-0 text-sm text-gray-500">
-        {formatDate(event.date, 'd MMM')}
+      <div className="w-10 flex-shrink-0 pt-0.5 text-center">
+        <p className="text-sm font-semibold text-gray-800 leading-none">
+          {formatDate(event.date, 'd')}
+        </p>
+        <p className="text-[11px] text-gray-400 mt-0.5 leading-none uppercase">
+          {formatDate(event.date, 'MMM')}
+        </p>
       </div>
-      <div className="flex items-center gap-2 min-w-0 flex-1">
-        <span className={`h-2 w-2 shrink-0 rounded-full ${dotClass}`} />
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
+
+      <div className="flex items-start gap-2 min-w-0 flex-1">
+        <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${dotClass}`} />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5 min-w-0">
             <span
-              className={`text-xs font-medium px-1.5 py-0.5 rounded ${
+              className={`text-[11px] font-medium px-1.5 py-0.5 rounded shrink-0 ${
                 isOverdue ? 'bg-red-50 text-red-700' : 'bg-gray-100 text-gray-600'
               }`}
             >
               {badge}
             </span>
-            <span className="text-sm text-gray-500">{daysLabel(event, today)}</span>
+            <span className="text-xs text-gray-400 truncate">{daysLabel(event, today)}</span>
           </div>
-          <p className="text-sm text-gray-900 truncate mt-0.5">
-            {shortAddress(event.property_address || '—')}
-            {event.tenant_name ? ` · ${event.tenant_name}` : ''}
-          </p>
+          <div className="mt-0.5 flex items-center justify-between gap-2 min-w-0">
+            <p className="text-sm text-gray-900 truncate">
+              {shortAddress(event.property_address || '—')}
+              {event.tenant_name ? ` · ${event.tenant_name}` : ''}
+            </p>
+            {amount && (
+              <span
+                className={`text-xs font-medium tabular-nums shrink-0 ${
+                  isOverdue ? 'text-red-600' : 'text-gray-700'
+                }`}
+              >
+                {amount}
+              </span>
+            )}
+          </div>
+          {showActionHint && (
+            <p className={`text-xs mt-0.5 truncate ${isOverdue ? 'text-red-600' : 'text-blue-600'}`}>
+              {actionHint(event)}
+            </p>
+          )}
         </div>
       </div>
-      <div className="flex items-center gap-2 flex-shrink-0">
-        {amount && (
-          <span className={`text-sm font-medium ${isOverdue ? 'text-red-600' : 'text-gray-900'}`}>
-            {amount}
-          </span>
-        )}
-        <ArrowRight className="h-4 w-4 text-gray-300" />
-      </div>
+
+      <ArrowRight className="h-4 w-4 text-gray-300 flex-shrink-0 mt-1" />
     </Link>
   );
 }
