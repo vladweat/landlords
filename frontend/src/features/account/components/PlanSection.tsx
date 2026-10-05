@@ -150,7 +150,7 @@ export function PlanSection() {
 
     if (item.id === 'pro') {
       if (!subscription.billing_enabled) {
-        toast.error('ЮKassa не настроена. Задайте ключи в .env или переключите план в development.');
+        toast.error('Онлайн-оплата для этого аккаунта сейчас недоступна.');
         return;
       }
       checkoutMutation.mutate();
@@ -170,10 +170,10 @@ export function PlanSection() {
   return (
     <Card>
       <h2 className="mb-1 flex items-center gap-2 text-lg font-medium text-gray-800">
-        <CreditCard className="h-5 w-5" /> Тариф
+        <CreditCard className="h-5 w-5" /> Тариф и лимиты
       </h2>
-      <p className="mb-4 text-xs text-gray-500">
-        Pro оплачивается через ЮKassa (тестовый режим). Enterprise можно выбрать вручную.
+      <p className="mb-4 text-sm text-gray-500">
+        Здесь видно текущий план, лимиты по аккаунту и доступные действия по подписке.
       </p>
 
       {isLoading || !subscription ? (
@@ -196,7 +196,7 @@ export function PlanSection() {
             <p className="mb-3 text-xs text-gray-500">
               Подписка: {statusLabel(subscription.subscription_status)}
               {periodLabel ? ` · до ${periodLabel}` : ''}
-              {!subscription.billing_enabled ? ' · ЮKassa не настроена' : ''}
+              {!subscription.billing_enabled ? ' · онлайн-оплата недоступна' : ''}
             </p>
             <div className="space-y-3">
               <UsageBar
@@ -219,43 +219,63 @@ export function PlanSection() {
           </div>
 
           {canManageAccount && (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              {subscription.plans_catalog.map((item) => {
-                const isCurrent = item.id === subscription.plan;
-                const label = planActionLabel(item, subscription, isCurrent);
-                const isProAction = item.id === 'pro' && (!isCurrent || subscription.subscription_status === 'past_due');
-                const disabled =
-                  (isCurrent && item.id !== 'pro') ||
-                  (isCurrent && item.id === 'pro' && subscription.subscription_status === 'active') ||
-                  pending ||
-                  (item.id === 'pro' && !subscription.billing_enabled && isProAction);
+            <div>
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <h3 className="text-sm font-medium text-gray-800">Доступные планы</h3>
+                {!subscription.billing_enabled && (
+                  <span className="rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-600">
+                    Онлайн-оплата временно недоступна
+                  </span>
+                )}
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                {subscription.plans_catalog.map((item) => {
+                  const isCurrent = item.id === subscription.plan;
+                  const label = planActionLabel(item, subscription, isCurrent);
+                  const isProAction =
+                    item.id === 'pro' &&
+                    (!isCurrent || subscription.subscription_status === 'past_due');
+                  const disabled =
+                    (isCurrent && item.id !== 'pro') ||
+                    (isCurrent &&
+                      item.id === 'pro' &&
+                      subscription.subscription_status === 'active') ||
+                    pending ||
+                    (item.id === 'pro' && !subscription.billing_enabled && isProAction);
 
-                return (
-                  <div
-                    key={item.id}
-                    className={`rounded-lg border p-3 ${
-                      isCurrent ? 'border-blue-400 bg-blue-50/50' : 'border-gray-200'
-                    }`}
-                  >
-                    <div className="mb-1 font-medium text-gray-900">{item.name}</div>
-                    <p className="mb-3 text-xs text-gray-500">{planDescription(item)}</p>
-                    <Button
-                      size="sm"
-                      variant={isCurrent && !isProAction ? 'secondary' : 'primary'}
-                      disabled={disabled}
-                      isLoading={
-                        (checkoutMutation.isPending && item.id === 'pro') ||
-                        (cancelMutation.isPending && item.id === 'free') ||
-                        (changePlanMutation.isPending &&
-                          changePlanMutation.variables === item.id)
-                      }
-                      onClick={() => onSelectPlan(item)}
+                  return (
+                    <div
+                      key={item.id}
+                      className={`rounded-lg border p-3 ${
+                        isCurrent ? 'border-blue-400 bg-blue-50/50' : 'border-gray-200'
+                      }`}
                     >
-                      {label}
-                    </Button>
-                  </div>
-                );
-              })}
+                      <div className="mb-1 font-medium text-gray-900">{item.name}</div>
+                      <p className="mb-3 text-xs text-gray-500">{planDescription(item)}</p>
+                      <Button
+                        size="sm"
+                        variant={isCurrent && !isProAction ? 'secondary' : 'primary'}
+                        disabled={disabled}
+                        isLoading={
+                          (checkoutMutation.isPending && item.id === 'pro') ||
+                          (cancelMutation.isPending && item.id === 'free') ||
+                          (changePlanMutation.isPending &&
+                            changePlanMutation.variables === item.id)
+                        }
+                        onClick={() => onSelectPlan(item)}
+                      >
+                        {label}
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {!canManageAccount && (
+            <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
+              Изменение тарифа и оплата доступны владельцу аккаунта.
             </div>
           )}
         </div>
