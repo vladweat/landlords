@@ -20,7 +20,7 @@ from app.domain.interfaces import (
 if TYPE_CHECKING:
     from app.services.plan_limit_service import PlanLimitService
 
-STORAGE_DIR = "/app/storage/documents"
+STORAGE_DIR = os.getenv("DOCUMENTS_STORAGE_DIR", "/app/storage/documents")
 MAX_UPLOAD_BYTES = 15 * 1024 * 1024
 ALLOWED_MIME_TYPES = {
     "application/pdf",
