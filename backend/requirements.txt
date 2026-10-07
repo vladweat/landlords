@@ -11,6 +11,7 @@ prometheus_client
 
 pydantic>=2
 pydantic-settings
+email_validator
 
 python-dotenv
 
