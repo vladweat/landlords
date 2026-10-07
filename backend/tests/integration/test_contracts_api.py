@@ -101,7 +101,7 @@ class TestContractsCRUD:
         assert resp.json()["data"]["status"] == "active"
 
     def test_conflict_two_active_contracts(self, client: TestClient, auth_headers):
-        """Нельзя создать второй активный контракт на тот же объект."""
+        """Нельзя активировать второй контракт на тот же объект."""
         property_id = _create_property(client, auth_headers, "Конфликт")
         tenant1 = _create_tenant(client, auth_headers, "Первый")
         tenant2 = _create_tenant(client, auth_headers, "Второй")
@@ -121,13 +121,14 @@ class TestContractsCRUD:
             headers=auth_headers,
         )
         contract_id = create.json()["data"]["id"]
-        client.put(
+        activate = client.put(
             f"/v1/contracts/{contract_id}",
             json={"status": "active"},
             headers=auth_headers,
         )
+        assert activate.status_code == 200
 
-        resp = client.post(
+        create2 = client.post(
             "/v1/contracts",
             json={
                 "property_id": property_id,
@@ -137,6 +138,13 @@ class TestContractsCRUD:
                 "rent_amount": 50000,
                 "payment_day": 5,
             },
+            headers=auth_headers,
+        )
+        assert create2.status_code == 201
+        contract2_id = create2.json()["data"]["id"]
+        resp = client.put(
+            f"/v1/contracts/{contract2_id}",
+            json={"status": "active"},
             headers=auth_headers,
         )
         assert resp.status_code == 409

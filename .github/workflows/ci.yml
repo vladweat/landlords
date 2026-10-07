@@ -68,6 +68,8 @@ jobs:
       REDIS_PORT: "6379"
       SECRET_KEY: ci-test-secret-key-not-for-production
       APP_ENV: development
+      DOCUMENTS_STORAGE_DIR: storage/documents
+      STATUS_INCIDENTS_PATH: storage/status/incidents.json
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
