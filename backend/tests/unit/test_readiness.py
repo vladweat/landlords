@@ -1,3 +1,5 @@
+from unittest.mock import MagicMock
+
 from fastapi.testclient import TestClient
 
 import redis
@@ -12,11 +14,10 @@ class DummyRedis:
 
 def test_readiness_ok(monkeypatch):
     app = create_app()
-    # monkeypatch redis.from_url to return dummy redis
     monkeypatch.setattr(redis, "from_url", lambda url: DummyRedis())
+    monkeypatch.setattr("app.db.session.SessionLocal", lambda: MagicMock())
 
     client = TestClient(app)
     resp = client.get("/ready")
     assert resp.status_code == 200
     assert resp.json()["status"] == "ok"
-
