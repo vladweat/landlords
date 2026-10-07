@@ -103,7 +103,7 @@ export default function PropertiesPage() {
     const parts: string[] = [];
     if (debouncedSearch) parts.push('поиск');
     if (typeFilter !== 'all') {
-      parts.push(PROPERTY_TYPE_LABELS[typeFilter] ?? typeFilter);
+      parts.push((PROPERTY_TYPE_LABELS as Record<string, string>)[typeFilter] ?? typeFilter);
     }
     return parts.length ? parts.join(' + ') : null;
   }, [debouncedSearch, typeFilter]);
