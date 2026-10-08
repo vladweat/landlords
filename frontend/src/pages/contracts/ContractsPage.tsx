@@ -18,7 +18,7 @@ import {
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { showError } from '@/shared/lib/toast';
+import { showError, showSuccess } from '@/shared/lib/toast';
 import { scrollToTop } from '@/shared/lib/scrollToTop';
 import { contractsApi } from '@/features/contracts/api';
 import { propertiesApi } from '@/features/properties/api';
@@ -33,7 +33,7 @@ import { ListPagination } from '@/shared/ui/ListPagination';
 import { ListErrorState } from '@/shared/ui/ListErrorState';
 import { ListSummary } from '@/shared/ui/ListSummary';
 import { MobileList, MobileListItem } from '@/shared/ui/MobileList';
-import { ContractModal } from './ContractModal';
+import { ContractModal } from '@/features/contracts/components/ContractModal';
 import { TerminateContractWizard } from '@/features/contracts/components/TerminateContractWizard';
 import { RenewContractWizard } from '@/features/contracts/components/RenewContractWizard';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
@@ -93,7 +93,7 @@ function BulkExportDialog({
         format,
         contract_ids: contractIds,
       });
-      toast.success(format === 'xlsx' ? 'XLSX скачан' : 'CSV скачан');
+      showSuccess(format === 'xlsx' ? 'XLSX скачан' : 'CSV скачан');
       onClose();
     } catch (error) {
       showError(error, 'Ошибка экспорта');
@@ -258,7 +258,8 @@ export default function ContractsPage() {
 
   const deleteMutation = useMutation({
     mutationFn: contractsApi.delete,
-    onSuccess: () => { scrollToTop(); queryClient.invalidateQueries({ queryKey: ['contracts'] }); setDeleting(null); toast.success('Договор удалён'); },
+    retry: 0,
+    onSuccess: () => { scrollToTop(); queryClient.invalidateQueries({ queryKey: ['contracts'] }); setDeleting(null); showSuccess('Договор удалён'); },
     onError: (error) => showError(error, 'Ошибка удаления'),
   });
   const statusMutation = useMutation({
@@ -277,9 +278,9 @@ export default function ContractsPage() {
       const enq = data.enqueued.length;
       const skip = data.skipped.length;
       if (enq > 0 && skip === 0) {
-        toast.success(`Генерация запущена для ${enq} договоров`);
+        showSuccess(`Генерация запущена для ${enq} договоров`);
       } else if (enq > 0) {
-        toast.success(`Запущено: ${enq}, пропущено: ${skip}`);
+        showSuccess(`Запущено: ${enq}, пропущено: ${skip}`);
       } else {
         toast.message(`Ничего не запущено (пропущено: ${skip})`);
       }
@@ -316,7 +317,7 @@ export default function ContractsPage() {
       </div>
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <input placeholder="Поиск по объекту или арендатору..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); clearSelection(); }} className="w-full rounded-lg border border-gray-300 pl-10 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          <input aria-label="Поиск по объекту или арендатору" placeholder="Поиск по объекту или арендатору..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); clearSelection(); }} className="w-full rounded-lg border border-gray-300 pl-10 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
         </div>
       </div>
       <div className="flex flex-nowrap items-center gap-2 overflow-x-auto pb-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">

@@ -4,9 +4,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, RefreshCw } from 'lucide-react';
-import { toast } from 'sonner';
 import { z } from 'zod';
-import { showError } from '@/shared/lib/toast';
+import { showError, showSuccess } from '@/shared/lib/toast';
 import { useEscapeKey } from '@/shared/hooks/useEscapeKey';
 import { contractsApi } from '@/features/contracts/api';
 import type { Contract } from '@/entities/contract';
@@ -72,7 +71,7 @@ export function RenewContractWizard({ isOpen, onClose, contract }: RenewContract
       queryClient.invalidateQueries({ queryKey: ['contract-charges', contract?.id] });
       queryClient.invalidateQueries({ queryKey: ['contract-ledger', contract?.id] });
       queryClient.invalidateQueries({ queryKey: ['contract-events', contract?.id] });
-      toast.success(
+      showSuccess(
         result.charges_created
           ? `Договор продлён · добавлено начислений: ${result.charges_created}`
           : 'Договор продлён',

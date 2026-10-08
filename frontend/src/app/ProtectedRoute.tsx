@@ -1,13 +1,13 @@
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuthStore } from '@/features/auth/store';
+import { FullPageLoader } from '@/shared/ui/FullPageLoader';
 
 export function ProtectedRoute() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  const token = localStorage.getItem('access_token');
+  const isLoading = useAuthStore((state) => state.isLoading);
 
-  if (!isAuthenticated && !token) {
-    return <Navigate to="/login" replace />;
-  }
+  if (isLoading) return <FullPageLoader />;
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
 
   return <Outlet />;
 }

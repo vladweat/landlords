@@ -5,12 +5,11 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { UserPlus, AlertTriangle } from 'lucide-react';
-import { toast } from 'sonner';
 import { z } from 'zod';
 import { accountApi } from '@/features/account/api';
 import { useAuthStore } from '@/features/auth/store';
 import { ROLE_LABELS } from '@/entities/account';
-import { showError } from '@/shared/lib/toast';
+import { showError, showSuccess } from '@/shared/lib/toast';
 import { Button } from '@/shared/ui/Button';
 import { Input } from '@/shared/ui/Input';
 import { Card } from '@/shared/ui/Card';
@@ -49,9 +48,9 @@ export default function InvitePage() {
     mutationFn: (data: { password: string; full_name: string }) =>
       accountApi.acceptInvite(token!, data),
     onSuccess: async (data) => {
-      setAuth(data.user, data.token);
+      setAuth(data.user);
       await useAuthStore.getState().fetchUser();
-      toast.success('Добро пожаловать!');
+      showSuccess('Добро пожаловать!');
       navigate('/dashboard');
     },
     onError: (error: unknown) => {

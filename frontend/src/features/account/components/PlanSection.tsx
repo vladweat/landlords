@@ -5,7 +5,7 @@ import { accountApi } from '@/features/account/api';
 import { useCan } from '@/features/auth/permissions';
 import { useAuthStore } from '@/features/auth/store';
 import type { PlanCatalogItem, PlanId, Subscription } from '@/entities/account';
-import { showError } from '@/shared/lib/toast';
+import { showError, showSuccess } from '@/shared/lib/toast';
 import { Card } from '@/shared/ui/Card';
 import { Button } from '@/shared/ui/Button';
 
@@ -118,7 +118,7 @@ export function PlanSection() {
     mutationFn: (plan: PlanId | string) => accountApi.changePlan(plan),
     onSuccess: async () => {
       await refresh();
-      toast.success('Тариф изменён');
+      showSuccess('Тариф изменён');
     },
     onError: (error) => showError(error, 'Ошибка смены тарифа'),
   });
@@ -136,7 +136,7 @@ export function PlanSection() {
     mutationFn: () => accountApi.cancelSubscription(),
     onSuccess: async () => {
       await refresh();
-      toast.success('Подписка отменена');
+      showSuccess('Подписка отменена');
     },
     onError: (error) => showError(error, 'Не удалось отменить подписку'),
   });

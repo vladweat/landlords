@@ -2,8 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Pencil, Trash2, Search, Users } from 'lucide-react';
-import { toast } from 'sonner';
-import { showError } from '@/shared/lib/toast';
+import { showError, showSuccess } from '@/shared/lib/toast';
 import { scrollToTop } from '@/shared/lib/scrollToTop';
 import { tenantsApi } from '@/features/tenants/api';
 import type { Tenant } from '@/entities/tenant';
@@ -14,7 +13,7 @@ import { ListPagination } from '@/shared/ui/ListPagination';
 import { ListErrorState } from '@/shared/ui/ListErrorState';
 import { ListSummary } from '@/shared/ui/ListSummary';
 import { MobileList, MobileListItem } from '@/shared/ui/MobileList';
-import { TenantModal } from './TenantModal';
+import { TenantModal } from '@/features/tenants/components/TenantModal';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { useDebounce } from '@/shared/hooks/useDebounce';
 import { useHotkeys } from '@/shared/hooks/useHotkeys';
@@ -72,7 +71,7 @@ export default function TenantsPage() {
       scrollToTop();
       queryClient.invalidateQueries({ queryKey: ['tenants'] });
       setDeleting(null);
-      toast.success('Арендатор удалён');
+      showSuccess('Арендатор удалён');
     },
     onError: (error) => showError(error, 'Ошибка удаления'),
   });
@@ -110,6 +109,7 @@ export default function TenantsPage() {
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
         <input
+          aria-label="Поиск по имени или email"
           placeholder="Поиск по имени или email..."
           value={search}
           onChange={(e) => {

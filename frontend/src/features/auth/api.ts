@@ -66,6 +66,11 @@ export const authApi = {
     return response.data;
   },
 
+  logout: async () => {
+    const response = await apiClient.post<{ status: string }>('/auth/logout');
+    return response.data;
+  },
+
   deleteAccount: async () => {
     const response = await apiClient.delete<{ message: string }>('/auth/me', {
       data: { confirmation: 'DELETE' },

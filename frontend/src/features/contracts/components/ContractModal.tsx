@@ -5,42 +5,16 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
-import { toast } from 'sonner';
-import { showError } from '@/shared/lib/toast';
+import { showError, showSuccess } from '@/shared/lib/toast';
 import { useEscapeKey } from '@/shared/hooks/useEscapeKey';
 import { contractsApi } from '@/features/contracts/api';
 import type { Contract } from '@/entities/contract';
 import { propertiesApi } from '@/features/properties/api';
 import { tenantsApi } from '@/features/tenants/api';
 import { CreditScoreBadge } from '@/features/tenants/components/CreditScoreBadge';
+import { contractSchema, type ContractFormData } from '@/features/contracts/schema';
 import { Button } from '@/shared/ui/Button';
 import { Input } from '@/shared/ui/Input';
-import { z } from 'zod';
-
-const moneyPositive = z
-  .string()
-  .min(1, 'Укажите сумму')
-  .refine((v) => !Number.isNaN(Number(v)) && Number(v) > 0, 'Сумма должна быть больше 0');
-
-const moneyOptional = z
-  .string()
-  .nullable()
-  .optional()
-  .refine((v) => v == null || v === '' || (!Number.isNaN(Number(v)) && Number(v) >= 0), 'Некорректная сумма');
-
-const contractSchema = z.object({
-  property_id: z.string().min(1),
-  tenant_id: z.string().min(1),
-  rent_amount: moneyPositive,
-  currency: z.string().min(1),
-  start_date: z.string().min(1),
-  end_date: z.string().min(1),
-  payment_day: z.number().min(1).max(28),
-  billing_period: z.enum(['monthly', 'quarterly', 'yearly']),
-  deposit_amount: moneyOptional,
-  auto_generate_charges: z.boolean(),
-});
-type ContractFormData = z.infer<typeof contractSchema>;
 
 interface ContractModalProps { isOpen: boolean; onClose: () => void; contract: Contract | null; }
 
@@ -91,13 +65,14 @@ export function ContractModal({ isOpen, onClose, contract }: ContractModalProps)
 
   const createMutation = useMutation({
     mutationFn: contractsApi.create,
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['contracts'] }); scrollToTop(); toast.success("Договор добавлен"); onClose(); },
+    retry: 0,
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['contracts'] }); scrollToTop(); showSuccess("Договор добавлен"); onClose(); },
     onError: (error) => showError(error, 'Ошибка создания'),
   });
 
   const updateMutation = useMutation({
     mutationFn: (data: ContractFormData) => contract ? contractsApi.update(contract.id, data) : Promise.reject(),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['contracts'] }); toast.success('Договор обновлён'); onClose(); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['contracts'] }); showSuccess('Договор обновлён'); onClose(); },
     onError: (error) => showError(error, 'Ошибка обновления'),
   });
 
@@ -123,14 +98,16 @@ export function ContractModal({ isOpen, onClose, contract }: ContractModalProps)
               </div>
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
                 <div className="w-full"><label className="block text-sm font-medium text-gray-700 mb-1">Объект</label>
-                  <select className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" {...register('property_id')}>
+                  <select className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" aria-invalid={!!errors.property_id} {...register('property_id')}>
                     <option value="">Выберите объект</option>{properties.map((p) => <option key={p.id} value={p.id}>{p.address}</option>)}
                   </select>
+                  {errors.property_id?.message && <p className="mt-1 text-sm text-red-600">{errors.property_id.message}</p>}
                 </div>
                 <div className="w-full"><label className="block text-sm font-medium text-gray-700 mb-1">Арендатор</label>
-                  <select className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" {...register('tenant_id')}>
+                  <select className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" aria-invalid={!!errors.tenant_id} {...register('tenant_id')}>
                     <option value="">Выберите арендатора</option>{tenants.map((t) => <option key={t.id} value={t.id}>{t.full_name}</option>)}
                   </select>
+                  {errors.tenant_id?.message && <p className="mt-1 text-sm text-red-600">{errors.tenant_id.message}</p>}
                   {selectedTenantId && tenantScore && (
                     <div className="mt-2 flex items-center gap-3 text-sm bg-gray-50 rounded-lg p-2">
                       <CreditScoreBadge score={tenantScore.score} />

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { FileSpreadsheet, FileText } from 'lucide-react';
 import { toast } from 'sonner';
-import { showError } from '@/shared/lib/toast';
+import { showError, showSuccess } from '@/shared/lib/toast';
 import { Button } from '@/shared/ui/Button';
 import { Input } from '@/shared/ui/Input';
 import { Card } from '@/shared/ui/Card';
@@ -41,7 +41,7 @@ export default function ReportsPage() {
         end_date: endDate,
         format,
       });
-      toast.success(format === 'xlsx' ? 'XLSX скачан' : 'CSV скачан');
+      showSuccess(format === 'xlsx' ? 'XLSX скачан' : 'CSV скачан');
     } catch (error) {
       showError(error, 'Ошибка экспорта');
     } finally {

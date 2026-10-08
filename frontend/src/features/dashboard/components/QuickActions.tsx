@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Building2, CalendarDays, FileText, Wallet, type LucideIcon } from 'lucide-react';
 import { useCan } from '@/features/auth/permissions';
-import { PropertyModal } from '@/pages/properties/PropertyModal';
-import { ContractModal } from '@/pages/contracts/ContractModal';
-import { PaymentModal } from '@/pages/payments/PaymentModal';
+import { PropertyModal } from '@/features/properties/components/PropertyModal';
+import { ContractModal } from '@/features/contracts/components/ContractModal';
+import { PaymentModal } from '@/features/payments/components/PaymentModal';
 import { cn } from '@/shared/lib/utils';
 
 interface ActionButtonProps {

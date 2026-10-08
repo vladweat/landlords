@@ -6,8 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
-import { toast } from 'sonner';
-import { showError } from '@/shared/lib/toast';
+import { showError, showSuccess } from '@/shared/lib/toast';
 import { tenantsApi } from '@/features/tenants/api';
 import { tenantSchema, type TenantFormData } from '@/features/tenants/schema';
 import type { Tenant } from '@/entities/tenant';
@@ -29,13 +28,13 @@ export function TenantModal({ isOpen, onClose, tenant }: TenantModalProps) {
 
   const createMutation = useMutation({
     mutationFn: tenantsApi.create,
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['tenants'] }); scrollToTop(); toast.success("Арендатор добавлен"); onClose(); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['tenants'] }); scrollToTop(); showSuccess("Арендатор добавлен"); onClose(); },
     onError: (error) => showError(error, 'Ошибка создания'),
   });
 
   const updateMutation = useMutation({
     mutationFn: (data: TenantFormData) => tenant ? tenantsApi.update(tenant.id, data) : Promise.reject(),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['tenants'] }); toast.success('Арендатор обновлён'); onClose(); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['tenants'] }); showSuccess('Арендатор обновлён'); onClose(); },
     onError: (error) => showError(error, 'Ошибка обновления'),
   });
 

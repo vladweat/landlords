@@ -3,8 +3,7 @@ import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Trash2, Wallet, Search } from 'lucide-react';
-import { toast } from 'sonner';
-import { showError } from '@/shared/lib/toast';
+import { showError, showSuccess } from '@/shared/lib/toast';
 import { formatDate } from '@/shared/lib/utils';
 import { scrollToTop } from '@/shared/lib/scrollToTop';
 import { expensesApi } from '@/features/expenses/api';
@@ -17,7 +16,7 @@ import { ActionMenu } from '@/shared/ui/ActionMenu';
 import { ListErrorState } from '@/shared/ui/ListErrorState';
 import { ListSummary } from '@/shared/ui/ListSummary';
 import { MobileList, MobileListItem } from '@/shared/ui/MobileList';
-import { ExpenseModal } from './ExpenseModal';
+import { ExpenseModal } from '@/features/expenses/components/ExpenseModal';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { useHotkeys } from '@/shared/hooks/useHotkeys';
 import { useSort } from '@/shared/hooks/useSort';
@@ -81,7 +80,7 @@ export default function ExpensesPage() {
       queryClient.invalidateQueries({ queryKey: ['properties'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
       setDeleting(null);
-      toast.success('Расход удалён');
+      showSuccess('Расход удалён');
     },
     onError: (error) => showError(error, 'Ошибка удаления'),
   });
@@ -102,6 +101,7 @@ export default function ExpensesPage() {
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
         <input
+          aria-label="Поиск по объекту или категории"
           placeholder="Поиск по объекту, категории..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}

@@ -5,8 +5,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { LogIn } from 'lucide-react';
-import { toast } from 'sonner';
-import { showError } from '@/shared/lib/toast';
+import { showError, showSuccess } from '@/shared/lib/toast';
 import { authApi } from '@/features/auth/api';
 import { useAuthStore } from '@/features/auth/store';
 import { loginSchema, type LoginFormData } from '@/features/auth/schema';
@@ -26,9 +25,9 @@ export default function LoginPage() {
   const loginMutation = useMutation({
     mutationFn: authApi.login,
     onSuccess: async (data) => {
-      setAuth(data.user, data.token);
+      setAuth(data.user);
       await useAuthStore.getState().fetchUser();
-      toast.success('Вход выполнен');
+      showSuccess('Вход выполнен');
       navigate('/dashboard');
     },
     onError: (error) => {

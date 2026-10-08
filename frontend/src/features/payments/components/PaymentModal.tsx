@@ -7,7 +7,7 @@ import { X } from 'lucide-react';
 import { toast } from 'sonner';
 import { scrollToTop } from '@/shared/lib/scrollToTop';
 import { getContractLabel } from '@/shared/lib/contractLabel';
-import { showError } from '@/shared/lib/toast';
+import { showError, showSuccess } from '@/shared/lib/toast';
 import { useEscapeKey } from '@/shared/hooks/useEscapeKey';
 import { paymentsApi } from '@/features/payments/api';
 import { contractsApi } from '@/features/contracts/api';
@@ -160,6 +160,7 @@ export function PaymentModal({ isOpen, onClose, defaultContractId, defaultCharge
 
   const createMutation = useMutation({
     mutationFn: paymentsApi.create,
+    retry: 0,
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['payments'] });
       queryClient.invalidateQueries({ queryKey: ['charges', selectedContract] });
@@ -171,9 +172,9 @@ export function PaymentModal({ isOpen, onClose, defaultContractId, defaultCharge
       queryClient.invalidateQueries({ queryKey: ['dashboard-last-payments'] });
       scrollToTop();
       if (result.payments.length > 1) {
-        toast.success(`Платёж распределён на ${result.payments.length} записи`);
+        showSuccess(`Платёж распределён на ${result.payments.length} записи`);
       } else {
-        toast.success('Платёж добавлен');
+        showSuccess('Платёж добавлен');
       }
       onClose();
     },
