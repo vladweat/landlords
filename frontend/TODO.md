@@ -45,14 +45,14 @@
 - [x] Удалить мёртвое: `ForecastWidget.tsx`, `dashboardApi.getPropertiesOverview` (endpoint нет на backend), дубли `DashboardSummary` в `entities/payment.ts`.
 - [x] Убрать неиспользуемые deps: `antd`, `@ant-design/*`, `dayjs`, `magic-string` (в `src` не импортируются).
 - [x] Error Boundary вокруг protected layout.
-- [ ] Mutations: `retry: 0` для create/delete платежей и договоров (избежать дублей).
-- [ ] Единые toast-хелперы (`showSuccess` / `showError`); invalidate связанных query keys после payment create (dashboard, ledger).
-- [ ] a11y: `aria-label` на search inputs списках.
-- [ ] ContractModal: `end_date > start_date`; показ ошибок на selects property/tenant.
-- [ ] Вынести CRUD-модалки из `pages/*/…Modal` в `features/*/components` (FSD).
-- [ ] `ContractDetailPage`: только склейка features (ledger, документы, renew/terminate) — сейчас ~572 строки.
-- [ ] Auth: JWT из `localStorage` → HttpOnly cookie (XSS).
-- [ ] Frontend tests (vitest): auth store, money formatters, critical forms.
+- [x] Mutations: `retry: 0` для create/delete платежей и договоров (избежать дублей).
+- [x] Единые toast-хелперы (`showSuccess` / `showError`); invalidate связанных query keys после payment create (dashboard, ledger).
+- [x] a11y: `aria-label` на search inputs списках.
+- [x] ContractModal: `end_date > start_date`; показ ошибок на selects property/tenant.
+- [x] Вынести CRUD-модалки из `pages/*/…Modal` в `features/*/components` (FSD).
+- [x] `ContractDetailPage`: только склейка features (ledger, документы, renew/terminate) — сейчас ~572 строки.
+- [x] Auth: JWT из `localStorage` → HttpOnly cookie (XSS).
+- [x] Frontend tests (vitest): auth store, money formatters, critical forms.
 - [x] CI: `frontend` lint + `tsc` + build (сейчас CI только backend).
 
 ---

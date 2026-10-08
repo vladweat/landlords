@@ -4,9 +4,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, FileX } from 'lucide-react';
-import { toast } from 'sonner';
 import { z } from 'zod';
-import { showError } from '@/shared/lib/toast';
+import { showError, showSuccess } from '@/shared/lib/toast';
 import { useEscapeKey } from '@/shared/hooks/useEscapeKey';
 import { contractsApi } from '@/features/contracts/api';
 import type { Contract } from '@/entities/contract';
@@ -72,7 +71,7 @@ export function TerminateContractWizard({ isOpen, onClose, contract }: Terminate
         result.charges_deleted ? `удалено начислений: ${result.charges_deleted}` : null,
         result.charges_updated ? `пересчитано: ${result.charges_updated}` : null,
       ].filter(Boolean);
-      toast.success(parts.join(' · '));
+      showSuccess(parts.join(' · '));
       if (result.document_url) {
         window.open(result.document_url, '_blank');
       }

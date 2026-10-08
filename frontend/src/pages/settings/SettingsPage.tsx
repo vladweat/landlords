@@ -24,7 +24,7 @@ import { ContractTemplatesSection } from '@/features/contract-templates/componen
 import { useAuthStore } from '@/features/auth/store';
 import { useCan } from '@/features/auth/permissions';
 import { ROLE_LABELS, type Role } from '@/entities/account';
-import { showError } from '@/shared/lib/toast';
+import { showError, showSuccess } from '@/shared/lib/toast';
 import { Card } from '@/shared/ui/Card';
 import { Button } from '@/shared/ui/Button';
 import { Input } from '@/shared/ui/Input';
@@ -168,9 +168,9 @@ export default function SettingsPage() {
           fetchUser(),
         ]);
         if (result.status === 'applied') {
-          toast.success('Оплата Pro подтверждена');
+          showSuccess('Оплата Pro подтверждена');
         } else if (result.status === 'ignored' && result.reason === 'duplicate') {
-          toast.success('Подписка Pro уже активна');
+          showSuccess('Подписка Pro уже активна');
         } else {
           toast.message(
             `Платёж ещё не завершён (${result.reason ?? result.status}). Подождите или проверьте ЮKassa.`,
@@ -234,15 +234,15 @@ export default function SettingsPage() {
         ...user,
         full_name: data.data.full_name,
         phone: data.data.phone ?? null,
-      }, localStorage.getItem('access_token')!);
-      toast.success('Профиль обновлён');
+      });
+      showSuccess('Профиль обновлён');
     },
     onError: (error) => showError(error, 'Ошибка обновления'),
   });
 
   const passwordMutation = useMutation({
     mutationFn: authApi.changePassword,
-    onSuccess: () => { toast.success('Пароль изменён'); resetPassword(); },
+    onSuccess: () => { showSuccess('Пароль изменён'); resetPassword(); },
     onError: (error) => showError(error, 'Ошибка смены пароля'),
   });
 
@@ -250,7 +250,7 @@ export default function SettingsPage() {
     mutationFn: accountApi.update,
     onSuccess: async () => {
       await fetchUser();
-      toast.success('Настройки аккаунта сохранены');
+      showSuccess('Настройки аккаунта сохранены');
     },
     onError: (error) => showError(error, 'Ошибка сохранения'),
   });
@@ -275,9 +275,9 @@ export default function SettingsPage() {
             : 'Приглашение создано, письмо не ушло — скопируйте ссылку из списка',
         );
       } else if (copied) {
-        toast.success('Приглашение отправлено, ссылка скопирована');
+        showSuccess('Приглашение отправлено, ссылка скопирована');
       } else {
-        toast.success('Приглашение создано');
+        showSuccess('Приглашение создано');
       }
     },
     onError: (error) => showError(error, 'Ошибка приглашения'),
@@ -288,7 +288,7 @@ export default function SettingsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['account-invites'] });
       setRevokingInviteId(null);
-      toast.success('Приглашение отозвано');
+      showSuccess('Приглашение отозвано');
     },
     onError: (error) => showError(error, 'Ошибка отзыва'),
   });
@@ -298,7 +298,7 @@ export default function SettingsPage() {
       accountApi.updateMemberRole(userId, role),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['account-members'] });
-      toast.success('Роль обновлена');
+      showSuccess('Роль обновлена');
     },
     onError: (error) => showError(error, 'Ошибка смены роли'),
   });
@@ -308,7 +308,7 @@ export default function SettingsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['account-members'] });
       setRemovingUserId(null);
-      toast.success('Участник удалён');
+      showSuccess('Участник удалён');
     },
     onError: (error) => showError(error, 'Ошибка удаления'),
   });
@@ -317,7 +317,7 @@ export default function SettingsPage() {
     mutationFn: authApi.deleteAccount,
     onSuccess: () => {
       setDeleteDialogOpen(false);
-      toast.success('Аккаунт удалён');
+      showSuccess('Аккаунт удалён');
       logout();
       navigate('/login');
     },
@@ -326,7 +326,7 @@ export default function SettingsPage() {
 
   const exportMutation = useMutation({
     mutationFn: accountApi.exportData,
-    onSuccess: () => toast.success('Архив с данными скачан'),
+    onSuccess: () => showSuccess('Архив с данными скачан'),
     onError: (error) => showError(error, 'Ошибка выгрузки'),
   });
 
@@ -654,7 +654,7 @@ export default function SettingsPage() {
                                       onClick={async () => {
                                         try {
                                           await navigator.clipboard.writeText(inv.invite_url);
-                                          toast.success('Ссылка скопирована');
+                                          showSuccess('Ссылка скопирована');
                                         } catch {
                                           toast.error('Не удалось скопировать');
                                         }

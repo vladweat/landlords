@@ -3,8 +3,7 @@ import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Trash2, CreditCard, Search } from 'lucide-react';
-import { toast } from 'sonner';
-import { showError } from '@/shared/lib/toast';
+import { showError, showSuccess } from '@/shared/lib/toast';
 import { formatDate } from '@/shared/lib/utils';
 import { scrollToTop } from '@/shared/lib/scrollToTop';
 import { paymentsApi } from '@/features/payments/api';
@@ -18,7 +17,7 @@ import { ActionMenu } from '@/shared/ui/ActionMenu';
 import { ListErrorState } from '@/shared/ui/ListErrorState';
 import { ListSummary } from '@/shared/ui/ListSummary';
 import { MobileList, MobileListItem } from '@/shared/ui/MobileList';
-import { PaymentModal } from './PaymentModal';
+import { PaymentModal } from '@/features/payments/components/PaymentModal';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { useHotkeys } from '@/shared/hooks/useHotkeys';
 import { useSort } from '@/shared/hooks/useSort';
@@ -96,13 +95,14 @@ export default function PaymentsPage() {
 
   const deleteMutation = useMutation({
     mutationFn: paymentsApi.delete,
+    retry: 0,
     onSuccess: () => {
       scrollToTop();
       queryClient.invalidateQueries({ queryKey: ['payments'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-last-payments'] });
       setDeleting(null);
-      toast.success('Платёж удалён');
+      showSuccess('Платёж удалён');
     },
     onError: (error) => showError(error, 'Ошибка удаления'),
   });
@@ -123,6 +123,7 @@ export default function PaymentsPage() {
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
         <input
+          aria-label="Поиск по договору, сумме или способу"
           placeholder="Поиск по договору, сумме, способу..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}

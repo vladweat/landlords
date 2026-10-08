@@ -1,8 +1,12 @@
 """Зависимости FastAPI."""
 
+from typing import Annotated
 from uuid import UUID
 
+from fastapi import Cookie, Header
+
 from app.core.config import settings
+from app.core.cookies import ACCESS_TOKEN_COOKIE
 from app.core.exceptions import ForbiddenError, UnauthorizedError
 from app.core.security import decode_access_token
 from app.db.repositories.account_invite_repo import AccountInviteRepository
@@ -482,11 +486,19 @@ def get_report_export_service(
 
 # ==================== АУТЕНТИФИКАЦИЯ ====================
 
-def _decode_token(authorization: str) -> dict:
-    """Извлечь и декодировать JWT-токен из заголовка."""
-    if not authorization.startswith("Bearer "):
-        raise UnauthorizedError("Invalid authorization header")
-    token = authorization.split(" ")[1]
+def _token_from_request(authorization: str | None, cookie_token: str | None) -> str:
+    """Bearer имеет приоритет, иначе HttpOnly-cookie."""
+    if authorization:
+        if not authorization.startswith("Bearer "):
+            raise UnauthorizedError("Invalid authorization header")
+        return authorization.split(" ", 1)[1]
+    if cookie_token:
+        return cookie_token
+    raise UnauthorizedError("Not authenticated")
+
+
+def _decode_token(token: str) -> dict:
+    """Декодировать JWT."""
     try:
         return decode_access_token(token)
     except Exception as e:
@@ -494,12 +506,13 @@ def _decode_token(authorization: str) -> dict:
 
 
 def get_current_membership(
-    authorization: str = Header(...),
+    authorization: Annotated[str | None, Header()] = None,
+    access_token: Annotated[str | None, Cookie(alias=ACCESS_TOKEN_COOKIE)] = None,
     membership_repo: MembershipRepository = Depends(get_membership_repo),
     user_repo: UserRepository = Depends(get_user_repo),
 ) -> MembershipEntity:
-    """Проверить JWT и активную membership; role берётся из БД."""
-    payload = _decode_token(authorization)
+    """Проверить JWT (заголовок или cookie) и активную membership; role берётся из БД."""
+    payload = _decode_token(_token_from_request(authorization, access_token))
     try:
         user_id = UUID(payload["sub"])
         account_id = UUID(payload["account_id"])

@@ -5,8 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
-import { toast } from 'sonner';
-import { showError } from '@/shared/lib/toast';
+import { showError, showSuccess } from '@/shared/lib/toast';
 import { useEscapeKey } from '@/shared/hooks/useEscapeKey';
 import { propertiesApi } from '@/features/properties/api';
 import { propertySchema, type PropertyFormData } from '@/features/properties/schema';
@@ -44,7 +43,7 @@ export function PropertyModal({ isOpen, onClose, property }: PropertyModalProps)
       queryClient.invalidateQueries({ queryKey: ['properties'] });
       queryClient.invalidateQueries({ queryKey: ['account-subscription'] });
       scrollToTop();
-      toast.success("Объект добавлен");
+      showSuccess("Объект добавлен");
       onClose();
     },
     onError: (error) => showError(error, 'Ошибка создания'),
@@ -55,7 +54,7 @@ export function PropertyModal({ isOpen, onClose, property }: PropertyModalProps)
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['properties'] });
       if (property) queryClient.invalidateQueries({ queryKey: ['property', property.id] });
-      toast.success('Объект обновлён');
+      showSuccess('Объект обновлён');
       onClose();
     },
     onError: (error) => showError(error, 'Ошибка обновления'),

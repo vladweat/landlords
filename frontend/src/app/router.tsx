@@ -27,6 +27,8 @@ const NotFound = lazy(() => import('@/pages/NotFound'));
 
 function HomeRedirect() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const isLoading = useAuthStore((s) => s.isLoading);
+  if (isLoading) return <FullPageLoader />;
   if (isAuthenticated) return <Navigate to="/dashboard" replace />;
   window.location.href = '/landing.html';
   return null;
@@ -35,8 +37,9 @@ function HomeRedirect() {
 /** Редирект авторизованных с публичных auth-страниц на дашборд. */
 function GuestOnly({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const token = localStorage.getItem('access_token');
-  if (isAuthenticated || token) return <Navigate to="/dashboard" replace />;
+  const isLoading = useAuthStore((s) => s.isLoading);
+  if (isLoading) return <FullPageLoader />;
+  if (isAuthenticated) return <Navigate to="/dashboard" replace />;
   return <>{children}</>;
 }
 

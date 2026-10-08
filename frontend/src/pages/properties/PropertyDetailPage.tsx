@@ -3,8 +3,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Plus, Trash2, Pencil, Wallet } from 'lucide-react';
-import { toast } from 'sonner';
-import { showError } from '@/shared/lib/toast';
+import { showError, showSuccess } from '@/shared/lib/toast';
 import { formatDate } from '@/shared/lib/utils';
 import { propertiesApi } from '@/features/properties/api';
 import { expensesApi } from '@/features/expenses/api';
@@ -17,8 +16,8 @@ import { EmptyState } from '@/shared/ui/EmptyState';
 import { ActionMenu } from '@/shared/ui/ActionMenu';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { ROIBadge } from '@/features/properties/components/ROIBadge';
-import { ExpenseModal } from '@/pages/expenses/ExpenseModal';
-import { PropertyModal } from './PropertyModal';
+import { ExpenseModal } from '@/features/expenses/components/ExpenseModal';
+import { PropertyModal } from '@/features/properties/components/PropertyModal';
 import { AttachmentsSection } from '@/features/documents/components/AttachmentsSection';
 import { useCan } from '@/features/auth/permissions';
 import { PROPERTY_TYPE_LABELS } from '@/entities/property';
@@ -63,7 +62,7 @@ export default function PropertyDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['property', id] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
       setDeleting(null);
-      toast.success('Расход удалён');
+      showSuccess('Расход удалён');
     },
     onError: (error) => showError(error, 'Ошибка удаления'),
   });

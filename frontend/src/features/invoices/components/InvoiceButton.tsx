@@ -1,9 +1,9 @@
 import { useMutation } from '@tanstack/react-query';
-import { toast } from 'sonner';
 import { FileText } from 'lucide-react';
 import { invoicesApi } from '@/features/invoices/api';
 import { copyToClipboard } from '@/shared/lib/clipboard';
-import { showError } from '@/shared/lib/toast';
+import { authorizedFetch } from '@/shared/api/client';
+import { showError, showSuccess } from '@/shared/lib/toast';
 import { useCan } from '@/features/auth/permissions';
 
 interface InvoiceButtonProps {
@@ -19,13 +19,10 @@ export function InvoiceButton({ chargeId, compact }: InvoiceButtonProps) {
     mutationFn: () => invoicesApi.ensure(chargeId),
     onSuccess: async (data) => {
       await copyToClipboard(data.share_url);
-      toast.success('Ссылка на квитанцию скопирована');
+      showSuccess('Ссылка на квитанцию скопирована');
       if (data.document_id) {
         try {
-          const token = localStorage.getItem('access_token');
-          const fileRes = await fetch(`/api/v1/documents/${data.document_id}`, {
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-          });
+          const fileRes = await authorizedFetch(`/api/v1/documents/${data.document_id}`);
           if (fileRes.ok) {
             const blob = await fileRes.blob();
             window.open(URL.createObjectURL(blob), '_blank');

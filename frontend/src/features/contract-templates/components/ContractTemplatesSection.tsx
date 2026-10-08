@@ -6,7 +6,7 @@ import { contractTemplatesApi } from '../api';
 import type { ContractTemplate, PropertyType } from '@/entities/contractTemplate';
 import { PROPERTY_TYPE_LABELS } from '@/entities/contractTemplate';
 import { useCan } from '@/features/auth/permissions';
-import { showError } from '@/shared/lib/toast';
+import { showError, showSuccess } from '@/shared/lib/toast';
 import { Button } from '@/shared/ui/Button';
 import { Card } from '@/shared/ui/Card';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
@@ -43,7 +43,7 @@ export function ContractTemplatesSection() {
       invalidate();
       setCreating(false);
       setForm(emptyForm);
-      toast.success('Шаблон создан');
+      showSuccess('Шаблон создан');
     },
     onError: (e) => showError(e, 'Ошибка создания'),
   });
@@ -61,7 +61,7 @@ export function ContractTemplatesSection() {
       invalidate();
       setEditing(null);
       setForm(emptyForm);
-      toast.success('Шаблон сохранён');
+      showSuccess('Шаблон сохранён');
     },
     onError: (e) => showError(e, 'Ошибка сохранения'),
   });
@@ -71,7 +71,7 @@ export function ContractTemplatesSection() {
     onSuccess: () => {
       invalidate();
       setDeleting(null);
-      toast.success('Шаблон удалён');
+      showSuccess('Шаблон удалён');
     },
     onError: (e) => showError(e, 'Ошибка удаления'),
   });

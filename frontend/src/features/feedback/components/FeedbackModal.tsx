@@ -3,9 +3,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
-import { toast } from 'sonner';
 import { feedbackApi } from '@/features/feedback/api';
-import { showError } from '@/shared/lib/toast';
+import { showError, showSuccess } from '@/shared/lib/toast';
 import { useEscapeKey } from '@/shared/hooks/useEscapeKey';
 import { Button } from '@/shared/ui/Button';
 import { Input } from '@/shared/ui/Input';
@@ -31,7 +30,7 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
 
   const mutation = useMutation({
     mutationFn: feedbackApi.send,
-    onSuccess: () => { toast.success('Спасибо! Мы получили ваше сообщение.'); reset(); onClose(); },
+    onSuccess: () => { showSuccess('Спасибо! Мы получили ваше сообщение.'); reset(); onClose(); },
     onError: (error) => showError(error, 'Ошибка отправки'),
   });
 

@@ -36,7 +36,7 @@ const { data } = useQuery({ queryKey: ['contracts', page], queryFn: () => contra
 
 - Tailwind 4, `shared/ui/`, lucide-react, framer-motion, sonner, RHF + zod.
 - Zustand только для auth. Страницы — `default export`, lazy в `app/router.tsx`. Тексты — русский.
-- Деньги с API — `string`. `apiClient.baseURL = '/api/v1'`, токен — `localStorage('access_token')`.
+- Деньги с API — `string`. `apiClient.baseURL = '/api/v1'`, `withCredentials`; JWT в HttpOnly-cookie (`access_token`), не в `localStorage`.
 - Доменные типы только в `entities/`.
 
 ## Новая фича

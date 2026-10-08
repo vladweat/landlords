@@ -1,14 +1,14 @@
 import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Download, FileText, Paperclip, Plus, Trash2 } from 'lucide-react';
-import { toast } from 'sonner';
 import { documentsApi } from '@/features/documents/api';
 import {
   DOCUMENT_CATEGORY_LABELS,
   UPLOAD_CATEGORY_OPTIONS,
   type UploadDocumentCategory,
 } from '@/entities/document';
-import { showError } from '@/shared/lib/toast';
+import { authorizedFetch } from '@/shared/api/client';
+import { showError, showSuccess } from '@/shared/lib/toast';
 import { formatDate } from '@/shared/lib/utils';
 import { Button } from '@/shared/ui/Button';
 import { Card } from '@/shared/ui/Card';
@@ -56,7 +56,7 @@ export function AttachmentsSection({ parentType, parentId }: AttachmentsSectionP
         : documentsApi.uploadForProperty(parentId, { file, category }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey });
-      toast.success('Файл загружен');
+      showSuccess('Файл загружен');
       if (fileRef.current) fileRef.current.value = '';
     },
     onError: (error) => showError(error, 'Ошибка загрузки'),
@@ -67,19 +67,15 @@ export function AttachmentsSection({ parentType, parentId }: AttachmentsSectionP
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey });
       setDeletingId(null);
-      toast.success('Файл удалён');
+      showSuccess('Файл удалён');
     },
     onError: (error) => showError(error, 'Ошибка удаления'),
   });
 
   const openDownload = (url: string) => {
-    const token = localStorage.getItem('access_token');
-    // URL уже с /api/v1/...; открываем с токеном через fetch blob, если нужна auth в новой вкладке
     void (async () => {
       try {
-        const res = await fetch(url, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
+        const res = await authorizedFetch(url);
         if (!res.ok) throw new Error('download failed');
         const blob = await res.blob();
         const objectUrl = URL.createObjectURL(blob);

@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Pencil, Trash2, Search, Building2, Download } from 'lucide-react';
 import { toast } from 'sonner';
-import { showError } from '@/shared/lib/toast';
+import { showError, showSuccess } from '@/shared/lib/toast';
 import { scrollToTop } from '@/shared/lib/scrollToTop';
 import { propertiesApi } from '@/features/properties/api';
 import { contractsApi } from '@/features/contracts/api';
@@ -17,7 +17,7 @@ import { ListPagination } from '@/shared/ui/ListPagination';
 import { ListErrorState } from '@/shared/ui/ListErrorState';
 import { ListSummary } from '@/shared/ui/ListSummary';
 import { MobileList, MobileListItem } from '@/shared/ui/MobileList';
-import { PropertyModal } from './PropertyModal';
+import { PropertyModal } from '@/features/properties/components/PropertyModal';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { useDebounce } from '@/shared/hooks/useDebounce';
 import { useHotkeys } from '@/shared/hooks/useHotkeys';
@@ -117,7 +117,7 @@ export default function PropertiesPage() {
       queryClient.invalidateQueries({ queryKey: ['properties'] });
       queryClient.invalidateQueries({ queryKey: ['account-subscription'] });
       setDeleting(null);
-      toast.success('Объект удалён');
+      showSuccess('Объект удалён');
     },
     onError: (error) => showError(error, 'Ошибка удаления'),
   });
@@ -204,6 +204,7 @@ export default function PropertiesPage() {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
           <input
+            aria-label="Поиск по адресу"
             placeholder="Поиск по адресу..."
             value={search}
             onChange={(e) => {

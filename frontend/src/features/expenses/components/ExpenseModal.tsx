@@ -5,8 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
-import { toast } from 'sonner';
-import { showError } from '@/shared/lib/toast';
+import { showError, showSuccess } from '@/shared/lib/toast';
 import { useEscapeKey } from '@/shared/hooks/useEscapeKey';
 import { expensesApi } from '@/features/expenses/api';
 import { propertiesApi } from '@/features/properties/api';
@@ -85,7 +84,7 @@ export function ExpenseModal({ isOpen, onClose, defaultPropertyId }: ExpenseModa
       queryClient.invalidateQueries({ queryKey: ['property'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
       scrollToTop();
-      toast.success('Расход добавлен');
+      showSuccess('Расход добавлен');
       onClose();
     },
     onError: (error) => showError(error, 'Ошибка создания'),

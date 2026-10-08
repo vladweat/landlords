@@ -5,8 +5,8 @@ import './index.css';
 import { App } from './app/App';
 import { useAuthStore } from './features/auth/store';
 
-// Загружаем токен из localStorage при старте
-useAuthStore.getState().loadFromStorage();
+// Сессия в HttpOnly-cookie; старый localStorage-токен мигрирует на первом /auth/me
+void useAuthStore.getState().bootstrap();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
