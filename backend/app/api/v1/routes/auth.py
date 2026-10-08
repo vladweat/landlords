@@ -19,7 +19,8 @@ from app.api.v1.schemas.user_schema import (
     UpdateProfileRequest,
     UserResponse,
 )
-from app.core.exceptions import ValidationError
+from app.core.config import settings
+from app.core.exceptions import ForbiddenError, ValidationError
 from app.core.security import verify_reset_token
 from app.services.user_service import UserService
 
@@ -32,6 +33,8 @@ def register(
     service: UserService = Depends(get_user_service),
 ) -> dict:
     """Зарегистрировать нового пользователя и создать аккаунт."""
+    if not settings.ALLOW_PUBLIC_REGISTRATION:
+        raise ForbiddenError("Регистрация закрыта")
     user_dto, _, token = service.register(body)
     return {
         "status": "success",

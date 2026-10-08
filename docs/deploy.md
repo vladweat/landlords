@@ -6,7 +6,7 @@
 ## Подготовка
 
 1. Скопируй [`.env.example`](../.env.example) в `backend/.env` и при необходимости в корневой `.env` (подстановка `${DB_*}` в compose).
-2. Задай уникальный `SECRET_KEY`, `APP_ENV=production`, `DEBUG=false`.
+2. Задай уникальный `SECRET_KEY`, `APP_ENV=production`, `DEBUG=false`, `ALLOW_PUBLIC_REGISTRATION=false`.
 3. Пароли Postgres/Redis — только из env; в prod-профиле порты БД на хост не публикуются (см. `docker-compose.yml` без override).
 
 Online-сборка образа API (CI / машина с PyPI):
@@ -36,13 +36,14 @@ curl -sf http://localhost/api/v1/  # или открыть SPA на http://local
 
 Миграции Alembic накатывает entrypoint сервиса `api` (`RUN_MIGRATIONS=1`). Worker и beat ждут healthy API.
 
-Демо-аккаунт (не для продакшена):
+Showcase-демо (портфолио / самопроверка; на публичном VPS смени пароль):
 
 ```bash
-docker compose exec api python -m app.cli seed \
-  --email demo@example.com \
-  --password 'ChangeMeDemo1!'
+docker compose exec api python -m app.cli seed-demo
+# дефолт: demo@example.com / ChangeMeDemo1!
 ```
+
+Создаёт пользователя (если нет) и богатые демо-данные. Идемпотентно. Публичный `POST /register` при `ALLOW_PUBLIC_REGISTRATION=false` закрыт; CLI от флага не зависит.
 
 ## TLS
 
@@ -134,6 +135,7 @@ EOF
 ## Чеклист перед продом
 
 - [ ] `APP_ENV=production`, свой `SECRET_KEY`
+- [ ] `ALLOW_PUBLIC_REGISTRATION=false`
 - [ ] Postgres/Redis без `ports` на хост
 - [ ] `curl /ready` → 200
 - [ ] Пробный dump → restore на чистый volume
@@ -141,3 +143,4 @@ EOF
 - [ ] SMTP (этап 2) или осознанный `ALLOW`/файл для reset только на self-hosted
 - [ ] `SENTRY_DSN` и `SUPPORT_EMAIL`
 - [ ] `storage/status/incidents.json` на месте
+- [ ] Демо-пароль не оставлять дефолтным на публичном хосте
