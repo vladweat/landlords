@@ -48,6 +48,25 @@ class TestAuthRegister:
         )
         assert resp.status_code == 422
 
+    def test_register_forbidden_when_disabled(self, client: TestClient, monkeypatch):
+        """Публичная регистрация выключена флагом."""
+        monkeypatch.setattr(
+            "app.api.v1.routes.auth.settings.ALLOW_PUBLIC_REGISTRATION",
+            False,
+        )
+        resp = client.post(
+            "/v1/auth/register",
+            json={
+                "email": "closed@example.com",
+                "password": "secret123",
+                "full_name": "Closed",
+            },
+        )
+        assert resp.status_code == 403
+        body = resp.json()
+        assert body["status"] == "error"
+        assert "закрыта" in body["message"].lower()
+
 
 class TestAuthLogin:
     def test_login_success(self, client: TestClient, auth_headers):

@@ -89,7 +89,7 @@ function planActionLabel(
     if (subscription.plan === 'pro' && subscription.subscription_status === 'past_due') {
       return 'Оплатить снова';
     }
-    return subscription.billing_enabled ? 'Оплатить Pro' : 'Pro (оплата не настроена)';
+    return subscription.billing_enabled ? 'Оплатить Pro' : 'Pro недоступен в демо';
   }
   if (item.id === 'free' && subscription.plan === 'pro') {
     return 'Отменить подписку';
@@ -150,7 +150,7 @@ export function PlanSection() {
 
     if (item.id === 'pro') {
       if (!subscription.billing_enabled) {
-        toast.error('Онлайн-оплата для этого аккаунта сейчас недоступна.');
+        toast.error('Pro недоступен в демо — онлайн-оплата не подключена.');
         return;
       }
       checkoutMutation.mutate();
@@ -196,7 +196,7 @@ export function PlanSection() {
             <p className="mb-3 text-xs text-gray-500">
               Подписка: {statusLabel(subscription.subscription_status)}
               {periodLabel ? ` · до ${periodLabel}` : ''}
-              {!subscription.billing_enabled ? ' · онлайн-оплата недоступна' : ''}
+              {!subscription.billing_enabled ? ' · Pro недоступен в демо' : ''}
             </p>
             <div className="space-y-3">
               <UsageBar
@@ -224,7 +224,7 @@ export function PlanSection() {
                 <h3 className="text-sm font-medium text-gray-800">Доступные планы</h3>
                 {!subscription.billing_enabled && (
                   <span className="rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-600">
-                    Онлайн-оплата временно недоступна
+                    Pro недоступен в демо
                   </span>
                 )}
               </div>

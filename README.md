@@ -10,7 +10,16 @@ CRM для арендодателей: объекты, арендаторы, д�
 | [docs/PRIORITIES.md](docs/PRIORITIES.md) | Операционный порядок работ |
 | [docs/INFRA.md](docs/INFRA.md) | Инфраструктура и образы |
 | [docs/deploy.md](docs/deploy.md) | Runbook: деплой, бэкап, restore |
+| [docs/PORTFOLIO.md](docs/PORTFOLIO.md) | Чеклист перед публикацией в портфолио |
 | [docs/MONEY_FLOW.md](docs/MONEY_FLOW.md) | Денежная логика |
+
+## Скриншоты
+
+| Дашборд | Договоры и платежи | Настройки |
+|---------|--------------------|-----------|
+| ![Дашборд](docs/assets/dashboard.png) | ![Договоры](docs/assets/contracts.png) | ![Настройки](docs/assets/settings.png) |
+
+Если файлов ещё нет — см. инструкцию в [docs/PORTFOLIO.md](docs/PORTFOLIO.md).
 
 ## Быстрый старт (локально)
 
@@ -32,21 +41,29 @@ API: `http://localhost:8000` (через override) или через nginx `http
 UI: `http://localhost:3000`.  
 Готовность: `curl -sf http://localhost/ready`.
 
-### Демо-аккаунт
+## Демо
+
+Публичная регистрация по умолчанию закрыта (`ALLOW_PUBLIC_REGISTRATION=false` в `.env.example`). Аккаунт создаётся через CLI:
 
 ```bash
-docker compose exec api python -m app.cli seed \
-  --email demo@example.com \
-  --password 'ChangeMeDemo1!'
+docker compose exec api python -m app.cli seed-demo
 ```
 
-Создаёт пользователя, аккаунт, один объект и одного арендатора. Пароль только для локальной разработки.
+| Поле | Значение |
+|------|----------|
+| Email | `demo@example.com` |
+| Пароль | `ChangeMeDemo1!` |
+
+Создаёт пользователя и showcase-данные: несколько объектов, арендаторов, активные/просроченные/draft договоры, начисления, платежи, расходы и напоминания. Команда идемпотентна.
+
+Вход: [http://localhost:3000/login](http://localhost:3000/login) (или через nginx на `:80`).
 
 ## Прод / VPS
 
 См. [docs/deploy.md](docs/deploy.md). Кратко:
 
 - `APP_ENV=production` и уникальный `SECRET_KEY`
+- `ALLOW_PUBLIC_REGISTRATION=false`
 - online-сборка: `INSTALL_MODE=online docker compose -f docker-compose.yml build`
 - без `docker-compose.override.yml` (порты БД наружу не открывать)
 - один вход: nginx отдаёт SPA и проксирует `/api`
@@ -64,4 +81,4 @@ docker compose exec api python -m app.cli seed \
 
 ### Оплата тарифа Pro (ЮKassa, test)
 
-Подробно: [docs/BILLING.md](docs/BILLING.md). Кратко: в `backend/.env` — `YOOKASSA_SHOP_ID` + `YOOKASSA_SECRET_KEY=test_…`, перезапуск `api`/`celery-*`, Settings → «Оплатить Pro», карта `5555 5555 5555 4444`. После оплаты return → `confirm` без ngrok; webhook опционален.
+Подробно: [docs/BILLING.md](docs/BILLING.md). Кратко: в `backend/.env` — `YOOKASSA_SHOP_ID` + `YOOKASSA_SECRET_KEY=test_…`, перезапуск `api`/`celery-*`, Settings → «Оплатить Pro», карта `5555 5555 5555 4444`. После оплаты return → `confirm` без ngrok; webhook опционален. Без ключей checkout просто недоступен.

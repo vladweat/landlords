@@ -501,6 +501,73 @@
       max-width: 28ch;
     }
 
+    /* —— Demo access —— */
+    .demo-block {
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      background: var(--paper-elevated);
+      padding: 48px 0;
+    }
+
+    .demo-inner {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 24px 40px;
+    }
+
+    .demo-copy {
+      max-width: 36rem;
+    }
+
+    .demo-copy .section-label { margin-bottom: 10px; }
+
+    .demo-copy h2 {
+      font-family: var(--font-display);
+      font-size: clamp(1.5rem, 2.5vw, 1.85rem);
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      margin-bottom: 8px;
+    }
+
+    .demo-copy p {
+      color: var(--muted);
+      font-size: 0.95rem;
+      max-width: 40ch;
+    }
+
+    .demo-creds {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 16px 28px;
+    }
+
+    .demo-cred {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .demo-cred .label {
+      font-size: 0.6875rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .demo-cred code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--ink);
+      background: var(--accent-soft);
+      padding: 6px 10px;
+      border-radius: 6px;
+    }
+
     /* —— Waitlist —— */
     .waitlist-grid {
       display: grid;
@@ -888,6 +955,27 @@
     </div>
   </section>
 
+  <section class="demo-block" id="demo" data-section>
+    <div class="container demo-inner reveal">
+      <div class="demo-copy">
+        <p class="section-label">Демо-доступ</p>
+        <h2>Попробуйте без заявки</h2>
+        <p>Готовый аккаунт с объектами, договорами и платежами. Публичная регистрация закрыта.</p>
+      </div>
+      <div class="demo-creds">
+        <div class="demo-cred">
+          <span class="label">Email</span>
+          <code>demo@example.com</code>
+        </div>
+        <div class="demo-cred">
+          <span class="label">Пароль</span>
+          <code>ChangeMeDemo1!</code>
+        </div>
+        <a href="/login" class="btn btn-accent">Войти в демо</a>
+      </div>
+    </div>
+  </section>
+
   <section class="section" id="waitlist" data-section>
     <div class="container waitlist-grid">
       <div class="reveal">
@@ -962,7 +1050,7 @@
       <div class="reveal">
         <details>
           <summary>Как попасть в доступ?</summary>
-          <p>Оставьте заявку на этой странице или напишите на hello@landlords.ru / в Telegram. Мы открываем доступ постепенно и свяжемся с вами.</p>
+          <p>Демо-аккаунт указан в блоке «Демо-доступ» выше. Для личного аккаунта оставьте заявку или напишите на hello@landlords.ru / в Telegram — открываем доступ постепенно.</p>
         </details>
         <details>
           <summary>Для кого Landlords?</summary>

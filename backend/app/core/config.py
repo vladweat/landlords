@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     APP_VERSION: str = "0.1.0"
     APP_ENV: str = "development"  # development | staging | production
     DEBUG: bool = True
+    # Публичный POST /v1/auth/register. Для портфолио/прода — false; CLI seed не зависит от флага.
+    ALLOW_PUBLIC_REGISTRATION: bool = True
     
     # ==================== Security ====================
     

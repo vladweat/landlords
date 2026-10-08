@@ -3,6 +3,7 @@
 Примеры:
   python -m app.cli create-user --email admin@example.com --password secret123 --full-name Admin
   python -m app.cli seed --email admin@example.com --password secret123
+  python -m app.cli seed-demo
 """
 
 import argparse
@@ -16,6 +17,12 @@ from app.db.repositories.property_repo import PropertyRepository
 from app.db.repositories.tenant_repo import TenantRepository
 from app.db.repositories.user_repo import UserRepository
 from app.db.session import SessionLocal
+from app.demo_seed import (
+    DEFAULT_DEMO_EMAIL,
+    DEFAULT_DEMO_FULL_NAME,
+    DEFAULT_DEMO_PASSWORD,
+    run_seed_demo,
+)
 from app.services.dto.property_dto import PropertyCreateDTO
 from app.services.dto.tenant_dto import TenantCreateDTO
 from app.services.dto.user_dto import UserCreateDTO
@@ -115,6 +122,15 @@ def cmd_seed(args: argparse.Namespace) -> int:
         session.close()
 
 
+def cmd_seed_demo(args: argparse.Namespace) -> int:
+    """Создать showcase-демо: пользователь + объекты, договоры, платежи, расходы."""
+    return run_seed_demo(
+        email=args.email,
+        password=args.password,
+        full_name=args.full_name,
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="app.cli", description="Landlords backend CLI")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -130,6 +146,15 @@ def main(argv: list[str] | None = None) -> int:
     seed.add_argument("--password", required=True)
     seed.add_argument("--full-name", default="Admin")
     seed.set_defaults(func=cmd_seed)
+
+    seed_demo = sub.add_parser(
+        "seed-demo",
+        help="Showcase-демо для портфолио (объекты, договоры, платежи, расходы)",
+    )
+    seed_demo.add_argument("--email", default=DEFAULT_DEMO_EMAIL)
+    seed_demo.add_argument("--password", default=DEFAULT_DEMO_PASSWORD)
+    seed_demo.add_argument("--full-name", default=DEFAULT_DEMO_FULL_NAME)
+    seed_demo.set_defaults(func=cmd_seed_demo)
 
     args = parser.parse_args(argv)
     return args.func(args)
