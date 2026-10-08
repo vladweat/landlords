@@ -83,6 +83,23 @@ class TestAuthLogin:
         assert data["status"] == "success"
         assert "token" in data
 
+    def test_login_sets_access_cookie(self, client: TestClient, auth_headers):
+        """Вход кладёт JWT в HttpOnly-cookie."""
+        resp = client.post(
+            "/v1/auth/login",
+            json={
+                "email": "test@example.com",
+                "password": "secret123",
+            },
+        )
+        assert resp.status_code == 200
+        token = resp.json()["token"]
+        assert resp.cookies.get("access_token") == token
+        set_cookie = resp.headers["set-cookie"]
+        assert "access_token=" in set_cookie
+        assert "HttpOnly" in set_cookie
+        assert "Path=/" in set_cookie
+
     def test_login_wrong_password(self, client: TestClient, auth_headers):
         """Неверный пароль."""
         resp = client.post(
@@ -116,6 +133,26 @@ class TestAuthMe:
         assert data["data"]["user"]["email"] == "test@example.com"
         assert data["data"]["role"] == "owner"
         assert "id" in data["data"]["account"]
+
+    def test_me_with_cookie_without_bearer(self, client: TestClient, auth_headers):
+        """Профиль открывается по cookie сессии, без заголовка Authorization."""
+        login = client.post(
+            "/v1/auth/login",
+            json={
+                "email": "test@example.com",
+                "password": "secret123",
+            },
+        )
+        assert login.status_code == 200
+        client.cookies.clear()
+        client.cookies.set("access_token", login.cookies["access_token"])
+
+        resp = client.get("/v1/auth/me")
+        assert "authorization" not in {k.lower() for k in resp.request.headers}
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "success"
+        assert data["data"]["user"]["email"] == "test@example.com"
 
     def test_me_no_token(self, client: TestClient):
         resp = client.get("/v1/auth/me")
