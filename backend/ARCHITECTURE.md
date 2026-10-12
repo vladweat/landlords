@@ -5,6 +5,11 @@
 
 **Трекер исправлений:** [TODO.md](./TODO.md) · продукт: [docs/ROADMAP.md](../docs/ROADMAP.md)
 
+> **Статус:** документ сохраняет контекст code review сентября 2026. Часть
+> backlog ниже уже закрыта. Актуальное устройство системы:
+> [docs/architecture/overview.md](../docs/architecture/overview.md), текущие
+> риски: [docs/maintenance/technical-debt.md](../docs/maintenance/technical-debt.md).
+
 ---
 
 ## Что трогать не стоит
@@ -137,11 +142,12 @@ entity → interface → repo → service → schema → route → deps → те
 
 (`autoretry_for` уже сужен до transient — не откатывать это.)
 
-### 6. Фронт (см. [frontend/TODO.md](../frontend/TODO.md))
+### 6. Фронт (исторические пункты; см. [frontend/TODO.md](../frontend/TODO.md))
 
-- Токен в `localStorage` проще, чем cookie, и шире открыт при XSS. Для реального продукта — HttpOnly cookie.
-- Модалки платежей и договоров всё ещё лежат в `pages/`, хотя правило проекта — `features/`.
-- `tsc` до сих пор красный — без зелёного билда остальной фронт нельзя считать стабильным.
+- Переход на HttpOnly-cookie выполнен; `localStorage` читается только для
+  миграции legacy sessions.
+- CRUD-модалки перенесены в `features/`.
+- `tsc` выполняется в `npm run build` и CI.
 
 ### 7. Типы
 
@@ -171,7 +177,7 @@ mypy на backend нет, в пагинации `items: list[Any]`. Имеет �
 | ~~закрыто~~ | Flower без auth | не публикуется / защищён в prod-профиле |
 | ~~закрыто~~ | CORS `*` | ужесточён для prod |
 | ~~закрыто~~ | SMTP опционален — без него письма в `storage/emails/` | `EmailService`; prod — задать `SMTP_*` |
-| открыто | JWT в `localStorage` на фронте (XSS) | HttpOnly cookie — frontend TODO |
+| ~~закрыто~~ | JWT в `localStorage` на фронте (XSS) | HttpOnly-cookie; legacy migration удаляет старый token |
 
 ---
 
@@ -179,10 +185,10 @@ mypy на backend нет, в пагинации `items: list[Any]`. Имеет �
 
 Полный разбор: [docs/INFRA.md](../docs/INFRA.md).
 
-- `Dockerfile` сейчас только offline: `COPY .venv/.../site-packages`. Это **нужный** режим для сборки без PyPI; рядом добавить online (`pip install -r requirements.txt`) для CI.
-- Полный CI: integration + frontend `tsc`/build + online image — [TODO.md](./TODO.md), [PRIORITIES.md](../docs/PRIORITIES.md).
-- `.env.example` в корне пустой — секреты и SMTP нужно задокументировать.
-- Runbook бэкапа/восстановления в репозитории ещё нет (`docs/deploy.md`).
+- `Dockerfile` поддерживает offline и online (`pip install -r requirements.txt`) режимы.
+- CI выполняет integration + frontend test/build + online image.
+- `.env.example` документирует application/DB/Redis/email/billing/ops.
+- Runbook бэкапа/восстановления: [`docs/deploy.md`](../docs/deploy.md).
 
 Volume `storage/documents` для api и celery — **готово**.
 

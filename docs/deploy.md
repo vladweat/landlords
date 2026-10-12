@@ -43,7 +43,9 @@ docker compose exec api python -m app.cli seed-demo
 # дефолт: demo@example.com / ChangeMeDemo1!
 ```
 
-Создаёт пользователя (если нет) и богатые демо-данные. Идемпотентно. Публичный `POST /register` при `ALLOW_PUBLIC_REGISTRATION=false` закрыт; CLI от флага не зависит.
+Создаёт пользователя (если нет) и богатые демо-данные. Идемпотентно. Публичный
+`POST /v1/auth/register` (через nginx — `/api/v1/auth/register`) при
+`ALLOW_PUBLIC_REGISTRATION=false` закрыт; CLI от флага не зависит.
 
 ## TLS
 
