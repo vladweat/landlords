@@ -9,7 +9,8 @@
 ### Перед prod (с backend)
 
 - [x] Зелёный `npm run build` (см. P0 ниже)
-- [x] CI job: frontend lint + `tsc` + build — [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)
+- [x] CI job: frontend tests + `tsc` + build — [`.github/workflows/ci.yml`](../.github/workflows/ci.yml).
+  `npm run lint` пока остаётся отдельной локальной проверкой.
 
 Отмечай выполненное: `- [ ]` → `- [x]`.
 
@@ -53,7 +54,7 @@
 - [x] `ContractDetailPage`: только склейка features (ledger, документы, renew/terminate) — сейчас ~572 строки.
 - [x] Auth: JWT из `localStorage` → HttpOnly cookie (XSS).
 - [x] Frontend tests (vitest): auth store, money formatters, critical forms.
-- [x] CI: `frontend` lint + `tsc` + build (сейчас CI только backend).
+- [x] CI: frontend tests + `tsc` + build. ESLint job в CI пока не добавлен.
 
 ---
 

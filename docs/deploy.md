@@ -43,7 +43,9 @@ docker compose exec api python -m app.cli seed-demo
 # дефолт: demo@example.com / ChangeMeDemo1!
 ```
 
-Создаёт пользователя (если нет) и богатые демо-данные. Идемпотентно. Публичный `POST /register` при `ALLOW_PUBLIC_REGISTRATION=false` закрыт; CLI от флага не зависит.
+Создаёт пользователя (если нет) и богатые демо-данные. Идемпотентно. Публичный
+`POST /v1/auth/register` (через nginx — `/api/v1/auth/register`) при
+`ALLOW_PUBLIC_REGISTRATION=false` закрыт; CLI от флага не зависит.
 
 ## TLS
 
@@ -130,7 +132,18 @@ EOF
 
 `overall`: `operational` | `degraded` | `outage`. Volume `./storage/status` смонтирован в api и celery-worker.
 
-Алерты ops уходят на `SUPPORT_EMAIL` и в Sentry (если DSN задан). Проверка: `curl -sf http://localhost/metrics | grep ops_`.
+Алерты ops уходят на `SUPPORT_EMAIL` и в Sentry (если DSN задан). nginx не
+проксирует `/metrics`, поэтому в production-профиле проверяйте endpoint внутри
+API-контейнера:
+
+```bash
+docker compose exec -T api python -c \
+  "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/metrics').read().decode())" \
+  | grep '^ops_'
+```
+
+В локальном override тот же endpoint доступен как
+`http://localhost:8000/metrics`.
 
 ## Чеклист перед продом
 

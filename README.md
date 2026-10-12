@@ -1,84 +1,100 @@
 # Landlords
 
-CRM для арендодателей: объекты, арендаторы, договоры, начисления и платежи (ledger), расходы, календарь, документы, роли в аккаунте.
+SaaS CRM для арендодателей. Реализованы объекты и арендаторы, жизненный цикл
+договоров, начисления и платежи с ledger, расходы и ROI, документы и квитанции,
+календарь, напоминания, роли аккаунта, портал арендатора и тариф Pro.
 
-Стек: FastAPI + PostgreSQL + Redis/Celery · React (Vite) · Docker Compose.
+Backend — Python 3.12, FastAPI, SQLAlchemy 2, Alembic, PostgreSQL 15, Redis 7 и
+Celery. Frontend — React 19, TypeScript, Vite, TanStack Query, Zustand и
+Tailwind CSS 4. Стек запускается через Docker Compose; nginx обслуживает SPA и
+проксирует `/api` в FastAPI.
 
-| Документ | О чём |
-|----------|--------|
-| [docs/ROADMAP.md](docs/ROADMAP.md) | Стратегия и критерии «готово» |
-| [docs/PRIORITIES.md](docs/PRIORITIES.md) | Операционный порядок работ |
-| [docs/INFRA.md](docs/INFRA.md) | Инфраструктура и образы |
-| [docs/deploy.md](docs/deploy.md) | Runbook: деплой, бэкап, restore |
-| [docs/PORTFOLIO.md](docs/PORTFOLIO.md) | Чеклист перед публикацией в портфолио |
-| [docs/MONEY_FLOW.md](docs/MONEY_FLOW.md) | Денежная логика |
+## Требования и быстрый старт
 
-## Скриншоты
-
-| Дашборд | Договоры и платежи | Настройки |
-|---------|--------------------|-----------|
-| ![Дашборд](docs/assets/dashboard.png) | ![Договоры](docs/assets/contracts.png) | ![Настройки](docs/assets/settings.png) |
-
-Если файлов ещё нет — см. инструкцию в [docs/PORTFOLIO.md](docs/PORTFOLIO.md).
-
-## Быстрый старт (локально)
-
-Нужны Docker Compose и Node 22+ (для dev-фронта).
+- Docker с Compose plugin;
+- Node.js 22+ и npm — только для frontend с hot reload;
+- для offline-сборки backend — корневая `.venv` на Python 3.12; на чистой
+  машине используйте `INSTALL_MODE=online`.
 
 ```bash
-# 1. Секреты
 cp .env.example backend/.env
-# при необходимости: cp .env.example .env  (подстановка DB_* в compose)
+cp .env.example .env
+INSTALL_MODE=online docker compose up -d --build
+curl -sf http://localhost/ready
 
-# 2. Backend + nginx + Postgres + Redis
-docker compose up -d --build
-
-# 3. Frontend (hot reload на :3000, /api → nginx :80)
-cd frontend && npm ci && npm run dev
+# Отдельно frontend с hot reload на http://localhost:3000
+cd frontend
+npm ci
+npm run dev
 ```
 
-API: `http://localhost:8000` (через override) или через nginx `http://localhost/api/…`.  
-UI: `http://localhost:3000`.  
-Готовность: `curl -sf http://localhost/ready`.
+Compose автоматически применяет `docker-compose.override.yml`: API доступен на
+`http://localhost:8000`, nginx — на `http://localhost`, PostgreSQL и Redis также
+публикуют dev-порты. Не используйте override на публичном сервере.
 
-## Демо
-
-Публичная регистрация по умолчанию закрыта (`ALLOW_PUBLIC_REGISTRATION=false` в `.env.example`). Аккаунт создаётся через CLI:
+Публичная регистрация в примере выключена. Демо-аккаунт создаётся идемпотентной
+командой:
 
 ```bash
 docker compose exec api python -m app.cli seed-demo
 ```
 
-| Поле | Значение |
-|------|----------|
-| Email | `demo@example.com` |
-| Пароль | `ChangeMeDemo1!` |
+Локальный демонстрационный вход: `demo@example.com` / `ChangeMeDemo1!`. Не
+оставляйте этот пароль на публичном стенде.
 
-Создаёт пользователя и showcase-данные: несколько объектов, арендаторов, активные/просроченные/draft договоры, начисления, платежи, расходы и напоминания. Команда идемпотентна.
+## Разработка и проверки
 
-Вход: [http://localhost:3000/login](http://localhost:3000/login) (или через nginx на `:80`).
+```bash
+# Все backend-тесты (integration требуют PostgreSQL и Redis)
+cd backend
+ALLOW_PUBLIC_REGISTRATION=true pytest
 
-## Прод / VPS
+# Те же основные группы, что в CI
+ruff check app tests --select E9,F63,F7,F82
+pytest -q tests/unit tests/tasks
+ALLOW_PUBLIC_REGISTRATION=true pytest -q tests/integration
 
-См. [docs/deploy.md](docs/deploy.md). Кратко:
+cd ../frontend
+npm test
+npm run lint
+npm run build
+```
 
-- `APP_ENV=production` и уникальный `SECRET_KEY`
-- `ALLOW_PUBLIC_REGISTRATION=false`
-- online-сборка: `INSTALL_MODE=online docker compose -f docker-compose.yml build`
-- без `docker-compose.override.yml` (порты БД наружу не открывать)
-- один вход: nginx отдаёт SPA и проксирует `/api`
+API применяет `alembic upgrade head` при старте контейнера, потому что только у
+сервиса `api` задан `RUN_MIGRATIONS=1`. Ручной запуск из `backend/`:
+`alembic upgrade head`.
 
-## Разработка
+## Конфигурация
 
-| Часть | Команда |
-|-------|---------|
-| Frontend | `cd frontend && npm run dev` |
-| Backend в Docker | `docker compose up` |
-| Тесты | `cd backend && pytest` |
-| Миграции | на старте API (`RUN_MIGRATIONS=1`) или `alembic upgrade head` |
+Шаблон находится в [`.env.example`](.env.example). В production обязательны
+`APP_ENV=production` и уникальный `SECRET_KEY`; приложение прекращает запуск с
+дефолтным ключом. Не коммитьте `.env`, SMTP/Resend, Sentry и ЮKassa credentials.
+Полный справочник: [docs/development/configuration.md](docs/development/configuration.md).
 
-Образы API: `INSTALL_MODE=offline` (копирует `.venv`, default) или `online` (`pip install -r requirements.txt`).
+## Документация
 
-### Оплата тарифа Pro (ЮKassa, test)
+- [Навигация и статус документов](docs/index.md)
+- [Архитектура](docs/architecture/overview.md)
+- [API](docs/api/overview.md)
+- [База данных](docs/architecture/database.md)
+- [Фоновые задачи](docs/architecture/background-jobs.md)
+- [Локальная разработка](docs/development/getting-started.md)
+- [Тестирование](docs/development/testing.md)
+- [Деплой и восстановление](docs/deploy.md)
+- [Безопасность](docs/security/overview.md)
+- [Технический долг](docs/maintenance/technical-debt.md)
 
-Подробно: [docs/BILLING.md](docs/BILLING.md). Кратко: в `backend/.env` — `YOOKASSA_SHOP_ID` + `YOOKASSA_SECRET_KEY=test_…`, перезапуск `api`/`celery-*`, Settings → «Оплатить Pro», карта `5555 5555 5555 4444`. После оплаты return → `confirm` без ngrok; webhook опционален. Без ключей checkout просто недоступен.
+Продуктовые документы (`ROADMAP`, `MONEY_FLOW`, роли и billing) сохранены как
+спецификации и исторический контекст. Их статус указан в
+[аудите документации](docs/maintenance/documentation-audit.md).
+
+## Известные ограничения запуска
+
+- Compose не настраивает TLS; для публичного сервера нужен внешний TLS
+  termination.
+- `requirements.txt` не фиксирует большинство версий, поэтому online-сборка не
+  полностью воспроизводима.
+- `/metrics` не проксируется отдельным location nginx и доступен напрямую через
+  dev-порт API либо из внутренней сети.
+- Репозиторий содержит процедуры backup/restore, но не их автоматизацию и не
+  доказательство тестового восстановления.

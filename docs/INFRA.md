@@ -29,13 +29,21 @@ Entrypoint API при `RUN_MIGRATIONS=1` гоняет `alembic upgrade head`. He
 
 ## Что ещё улучшить
 
-**CI** (`.github/workflows/ci.yml`) сейчас узкий: ruff + часть pytest. Имеет смысл добавить integration, `npm run build` и online-сборку образа API; деплой — отдельным шагом.
+**CI** (`.github/workflows/ci.yml`) выполняет critical Ruff checks, unit/tasks,
+integration с PostgreSQL/Redis, frontend tests/build и online-сборку API image.
+Не выполняются полный Ruff/Black check, frontend lint, dependency audit,
+Compose smoke test и deploy; последний должен оставаться отдельным job с
+явным environment approval.
 
 **TLS** в compose нет: перед публичным доступом — certbot/Caddy перед nginx, затем корректный `FRONTEND_URL`.
 
 **Почта:** без SMTP/Resend письма пишутся в `storage/emails/`. Для прода задать SMTP или Resend.
 
-**Наблюдаемость воркеров:** beat/worker healthchecks базовые; полноценный Prometheus/Alertmanager — по желанию.
+**Наблюдаемость воркеров:** worker healthcheck подтверждает соединение с
+broker, у beat healthcheck отключён. Prometheus server, Alertmanager и log
+retention в Compose отсутствуют; перед production необходимо определить
+внешний scrape/alerting и ответственного, а не считать `/metrics` готовой
+системой мониторинга.
 
 ---
 
