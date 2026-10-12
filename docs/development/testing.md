@@ -22,14 +22,18 @@ services. Task tests проверяют Celery use cases/lock. Integration fixtu
 
 Следствие: integration suite требует PostgreSQL и права create/drop database.
 Она также ожидает Redis для тестируемых путей, хотя не каждый test обращается к
-нему. Не направляйте её на shared/production DB.
+нему. Fixtures регистрируют test user через `/v1/auth/register`, поэтому
+`ALLOW_PUBLIC_REGISTRATION` должен быть `true`: скопированный `.env.example`
+задаёт `false` и без override ломает setup тестов. Не направляйте suite на
+shared/production DB.
 
 Запуск с Compose services:
 
 ```bash
 docker compose up -d postgres redis
 cd backend
-DB_HOST=localhost REDIS_HOST=localhost pytest -q tests/integration
+DB_HOST=localhost REDIS_HOST=localhost ALLOW_PUBLIC_REGISTRATION=true \
+  pytest -q tests/integration
 ```
 
 ## Frontend

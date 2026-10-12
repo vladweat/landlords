@@ -46,16 +46,18 @@ docker compose exec api python -m app.cli seed-demo
 
 ```bash
 # Все backend-тесты (integration требуют PostgreSQL и Redis)
-cd backend && pytest
+cd backend
+ALLOW_PUBLIC_REGISTRATION=true pytest
 
 # Те же основные группы, что в CI
-cd backend && ruff check app tests --select E9,F63,F7,F82
-cd backend && pytest -q tests/unit tests/tasks
-cd backend && pytest -q tests/integration
+ruff check app tests --select E9,F63,F7,F82
+pytest -q tests/unit tests/tasks
+ALLOW_PUBLIC_REGISTRATION=true pytest -q tests/integration
 
-cd frontend && npm test
-cd frontend && npm run lint
-cd frontend && npm run build
+cd ../frontend
+npm test
+npm run lint
+npm run build
 ```
 
 API применяет `alembic upgrade head` при старте контейнера, потому что только у

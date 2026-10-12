@@ -58,8 +58,8 @@ Email dedup дополнительно хранится в `email_dispatch_log`.
 ### Ops heartbeat
 
 Tasks записывают `ops:beat:last_ok` в Redis. Alert dedup использует ключи
-`ops:alert:<key>` с TTL. Это cache/operational state, а не durable business
-data; очистка Redis теряет heartbeat, locks, dedup и Celery results.
+`ops:alert:dedup:<alert_key>` с TTL. Это cache/operational state, а не durable
+business data; очистка Redis теряет heartbeat, locks, dedup и Celery results.
 
 ## Жизненный цикл
 
@@ -84,6 +84,10 @@ sequenceDiagram
 HTTP enqueue не образует атомарную транзакцию с PostgreSQL (outbox отсутствует).
 Сбой между DB commit и publish либо между publish и HTTP response может дать
 пропуск/дубликат; use cases должны оставаться повторяемыми.
+
+Endpoints генерации возвращают Celery `task_id`, но отдельного API для чтения
+состояния result backend нет. Клиент проверяет результат повторным чтением
+business resource, а не polling task state.
 
 ## Эксплуатация
 
