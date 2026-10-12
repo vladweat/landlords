@@ -132,7 +132,18 @@ EOF
 
 `overall`: `operational` | `degraded` | `outage`. Volume `./storage/status` смонтирован в api и celery-worker.
 
-Алерты ops уходят на `SUPPORT_EMAIL` и в Sentry (если DSN задан). Проверка: `curl -sf http://localhost/metrics | grep ops_`.
+Алерты ops уходят на `SUPPORT_EMAIL` и в Sentry (если DSN задан). nginx не
+проксирует `/metrics`, поэтому в production-профиле проверяйте endpoint внутри
+API-контейнера:
+
+```bash
+docker compose exec -T api python -c \
+  "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/metrics').read().decode())" \
+  | grep '^ops_'
+```
+
+В локальном override тот же endpoint доступен как
+`http://localhost:8000/metrics`.
 
 ## Чеклист перед продом
 

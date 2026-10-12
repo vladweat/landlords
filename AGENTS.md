@@ -24,11 +24,11 @@ server state, Zustand только для auth. Browser auth — HttpOnly-cookie
 ## Проверки
 
 ```bash
-cd backend && ruff check app tests --select E9,F63,F7,F82
-cd backend && pytest -q tests/unit tests/tasks
-cd backend && pytest -q tests/integration  # PostgreSQL/Redis
-cd frontend && npm test
-cd frontend && npm run build
+(cd backend && ruff check app tests --select E9,F63,F7,F82)
+(cd backend && pytest -q tests/unit tests/tasks)
+(cd backend && ALLOW_PUBLIC_REGISTRATION=true pytest -q tests/integration)  # PostgreSQL/Redis
+(cd frontend && npm test)
+(cd frontend && npm run build)
 ```
 
 Запускайте пропорционально изменению. Schema change требует Alembic migration и

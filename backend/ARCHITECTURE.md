@@ -202,7 +202,10 @@ tests/
 └── tasks/test_charge_tasks.py
 ```
 
-Нет integration-тестов: feedback, reminders, PDF/documents, Celery beat, password reset.
+Есть integration-тесты основных ресурсов, включая documents/invoices/portal,
+RBAC и billing. Отдельных integration suites нет для feedback, reminders,
+reports, notifications и contract templates; реальный Celery worker/beat в
+integration tests не запускается.
 
 ---
 

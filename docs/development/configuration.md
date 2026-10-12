@@ -58,6 +58,11 @@ Compose передаёт `backend/.env` через `env_file` и принуди�
 `REDIS_URL`, broker и result backend вычисляются; отдельные
 `CELERY_BROKER_URL`/`CELERY_RESULT_BACKEND` не используются.
 
+Базовый `docker-compose.yml` не включает Redis `requirepass`. Поэтому одного
+`REDIS_PASSWORD` в application env недостаточно: Redis server необходимо
+отдельно запустить с тем же password/configuration. Иначе client попытается
+выполнить `AUTH` против server без настроенного пароля.
+
 ## Email
 
 | Переменная | Default | Назначение |
