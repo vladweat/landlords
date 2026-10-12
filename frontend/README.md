@@ -1,17 +1,35 @@
-# React + TypeScript + Vite
+# Frontend Landlords
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React SPA на TypeScript/Vite. Server state хранится в TanStack Query, auth
+state — в Zustand. API client использует `/api/v1`, `withCredentials` и
+HttpOnly-cookie; `localStorage.access_token` читается только для миграции старых
+сессий.
 
-Currently, two official plugins are available:
+## Запуск и проверки
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+```bash
+# Сначала из корня: docker compose up -d
+cd frontend
+npm ci
+npm run dev
+npm test
+npm run lint
+npm run build
+```
 
-## React Compiler
+Vite слушает `http://localhost:3000`, `/api` проксируется в nginx на port 80.
+`build` выполняет TypeScript check и production Vite build.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Структура: `app/` — router/providers, `pages/` — композиция, `features/` — API
+и components, `entities/` — доменные типы, `shared/` — client/UI/lib/hooks.
+Деньги в API/types остаются строками.
 
-## Expanding the ESLint configuration
+Общие инструкции:
+[`docs/development/getting-started.md`](../docs/development/getting-started.md),
+[`docs/development/testing.md`](../docs/development/testing.md). Исторический
+backlog: [`TODO.md`](TODO.md).
+
+## Справка по расширению ESLint
 
 If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
 
