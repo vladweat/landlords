@@ -1,5 +1,6 @@
 from app.db.models.account_invite_model import AccountInviteModel
 from app.db.models.account_model import AccountModel
+from app.db.models.auth_session_model import AuthSessionModel
 from app.db.models.audit_log_model import AuditLogModel
 from app.db.models.base import Base
 from app.db.models.contract_event_model import ContractEventModel
@@ -24,6 +25,7 @@ __all__ = [
     "Base",
     "UserModel",
     "AccountModel",
+    "AuthSessionModel",
     "AccountInviteModel",
     "MembershipModel",
     "PropertyModel",

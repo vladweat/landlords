@@ -3,9 +3,13 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, Response
+from fastapi import APIRouter, Cookie, Depends, Header, Response
 
-from app.api.deps import get_current_user_id, get_user_service
+from app.api.deps import (
+    get_auth_session_service,
+    get_current_user_id,
+    get_user_service,
+)
 from app.api.v1.schemas.account_schema import AccountResponse
 from app.api.v1.schemas.user_schema import (
     AuthResponse,
@@ -21,18 +25,20 @@ from app.api.v1.schemas.user_schema import (
     UserResponse,
 )
 from app.core.config import settings
-from app.core.cookies import clear_access_cookie, set_access_cookie
+from app.core.cookies import ACCESS_TOKEN_COOKIE, clear_access_cookie, set_access_cookie
 from app.core.exceptions import ForbiddenError, ValidationError
 from app.core.security import verify_reset_token
+from app.services.auth_session_service import AuthSessionService
 from app.services.user_service import UserService
 
 router = APIRouter(prefix="/v1/auth", tags=["Auth"])
 
 
-@router.post("/register", response_model=AuthResponse)
+@router.post("/register", response_model=AuthResponse, response_model_exclude_none=True)
 def register(
     body: RegisterRequest,
     response: Response,
+    return_bearer_token: bool = Header(False, alias="X-Return-Bearer-Token"),
     service: UserService = Depends(get_user_service),
 ) -> dict:
     """Зарегистрировать нового пользователя и создать аккаунт."""
@@ -42,15 +48,16 @@ def register(
     set_access_cookie(response, token)
     return {
         "status": "success",
-        "token": token,
+        "token": token if return_bearer_token else None,
         "user": UserResponse.model_validate(user_dto),
     }
 
 
-@router.post("/login", response_model=AuthResponse)
+@router.post("/login", response_model=AuthResponse, response_model_exclude_none=True)
 def login(
     body: LoginRequest,
     response: Response,
+    return_bearer_token: bool = Header(False, alias="X-Return-Bearer-Token"),
     service: UserService = Depends(get_user_service),
 ) -> dict:
     """Войти в систему."""
@@ -58,7 +65,7 @@ def login(
     set_access_cookie(response, token)
     return {
         "status": "success",
-        "token": token,
+        "token": token if return_bearer_token else None,
         "user": UserResponse.model_validate(user_dto),
     }
 
@@ -88,8 +95,18 @@ def get_me(
 
 
 @router.post("/logout")
-def logout(response: Response) -> dict:
-    """Завершить сессию: сбросить HttpOnly-cookie."""
+def logout(
+    response: Response,
+    authorization: Annotated[str | None, Header()] = None,
+    access_token: Annotated[str | None, Cookie(alias=ACCESS_TOKEN_COOKIE)] = None,
+    sessions: AuthSessionService = Depends(get_auth_session_service),
+) -> dict:
+    """Отозвать текущие token sessions и сбросить HttpOnly-cookie."""
+    tokens = [access_token]
+    if authorization and authorization.startswith("Bearer "):
+        tokens.append(authorization.split(" ", 1)[1])
+    for token in set(filter(None, tokens)):
+        sessions.revoke_access_token(token)
     clear_access_cookie(response)
     return {"status": "success"}
 
@@ -110,10 +127,11 @@ def reset_password(
     service: UserService = Depends(get_user_service),
 ) -> dict:
     """Сбросить пароль по токену."""
-    user_id = verify_reset_token(body.token)
-    if not user_id:
+    reset_claims = verify_reset_token(body.token)
+    if not reset_claims:
         raise ValidationError("Токен устарел или недействителен. Запросите восстановление заново.")
-    service.reset_password(UUID(user_id), body.new_password)
+    user_id, token_id = reset_claims
+    service.reset_password(user_id, token_id, body.new_password)
     return {"message": "Пароль успешно изменён."}
 
 
@@ -131,11 +149,13 @@ def update_profile(
 @router.post("/change-password")
 def change_password(
     body: ChangePasswordRequest,
+    response: Response,
     user_id: UUID = Depends(get_current_user_id),
     service: UserService = Depends(get_user_service),
 ) -> dict:
     """Сменить пароль."""
     service.change_password(user_id, body.current_password, body.new_password)
+    clear_access_cookie(response)
     return {"message": "Пароль успешно изменён."}
 
 

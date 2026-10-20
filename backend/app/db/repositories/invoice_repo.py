@@ -1,5 +1,6 @@
 """Реализация репозитория квитанций."""
 
+from datetime import datetime, timezone
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -29,6 +30,7 @@ class InvoiceRepository(IInvoiceRepository):
             raise ValueError("Invoice not found")
         model.document_id = entity.document_id
         model.public_token = entity.public_token
+        model.public_token_expires_at = entity.public_token_expires_at
         self.session.flush()
         return model.to_entity()
 
@@ -44,6 +46,7 @@ class InvoiceRepository(IInvoiceRepository):
         model = (
             self.session.query(InvoiceModel)
             .filter_by(public_token=public_token)
+            .filter(InvoiceModel.public_token_expires_at > datetime.now(timezone.utc))
             .first()
         )
         return model.to_entity() if model else None

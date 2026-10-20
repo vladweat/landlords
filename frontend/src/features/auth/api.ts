@@ -11,9 +11,11 @@ export interface RegisterRequest {
 
 export interface AuthResponse {
   status: string;
-  token: string;
+  token?: string;
   user: User;
 }
+
+const browserAuthHeaders = { 'X-Return-Bearer-Token': 'false' };
 
 export interface MeResponse {
   status: string;
@@ -29,12 +31,14 @@ export const authApi = {
     const response = await apiClient.post<AuthResponse>('/auth/login', {
       email: data.email,
       password: data.password,
-    });
+    }, { headers: browserAuthHeaders });
     return response.data;
   },
 
   register: async (data: RegisterRequest): Promise<AuthResponse> => {
-    const response = await apiClient.post<AuthResponse>('/auth/register', data);
+    const response = await apiClient.post<AuthResponse>('/auth/register', data, {
+      headers: browserAuthHeaders,
+    });
     return response.data;
   },
 

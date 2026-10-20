@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -37,9 +39,10 @@ class Settings(BaseSettings):
     SUPPORT_EMAIL: str = "hello@landlords.ru"
 
     # Почта: SMTP вручную и/или Resend API key (тогда smtp.resend.com).
-    # Если нет ни SMTP_HOST, ни RESEND_API_KEY — письма в storage/emails/.
+    # SMTP_TLS_MODE=none разрешён только вне production.
     SMTP_HOST: str | None = None
     SMTP_PORT: int | None = None
+    SMTP_TLS_MODE: Literal["starttls", "ssl", "none"] = "starttls"
     SMTP_USER: str | None = None
     SMTP_PASSWORD: str | None = None
     SMTP_FROM: str | None = None
@@ -142,9 +145,16 @@ class Settings(BaseSettings):
     
 settings = Settings()
 # Ensure SECRET_KEY is explicitly set in production
-if settings.APP_ENV == "production" and (
-    not settings.SECRET_KEY or settings.SECRET_KEY == "change-me-in-production-change-me"
-):
-    raise RuntimeError(
-        "SECRET_KEY must be set in production. Set SECRET_KEY in the environment and restart."
-    )
+if settings.APP_ENV == "production":
+    if not settings.SECRET_KEY or settings.SECRET_KEY == "change-me-in-production-change-me":
+        raise RuntimeError(
+            "SECRET_KEY must be set in production. Set SECRET_KEY in the environment and restart."
+        )
+    if not (settings.SMTP_HOST or "").strip() and not (
+        settings.RESEND_API_KEY or ""
+    ).strip():
+        raise RuntimeError(
+            "An email provider (SMTP_HOST or RESEND_API_KEY) must be configured in production."
+        )
+    if settings.SMTP_TLS_MODE == "none":
+        raise RuntimeError("SMTP_TLS_MODE=none is forbidden in production.")

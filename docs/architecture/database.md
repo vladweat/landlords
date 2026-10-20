@@ -31,6 +31,8 @@ Security не настроен.
 ```mermaid
 erDiagram
   users ||--o| account_memberships : belongs
+  users ||--o{ auth_sessions : authenticates
+  accounts ||--o{ auth_sessions : scopes
   accounts ||--o{ account_memberships : contains
   accounts ||--o{ properties : owns
   accounts ||--o{ tenants : owns
@@ -51,8 +53,8 @@ erDiagram
 
 | Группа | Таблицы | Назначение |
 |---|---|---|
-| Identity | `users`, `accounts`, `account_memberships`, `account_invites` | User, tenant account, роль, приглашения |
-| Rental | `properties`, `tenants`, `contracts`, `contract_templates` | Объекты, арендаторы и договоры |
+| Identity | `users`, `accounts`, `account_memberships`, `account_invites`, `auth_sessions` | User, tenant account, роль, приглашения, одноразовый reset-token ID, отзываемые JWT-сессии |
+| Rental | `properties`, `tenants`, `contracts`, `contract_templates` | Объекты, арендаторы и договоры; portal token хранится с двухчасовым сроком действия |
 | Money | `rent_charges`, `payments`, `property_expenses`, `invoices`, `payment_claims` | Начисления, касса, расходы, публичные квитанции/claims |
 | Documents | `documents` | Метаданные файлов; содержимое хранится на диске |
 | Operations | `reminders`, `email_dispatch_log`, `notification_dismissals` | Дедупликация и пользовательские состояния |
@@ -81,6 +83,7 @@ ORM/domain используют `Decimal`; API должен сериализов
   `(account_id, status)`;
 - payments: `(contract_id, date_paid)`;
 - expenses: `(property_id, date_incurred)`.
+- auth sessions: primary key `id` для проверки активной сессии, индекс `expires_at` для очистки.
 
 Наличие индекса подтверждено моделями и миграциями, но планы запросов и
 production cardinality в репозитории не зафиксированы.

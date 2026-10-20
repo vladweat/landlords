@@ -242,7 +242,12 @@ export default function SettingsPage() {
 
   const passwordMutation = useMutation({
     mutationFn: authApi.changePassword,
-    onSuccess: () => { showSuccess('Пароль изменён'); resetPassword(); },
+    onSuccess: () => {
+      showSuccess('Пароль изменён. Войдите снова.');
+      resetPassword();
+      useAuthStore.getState().logout();
+      navigate('/login');
+    },
     onError: (error) => showError(error, 'Ошибка смены пароля'),
   });
 

@@ -19,17 +19,39 @@ OpenAPI является источником детальных request/respons
 
 ## Аутентификация
 
-Login/register/accept invite возвращают JWT HS256 и устанавливают cookie
-`access_token`: HttpOnly, `SameSite=Lax`, `Secure` только в production, срок 24
-часа. Для API-клиентов поддерживается `Authorization: Bearer <token>`; Bearer
-имеет приоритет. Payload содержит `sub`, `account_id`, `exp`.
+Login/register/accept invite устанавливают cookie `access_token`: HttpOnly,
+`SameSite=Lax`, `Secure` в production, срок 24 часа, `Cache-Control: no-store`.
+По умолчанию JWT не возвращается в JSON. Совместимые API-клиенты, которым нужен
+Bearer token, должны явно передавать `X-Return-Bearer-Token: true`; ответ тогда
+содержит `token`. Браузерный frontend передаёт `false` и использует cookie.
+Для запросов остаётся `Authorization: Bearer <token>`; Bearer имеет приоритет.
+Payload access JWT содержит `sub`, `account_id`, `jti`, `exp`. После применения
+миграции пользователи с ранее сохранёнными локальными токенами без серверной
+сессии должны войти заново; Bearer-клиенты продолжают работать с JWT, выданным
+новым login/register/invite flow.
 
-На каждом protected request `get_current_membership` проверяет активные user и
-membership в БД. Role в JWT не хранится. Logout удаляет cookie, но server-side
-revocation list отсутствует. Reset token — отдельный JWT на один час.
+На каждом protected request `get_current_membership` проверяет подпись JWT,
+активную серверную сессию, user и membership в БД. Role в JWT не хранится.
+Logout отзывает сессию; скопированный cookie или Bearer JWT после logout
+получает `401`. Смена и сброс пароля отзывают все активные сессии пользователя;
+после смены пароля frontend возвращает пользователя на login. Reset token —
+отдельный JWT с `type=reset`, действует один час и принимается один раз; новый
+запрос сброса инвалидирует предыдущую ссылку.
+
+Для unsafe HTTP methods с cookie-аутентификацией backend требует `Origin`,
+совпадающий с origin `FRONTEND_URL`; Bearer API-клиенты не зависят от Origin.
+`GET /v1/contracts/{id}/document` больше не генерирует данные; генерация PDF
+выполняется через `POST`.
 
 Публичны auth entrypoints, invite preview/accept, invoice/portal по bearer-like
 URL token, status и YooKassa webhook. Остальные routes требуют membership.
+Invoice-ссылка действует 90 дней. `POST /v1/charges/{charge_id}/invoice/rotate-link`
+выпускает новый token и сразу инвалидирует предыдущий; маршрут требует
+`WRITE_CHARGES`. Публичные invoice data/PDF/claim routes отклоняют expired token.
+Ссылка tenant portal действует 2 часа; после истечения владелец может создать
+новую ссылку через `POST /v1/contracts/{contract_id}/portal`. Старый токен
+отклоняется на публичных data и claim routes. После миграции старые portal
+ссылки нужно перевыпустить из договора.
 
 ## RBAC и tenant isolation
 
@@ -99,10 +121,10 @@ endpoint-specific поведение.
 
 ## Rate limiting и transport
 
-nginx ограничивает только точные URL login, forgot-password и
+nginx ограничивает только точные URL login, forgot/reset-password и
 `POST /api/v1/reminders` общей zone `10r/m` с burst. В FastAPI rate limiter нет;
-обращение напрямую к dev-порту 8000 обходит nginx. TLS в репозитории не
-настроен.
+обращение напрямую к dev-порту 8000 обходит nginx. TLS внутри Compose не
+настроен: публичный deployment обязан использовать внешний TLS ingress.
 
 ## Синхронизация документации
 

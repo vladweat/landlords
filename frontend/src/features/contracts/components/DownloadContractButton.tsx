@@ -25,10 +25,10 @@ export function DownloadContractButton({ contractId }: DownloadContractButtonPro
   const handleDownload = async () => {
     setIsLoading(true);
     try {
-      const response = await apiClient.get<{
+      const response = await apiClient.post<{
         status: string;
         data: { url: string; filename: string };
-      }>(`/contracts/${contractId}/document`, {
+      }>(`/contracts/${contractId}/document`, undefined, {
         params: templateId ? { template_id: templateId } : undefined,
       });
       const { url } = response.data.data;

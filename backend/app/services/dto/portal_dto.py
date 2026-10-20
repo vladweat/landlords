@@ -14,6 +14,7 @@ class PortalLinkDTO(BaseModel):
 
     portal_token: str
     share_url: str
+    portal_token_expires_at: datetime
 
 
 class PortalHistoryLineDTO(BaseModel):

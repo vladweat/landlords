@@ -49,6 +49,16 @@ def _create_active_contract(client, headers):
 
 
 class TestDocumentsApi:
+    def test_contract_document_generation_is_not_available_over_get(
+        self, client: TestClient, auth_headers
+    ):
+        response = client.get(
+            "/v1/contracts/00000000-0000-0000-0000-000000000001/document",
+            headers=auth_headers,
+        )
+
+        assert response.status_code == 405
+
     def test_list_empty_contract(self, client: TestClient, auth_headers):
         contract_id, _ = _create_active_contract(client, auth_headers)
         resp = client.get(f"/v1/contracts/{contract_id}/documents", headers=auth_headers)

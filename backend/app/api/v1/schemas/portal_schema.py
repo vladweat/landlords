@@ -12,6 +12,7 @@ class PortalLinkResponse(BaseModel):
 
     portal_token: str
     share_url: str
+    portal_token_expires_at: datetime
 
 
 class PortalLinkSingleResponse(BaseModel):

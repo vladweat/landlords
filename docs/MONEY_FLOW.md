@@ -50,7 +50,7 @@
 
 **Квитанция (invoice)** — view поверх charge: PDF + публичная страница `/i/{token}`. Не создаёт ledger-операций; сумма/статус читаются live из charge и платежей. Реквизиты — `accounts.payment_details`.
 
-**Портал арендатора (`/t/{token}`)** — magic link на договор (`contracts.portal_token`): баланс, история, открытые квитанции, реквизиты. Кнопка «Я оплатил» создаёт `payment_claims` (status `pending`, с суммой) и событие `payment_claim`. Landlord в CRM: **Отклонить** или **Подтвердить платёж** — confirm создаёт payment в ledger (FIFO / по charge) и закрывает claim. То же «Я оплатил» доступно на публичной квитанции `/i/{token}`.
+**Портал арендатора (`/t/{token}`)** — magic link на договор (`contracts.portal_token`), действует 2 часа: баланс, история, открытые квитанции, реквизиты. Владелец может перевыпустить ссылку из договора. Кнопка «Я оплатил» создаёт `payment_claims` (status `pending`, с суммой) и событие `payment_claim`. Landlord в CRM: **Отклонить** или **Подтвердить платёж** — confirm создаёт payment в ledger (FIFO / по charge) и закрывает claim. То же «Я оплатил» доступно на публичной квитанции `/i/{token}`.
 
 ---
 

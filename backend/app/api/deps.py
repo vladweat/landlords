@@ -10,6 +10,7 @@ from app.core.cookies import ACCESS_TOKEN_COOKIE
 from app.core.exceptions import ForbiddenError, UnauthorizedError
 from app.core.security import decode_access_token
 from app.db.repositories.account_invite_repo import AccountInviteRepository
+from app.db.repositories.auth_session_repo import AuthSessionRepository
 from app.domain.billing import is_subscription_write_blocked
 from app.domain.permissions import Permission as Perm
 
@@ -41,6 +42,7 @@ from app.domain.permissions import Permission, has_permission
 # Сервисы
 from app.services.account_export_service import AccountExportService
 from app.services.account_service import AccountService
+from app.services.auth_session_service import AuthSessionService
 from app.services.audit_log_service import AuditService
 from app.services.billing_service import BillingService
 from app.services.calendar_service import CalendarService
@@ -82,6 +84,12 @@ def get_email_service() -> EmailService:
 
 def get_user_repo(session: Session = Depends(get_db_session)) -> UserRepository:
     return UserRepository(session)
+
+
+def get_auth_session_repo(
+    session: Session = Depends(get_db_session),
+) -> AuthSessionRepository:
+    return AuthSessionRepository(session)
 
 def get_account_repo(session: Session = Depends(get_db_session)) -> AccountRepository:
     return AccountRepository(session)
@@ -155,13 +163,21 @@ def get_audit_service(session: Session = Depends(get_db_session)) -> AuditServic
 
 # ==================== СЕРВИСЫ ====================
 
+def get_auth_session_service(
+    repository: AuthSessionRepository = Depends(get_auth_session_repo),
+) -> AuthSessionService:
+    return AuthSessionService(repository)
+
 def get_user_service(
     user_repo: UserRepository = Depends(get_user_repo),
     account_repo: AccountRepository = Depends(get_account_repo),
     membership_repo: MembershipRepository = Depends(get_membership_repo),
+    auth_session_service: AuthSessionService = Depends(get_auth_session_service),
     email_service: EmailService = Depends(get_email_service),
 ) -> UserService:
-    return UserService(user_repo, account_repo, membership_repo, email_service)
+    return UserService(
+        user_repo, account_repo, membership_repo, auth_session_service, email_service
+    )
 
 def get_account_service(
     account_repo: AccountRepository = Depends(get_account_repo),
@@ -226,6 +242,7 @@ def get_invite_service(
     account_repo: AccountRepository = Depends(get_account_repo),
     user_repo: UserRepository = Depends(get_user_repo),
     membership_repo: MembershipRepository = Depends(get_membership_repo),
+    auth_session_service: AuthSessionService = Depends(get_auth_session_service),
     email_service: EmailService = Depends(get_email_service),
     plan_limit_service: PlanLimitService = Depends(get_plan_limit_service),
 ) -> InviteService:
@@ -234,6 +251,7 @@ def get_invite_service(
         account_repo,
         user_repo,
         membership_repo,
+        auth_session_service,
         email_service,
         plan_limit_service,
     )
@@ -512,14 +530,18 @@ def get_current_membership(
     access_token: Annotated[str | None, Cookie(alias=ACCESS_TOKEN_COOKIE)] = None,
     membership_repo: MembershipRepository = Depends(get_membership_repo),
     user_repo: UserRepository = Depends(get_user_repo),
+    auth_session_service: AuthSessionService = Depends(get_auth_session_service),
 ) -> MembershipEntity:
-    """Проверить JWT (заголовок или cookie) и активную membership; role берётся из БД."""
+    """Проверить JWT, активную серверную сессию и membership."""
     payload = _decode_token(_token_from_request(authorization, access_token))
     try:
         user_id = UUID(payload["sub"])
         account_id = UUID(payload["account_id"])
+        session_id = UUID(payload["jti"])
     except (KeyError, ValueError, TypeError) as e:
         raise UnauthorizedError("Invalid token payload") from e
+
+    auth_session_service.require_active(session_id, user_id, account_id)
 
     user = user_repo.get_by_id(user_id)
     if not user or not user.is_active:

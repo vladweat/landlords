@@ -131,7 +131,9 @@ export function ContractWorkspace({ contractId }: ContractWorkspaceProps) {
   const copyPortalMutation = useMutation({
     mutationFn: () => portalApi.ensureLink(id!),
     onSuccess: async (data) => {
-      await copyToClipboard(data.share_url);
+      await copyToClipboard(data.share_url, false);
+      const expiresAt = new Date(data.portal_token_expires_at).toLocaleString();
+      showSuccess(`Ссылка скопирована. Действует до ${expiresAt}`);
     },
     onError: (error) => showError(error, 'Не удалось получить ссылку'),
   });
@@ -243,7 +245,7 @@ export function ContractWorkspace({ contractId }: ContractWorkspaceProps) {
       icon: <FileDown className="h-4 w-4" />,
       onClick: async () => {
         try {
-          const res = await apiClient.get<{ status: string; data: { url: string } }>(
+          const res = await apiClient.post<{ status: string; data: { url: string } }>(
             `/contracts/${contract.id}/document`,
           );
           const fileRes = await authorizedFetch(res.data.data.url);

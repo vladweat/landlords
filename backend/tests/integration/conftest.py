@@ -91,7 +91,15 @@ def client(db_session):
 
     app = create_app()
     app.dependency_overrides[get_db_session] = override_get_db
-    return TestClient(app)
+    # Integration callers use the Bearer API contract and send same-origin
+    # metadata as a browser behind the configured local Vite proxy would.
+    return TestClient(
+        app,
+        headers={
+            "Origin": settings.FRONTEND_URL,
+            "X-Return-Bearer-Token": "true",
+        },
+    )
 
 
 @pytest.fixture

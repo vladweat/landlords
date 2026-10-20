@@ -1,6 +1,7 @@
 """Сервис квитанций (инвойсов) по начислениям."""
 
 import secrets
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from uuid import UUID, uuid4
 
@@ -21,6 +22,8 @@ from app.domain.interfaces import (
 from app.domain.rules import compute_charge_status
 from app.services.dto.invoice_dto import InvoiceDTO, PublicInvoiceDTO
 from app.services.pdf_service import PdfService
+
+PUBLIC_INVOICE_TOKEN_TTL_DAYS = 90
 
 
 class InvoiceService:
@@ -62,6 +65,7 @@ class InvoiceService:
             document_id=invoice.document_id,
             share_url=self._share_url(invoice.public_token),
             public_token=invoice.public_token,
+            public_token_expires_at=invoice.public_token_expires_at,
         )
 
     def get_by_charge(self, charge_id: UUID, account_id: UUID) -> InvoiceDTO:
@@ -74,7 +78,7 @@ class InvoiceService:
     def get_share_url_for_charge(self, charge_id: UUID, account_id: UUID) -> str | None:
         """URL публичной квитанции, если она уже создана."""
         invoice = self.invoice_repo.get_by_charge(charge_id, account_id)
-        if not invoice:
+        if not invoice or self._public_token_expired(invoice):
             return None
         return self._share_url(invoice.public_token)
 
@@ -93,8 +97,12 @@ class InvoiceService:
                     contract_id=charge.contract_id,
                     charge_id=charge_id,
                     public_token=secrets.token_urlsafe(32),
+                    public_token_expires_at=self._new_token_expiration(),
                 )
             )
+        elif self._public_token_expired(invoice):
+            invoice.public_token = secrets.token_urlsafe(32)
+            invoice.public_token_expires_at = self._new_token_expiration()
 
         amount_paid = self.payment_repo.get_total_paid_for_charge(charge_id, account_id)
         status = compute_charge_status(charge.amount, amount_paid, charge.due_date)
@@ -127,6 +135,34 @@ class InvoiceService:
         invoice.document_id = doc.id
         invoice = self.invoice_repo.update(invoice)
         return self._to_dto(invoice)
+
+    def rotate_public_link(self, charge_id: UUID, account_id: UUID) -> InvoiceDTO:
+        """Перевыпустить capability URL, немедленно отключив прежний токен."""
+        charge = self.charge_repo.get_by_id(charge_id, account_id)
+        if not charge:
+            raise NotFoundError(f"Charge {charge_id} not found")
+
+        invoice = self.invoice_repo.get_by_charge(charge_id, account_id)
+        if not invoice:
+            self.ensure_invoice(charge_id, account_id)
+            invoice = self.invoice_repo.get_by_charge(charge_id, account_id)
+        if not invoice:
+            raise NotFoundError("Invoice not found")
+
+        invoice.public_token = secrets.token_urlsafe(32)
+        invoice.public_token_expires_at = self._new_token_expiration()
+        return self._to_dto(self.invoice_repo.update(invoice))
+
+    @staticmethod
+    def _new_token_expiration() -> datetime:
+        return datetime.now(timezone.utc) + timedelta(days=PUBLIC_INVOICE_TOKEN_TTL_DAYS)
+
+    @staticmethod
+    def _public_token_expired(invoice: InvoiceEntity) -> bool:
+        expires_at = invoice.public_token_expires_at
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        return expires_at <= datetime.now(timezone.utc)
 
     def get_public(self, token: str) -> PublicInvoiceDTO:
         """Публичные данные квитанции по токену."""

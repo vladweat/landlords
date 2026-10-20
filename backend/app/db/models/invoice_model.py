@@ -28,6 +28,9 @@ class InvoiceModel(TimestampMixin, Base):
         unique=True,
     )
     public_token: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
+    public_token_expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
     document_id: Mapped[UUID | None] = mapped_column(
         PG_UUID(as_uuid=True), ForeignKey("documents.id", ondelete="SET NULL"), nullable=True
     )
@@ -40,6 +43,7 @@ class InvoiceModel(TimestampMixin, Base):
             contract_id=self.contract_id,
             charge_id=self.charge_id,
             public_token=self.public_token,
+            public_token_expires_at=self.public_token_expires_at,
             document_id=self.document_id,
             created_at=self.created_at,
             updated_at=self.updated_at,
@@ -54,6 +58,7 @@ class InvoiceModel(TimestampMixin, Base):
             contract_id=entity.contract_id,
             charge_id=entity.charge_id,
             public_token=entity.public_token,
+            public_token_expires_at=entity.public_token_expires_at,
             document_id=entity.document_id,
             created_at=entity.created_at,
             updated_at=entity.updated_at,

@@ -1,6 +1,6 @@
 """Pydantic-схемы квитанций."""
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
 
@@ -18,6 +18,7 @@ class InvoiceResponse(BaseModel):
     document_id: UUID | None = None
     share_url: str
     public_token: str
+    public_token_expires_at: datetime
 
 
 class InvoiceSingleResponse(BaseModel):

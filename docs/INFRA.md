@@ -35,9 +35,9 @@ integration с PostgreSQL/Redis, frontend tests/build и online-сборку API
 Compose smoke test и deploy; последний должен оставаться отдельным job с
 явным environment approval.
 
-**TLS** в compose нет: перед публичным доступом — certbot/Caddy перед nginx, затем корректный `FRONTEND_URL`.
+**TLS** в Compose/nginx не терминируется: перед публичным доступом обязателен внешний HTTPS ingress; детали — в [deploy.md](./deploy.md). Настрой `FRONTEND_URL` на публичный HTTPS origin.
 
-**Почта:** без SMTP/Resend письма пишутся в `storage/emails/`. Для прода задать SMTP или Resend.
+**Почта:** без SMTP/Resend письма пишутся в `storage/emails/` только вне production. В production provider обязателен при запуске; SMTP использует STARTTLS или implicit TLS, plaintext запрещён.
 
 **Наблюдаемость воркеров:** worker healthcheck подтверждает соединение с
 broker, у beat healthcheck отключён. Prometheus server, Alertmanager и log

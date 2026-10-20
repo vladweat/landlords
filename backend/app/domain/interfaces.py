@@ -1,7 +1,7 @@
 """Абстрактные интерфейсы репозиториев."""
 
 from abc import ABC, abstractmethod
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Sequence
 from uuid import UUID
@@ -9,6 +9,7 @@ from uuid import UUID
 from app.domain.entities import (
     AccountEntity,
     AccountInviteEntity,
+    AuthSessionEntity,
     ContractEntity,
     ContractEventEntity,
     ContractTemplateEntity,
@@ -51,6 +52,11 @@ class IUserRepository(ABC):
     @abstractmethod
     def update(self, entity: UserEntity) -> UserEntity:
         """Обновить пользователя."""
+        ...
+
+    @abstractmethod
+    def consume_password_reset_token(self, user_id: UUID, token_id: UUID) -> bool:
+        """Атомарно погасить одноразовый токен сброса пароля."""
         ...
 
     @abstractmethod
@@ -697,12 +703,43 @@ class IInvoiceRepository(ABC):
 
     @abstractmethod
     def get_by_token(self, public_token: str) -> InvoiceEntity | None:
-        """Получить квитанцию по публичному токену."""
+        """Получить квитанцию по активному публичному токену."""
         ...
 
     @abstractmethod
     def get_by_id(self, invoice_id: UUID, account_id: UUID) -> InvoiceEntity | None:
         """Получить квитанцию по ID."""
+        ...
+
+
+class IAuthSessionRepository(ABC):
+    """Репозиторий активных JWT-сессий."""
+
+    @abstractmethod
+    def create(self, entity: AuthSessionEntity) -> AuthSessionEntity:
+        """Создать сессию."""
+        ...
+
+    @abstractmethod
+    def is_active(
+        self, session_id: UUID, user_id: UUID, account_id: UUID, now: datetime
+    ) -> bool:
+        """Проверить, что сессия существует, не отозвана и не истекла."""
+        ...
+
+    @abstractmethod
+    def revoke(self, session_id: UUID, revoked_at: datetime) -> None:
+        """Отозвать сессию, если она ещё активна."""
+        ...
+
+    @abstractmethod
+    def delete_expired(self, now: datetime) -> None:
+        """Удалить истёкшие записи сессий."""
+        ...
+
+    @abstractmethod
+    def revoke_all_for_user(self, user_id: UUID, revoked_at: datetime) -> None:
+        """Отозвать все сессии пользователя после сброса пароля."""
         ...
 
 

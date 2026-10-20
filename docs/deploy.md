@@ -6,7 +6,7 @@
 ## Подготовка
 
 1. Скопируй [`.env.example`](../.env.example) в `backend/.env` и при необходимости в корневой `.env` (подстановка `${DB_*}` в compose).
-2. Задай уникальный `SECRET_KEY`, `APP_ENV=production`, `DEBUG=false`, `ALLOW_PUBLIC_REGISTRATION=false`.
+2. Задай уникальный `SECRET_KEY`, `APP_ENV=production`, `DEBUG=false`, `ALLOW_PUBLIC_REGISTRATION=false`, email provider (`SMTP_HOST` или `RESEND_API_KEY`) и `SMTP_TLS_MODE=starttls` либо `ssl`.
 3. Пароли Postgres/Redis — только из env; в prod-профиле порты БД на хост не публикуются (см. `docker-compose.yml` без override).
 
 Online-сборка образа API (CI / машина с PyPI):
@@ -49,7 +49,19 @@ docker compose exec api python -m app.cli seed-demo
 
 ## TLS
 
-Перед публичным доступом поставь сертификат перед nginx (certbot + reverse proxy или Caddy). Пока слушает только порт 80; HSTS на голом HTTP не включай. После HTTPS обнови `FRONTEND_URL` в `backend/.env`.
+`docker-compose.yml` и `nginx/nginx.conf` не терминируют TLS: nginx слушает
+только HTTP port 80. Перед публичным доступом установи внешний ingress (например,
+Caddy, managed load balancer или reverse proxy с certbot), который:
+
+- принимает только HTTPS, перенаправляет HTTP на HTTPS и включает HSTS после
+  проверки домена/сертификата;
+- передаёт запросы в Compose по закрытой сети, не публикуя nginx origin в Internet;
+- задаёт `FRONTEND_URL` ровно публичному HTTPS origin, используемому браузером;
+- исключает capability URL и query tokens из access logs, analytics и tracing.
+
+В production `APP_ENV=production` устанавливает Secure cookie независимо от
+внутренней схемы HTTP между ingress и Compose. Локальный override сохраняет
+HTTP-порты для разработки; не запускай его на публичном сервере.
 
 ## Бэкап
 
@@ -153,7 +165,7 @@ docker compose exec -T api python -c \
 - [ ] `curl /ready` → 200
 - [ ] Пробный dump → restore на чистый volume
 - [ ] TLS и корректный `FRONTEND_URL`
-- [ ] SMTP (этап 2) или осознанный `ALLOW`/файл для reset только на self-hosted
+- [ ] SMTP/Resend provider настроен; production SMTP работает через STARTTLS или implicit TLS
 - [ ] `SENTRY_DSN` и `SUPPORT_EMAIL`
 - [ ] `storage/status/incidents.json` на месте
 - [ ] Демо-пароль не оставлять дефолтным на публичном хосте

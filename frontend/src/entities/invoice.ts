@@ -5,6 +5,7 @@ export interface Invoice {
   document_id: string | null;
   share_url: string;
   public_token: string;
+  public_token_expires_at: string;
 }
 
 export interface PublicInvoice {

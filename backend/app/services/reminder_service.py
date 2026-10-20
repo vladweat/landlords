@@ -1,6 +1,6 @@
 """Сервис напоминаний о просрочке."""
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from uuid import UUID, uuid4
 
 from app.core.config import settings
@@ -59,6 +59,11 @@ class ReminderService:
             return None
         invoice = self.invoice_repo.get_by_charge(charge_id, account_id)
         if not invoice:
+            return None
+        expires_at = invoice.public_token_expires_at
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        if expires_at <= datetime.now(timezone.utc):
             return None
         base = settings.FRONTEND_URL.rstrip("/")
         return f"{base}/i/{invoice.public_token}"

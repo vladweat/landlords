@@ -1,12 +1,13 @@
 """Интеграционные тесты публичного портала арендатора."""
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
 
+from app.db.models.contract_model import ContractModel
 from app.db.models.rent_charge_model import RentChargeModel
 from tests.integration.conftest import property_payload
 
@@ -106,6 +107,9 @@ class TestPortalApi:
         data = ensure.json()["data"]
         token = data["portal_token"]
         assert data["share_url"].endswith(f"/t/{token}")
+        expires_at = datetime.fromisoformat(data["portal_token_expires_at"])
+        assert timedelta(hours=1, minutes=55) < expires_at - datetime.now(timezone.utc)
+        assert expires_at - datetime.now(timezone.utc) <= timedelta(hours=2)
 
         again = client.post(
             f"/v1/contracts/{contract_id}/portal",
@@ -199,6 +203,35 @@ class TestPortalApi:
         assert payments.status_code == 200
         assert len(payments.json()["data"]) >= 1
 
+    def test_expired_portal_link_is_rejected_and_ensure_renews_it(
+        self, client: TestClient, auth_headers, db_session
+    ):
+        contract_id = _create_active_contract(client, auth_headers)
+        ensured = client.post(
+            f"/v1/contracts/{contract_id}/portal", headers=auth_headers
+        )
+        old_token = ensured.json()["data"]["portal_token"]
+        contract = db_session.query(ContractModel).filter_by(id=contract_id).one()
+        contract.portal_token_expires_at = datetime.now(timezone.utc) - timedelta(
+            seconds=1
+        )
+        db_session.flush()
+
+        assert client.get(f"/v1/public/portal/{old_token}").status_code == 404
+        assert client.post(
+            f"/v1/public/portal/{old_token}/claim", json={"amount": "100.00"}
+        ).status_code == 404
+
+        renewed = client.post(
+            f"/v1/contracts/{contract_id}/portal", headers=auth_headers
+        )
+        new_data = renewed.json()["data"]
+        assert new_data["portal_token"] != old_token
+        assert (
+            client.get(f"/v1/public/portal/{new_data['portal_token']}").status_code
+            == 200
+        )
+
     def test_rotate_invalidates_old_token(self, client: TestClient, auth_headers):
         contract_id = _create_active_contract(client, auth_headers)
         ensure = client.post(
@@ -211,8 +244,13 @@ class TestPortalApi:
             f"/v1/contracts/{contract_id}/portal/rotate",
             headers=auth_headers,
         )
-        new_token = rotated.json()["data"]["portal_token"]
+        rotated_data = rotated.json()["data"]
+        new_token = rotated_data["portal_token"]
         assert new_token != old_token
+        assert timedelta(hours=1, minutes=55) < (
+            datetime.fromisoformat(rotated_data["portal_token_expires_at"])
+            - datetime.now(timezone.utc)
+        )
 
         assert client.get(f"/v1/public/portal/{old_token}").status_code == 404
         assert client.get(f"/v1/public/portal/{new_token}").status_code == 200

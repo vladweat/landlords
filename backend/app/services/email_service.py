@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import smtplib
+import ssl
 import time
 from email.message import EmailMessage
 from pathlib import Path
@@ -17,38 +18,49 @@ class EmailService:
     SMTP_TIMEOUT_SEC = 8
 
     def send(self, to: str, subject: str, body_text: str) -> None:
-        """Отправить plain-text письмо. Без SMTP/Resend пишет в storage/emails/."""
-        if self._smtp_settings() is not None:
-            try:
-                self._send_smtp(to, subject, body_text)
-                return
-            except Exception:
-                logger.exception("SMTP send failed to={}", to)
-                if settings.APP_ENV == "production":
-                    raise
-                logger.warning("Falling back to storage/emails (APP_ENV != production)")
-        self._write_file(to, subject, body_text)
+        """Отправить письмо; файловый fallback доступен только вне production."""
+        if self._smtp_settings() is None:
+            if settings.APP_ENV == "production":
+                raise RuntimeError("Email provider is not configured in production")
+            self._write_file(to, subject, body_text)
+            return
 
-    def _smtp_settings(self) -> tuple[str, int, str | None, str | None, str] | None:
-        """Host, port, user, password, from — или None, если отправка недоступна."""
+        try:
+            self._send_smtp(to, subject, body_text)
+        except Exception:
+            logger.exception("SMTP send failed to={}", to)
+            if settings.APP_ENV == "production":
+                raise
+            logger.warning("Falling back to storage/emails (APP_ENV != production)")
+            self._write_file(to, subject, body_text)
+
+    def _smtp_settings(self) -> tuple[str, int, str | None, str | None, str, str] | None:
+        """Host, port, user, password, from, TLS mode — или None."""
         from_addr = settings.SMTP_FROM or "no-reply@example.com"
-        if settings.SMTP_HOST:
+        tls_mode = settings.SMTP_TLS_MODE
+        if settings.SMTP_HOST and settings.SMTP_HOST.strip():
             return (
                 settings.SMTP_HOST,
-                settings.SMTP_PORT or 25,
+                settings.SMTP_PORT or self._default_port(tls_mode),
                 settings.SMTP_USER,
                 settings.SMTP_PASSWORD,
                 from_addr,
+                tls_mode,
             )
-        if settings.RESEND_API_KEY:
+        if settings.RESEND_API_KEY and settings.RESEND_API_KEY.strip():
             return (
                 "smtp.resend.com",
-                settings.SMTP_PORT or 587,
+                settings.SMTP_PORT or self._default_port(tls_mode),
                 settings.SMTP_USER or "resend",
                 settings.RESEND_API_KEY,
                 from_addr,
+                tls_mode,
             )
         return None
+
+    @staticmethod
+    def _default_port(tls_mode: str) -> int:
+        return {"ssl": 465, "starttls": 587, "none": 25}[tls_mode]
 
     def send_password_reset(self, to: str, reset_link: str) -> None:
         """Письмо со ссылкой сброса пароля."""
@@ -141,19 +153,30 @@ class EmailService:
         cfg = self._smtp_settings()
         if cfg is None:
             raise RuntimeError("SMTP is not configured")
-        host, port, user, password, from_addr = cfg
+        host, port, user, password, from_addr, tls_mode = cfg
+        if settings.APP_ENV == "production" and tls_mode == "none":
+            raise RuntimeError("SMTP without TLS is forbidden in production")
         msg = EmailMessage()
         msg["Subject"] = subject
         msg["From"] = from_addr
         msg["To"] = to
         msg.set_content(body_text)
         try:
-            with smtplib.SMTP(host, port, timeout=self.SMTP_TIMEOUT_SEC) as smtp:
+            if tls_mode == "ssl":
+                smtp_factory = smtplib.SMTP_SSL
+                smtp_kwargs = {"context": ssl.create_default_context()}
+            else:
+                smtp_factory = smtplib.SMTP
+                smtp_kwargs = {}
+
+            with smtp_factory(
+                host, port, timeout=self.SMTP_TIMEOUT_SEC, **smtp_kwargs
+            ) as smtp:
+                if tls_mode == "starttls":
+                    smtp.ehlo()
+                    smtp.starttls(context=ssl.create_default_context())
+                    smtp.ehlo()
                 if user and password:
-                    try:
-                        smtp.starttls()
-                    except Exception:
-                        pass
                     smtp.login(user, password)
                 smtp.send_message(msg)
             logger.info("Email sent to={} subject={!r}", to, subject)

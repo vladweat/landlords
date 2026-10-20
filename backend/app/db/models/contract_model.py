@@ -37,6 +37,9 @@ class ContractModel(TimestampMixin, Base):
     status: Mapped[str] = mapped_column(String(20), default="draft", nullable=False)
     termination_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
     portal_token: Mapped[str | None] = mapped_column(String(64), nullable=True, unique=True, index=True)
+    portal_token_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     def to_entity(self) -> ContractEntity:
         """Преобразовать ORM-модель в доменную сущность."""
@@ -56,6 +59,7 @@ class ContractModel(TimestampMixin, Base):
             status=self.status,
             termination_reason=self.termination_reason,
             portal_token=self.portal_token,
+            portal_token_expires_at=self.portal_token_expires_at,
             created_at=self.created_at,
             updated_at=self.updated_at,
         )
@@ -79,6 +83,7 @@ class ContractModel(TimestampMixin, Base):
             status=entity.status,
             termination_reason=entity.termination_reason,
             portal_token=entity.portal_token,
+            portal_token_expires_at=entity.portal_token_expires_at,
             created_at=entity.created_at,
             updated_at=entity.updated_at,
         )

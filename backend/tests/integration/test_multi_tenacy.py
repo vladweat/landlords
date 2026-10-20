@@ -1,16 +1,20 @@
 """Тесты multi-tenancy изоляции."""
 
 from datetime import date, timedelta
+from decimal import Decimal
 from io import BytesIO
 import json
+from uuid import UUID, uuid4
 import zipfile
 
 from fastapi.testclient import TestClient
 
 from app.db.models.contract_model import ContractModel
 from app.db.models.document_model import DocumentModel
+from app.db.models.payment_model import PaymentModel
 from app.db.models.property_expense_model import PropertyExpenseModel
 from app.db.models.property_model import PropertyModel
+from app.db.models.rent_charge_model import RentChargeModel
 from app.db.models.tenant_model import TenantModel
 
 from tests.integration.conftest import property_payload
@@ -205,3 +209,78 @@ class TestMultiTenancyIsolation:
         db_session.refresh(document)
         assert document.file_path == original_path
         assert str(document.account_id) == _account_id(client, owner_headers)
+
+    def test_foreign_charge_payment_and_invoice_ids_are_isolated(self, client, db_session):
+        owner_a = client.post("/v1/auth/register", json={
+            "email": "ledger-a@test.com", "password": "secret123", "full_name": "A"
+        }).json()
+        owner_b = client.post("/v1/auth/register", json={
+            "email": "ledger-b@test.com", "password": "secret123", "full_name": "B"
+        }).json()
+        headers_a = {"Authorization": f"Bearer {owner_a['token']}"}
+        headers_b = {"Authorization": f"Bearer {owner_b['token']}"}
+        account_b = UUID(_account_id(client, headers_b))
+        property_b = client.post(
+            "/v1/properties", headers=headers_b, json=property_payload(street="Ledger B")
+        ).json()["data"]["id"]
+        tenant_b = client.post(
+            "/v1/tenants", headers=headers_b, json={"full_name": "Tenant B"}
+        ).json()["data"]["id"]
+        start = date.today() + timedelta(days=30)
+        contract_b = client.post("/v1/contracts", headers=headers_b, json={
+            "property_id": property_b,
+            "tenant_id": tenant_b,
+            "start_date": str(start),
+            "end_date": str(start + timedelta(days=365)),
+            "rent_amount": "15000",
+            "payment_day": 5,
+        }).json()["data"]["id"]
+        charge_id = uuid4()
+        db_session.add(RentChargeModel(
+            id=charge_id,
+            account_id=account_b,
+            contract_id=UUID(contract_b),
+            due_date=start,
+            period_start=start,
+            period_end=start + timedelta(days=30),
+            amount=Decimal("15000.00"),
+            currency="RUB",
+            status="pending",
+        ))
+        db_session.flush()
+        payment = client.post("/v1/payments", headers=headers_b, json={
+            "contract_id": contract_b,
+            "rent_charge_id": str(charge_id),
+            "date_paid": date.today().isoformat(),
+            "amount": "1000",
+            "method": "transfer",
+        })
+        assert payment.status_code == 201, payment.text
+        payment_id = payment.json()["data"]["payments"][0]["id"]
+
+        assert client.get(f"/v1/charges/{charge_id}", headers=headers_a).status_code == 404
+        assert client.get(
+            f"/v1/charges/contracts/{contract_b}/charges", headers=headers_a
+        ).status_code == 404
+        assert client.post(
+            f"/v1/charges/{charge_id}/invoice", headers=headers_a
+        ).status_code == 404
+        assert client.post(
+            f"/v1/charges/{charge_id}/invoice/rotate-link", headers=headers_a
+        ).status_code == 404
+        assert client.get(
+            f"/v1/charges/{charge_id}/invoice", headers=headers_a
+        ).status_code == 404
+        assert client.get(
+            f"/v1/payments/contracts/{contract_b}/payments", headers=headers_a
+        ).status_code == 404
+        assert client.get("/v1/payments", headers=headers_a).json()["data"] == []
+        assert client.put(
+            f"/v1/payments/{payment_id}", headers=headers_a, json={"amount": "1"}
+        ).status_code == 404
+        assert client.delete(f"/v1/payments/{payment_id}", headers=headers_a).status_code == 404
+
+        db_session.expire_all()
+        stored = db_session.query(PaymentModel).filter_by(id=payment_id).one()
+        assert stored.account_id == account_b
+        assert stored.amount == Decimal("1000.00")

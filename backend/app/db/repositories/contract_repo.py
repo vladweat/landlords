@@ -1,5 +1,6 @@
 """Реализация репозитория контрактов."""
 
+from datetime import datetime, timezone
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -101,6 +102,7 @@ class ContractRepository(IContractRepository):
         model.status = entity.status
         model.termination_reason = entity.termination_reason
         model.portal_token = entity.portal_token
+        model.portal_token_expires_at = entity.portal_token_expires_at
         self.session.flush()
         return model.to_entity()
 
@@ -109,6 +111,7 @@ class ContractRepository(IContractRepository):
         model = (
             self.session.query(ContractModel)
             .filter_by(portal_token=portal_token)
+            .filter(ContractModel.portal_token_expires_at > datetime.now(timezone.utc))
             .first()
         )
         return model.to_entity() if model else None
