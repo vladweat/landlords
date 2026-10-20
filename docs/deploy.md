@@ -23,6 +23,19 @@ export INSTALL_MODE=offline   # default
 docker compose build api
 ```
 
+Frontend собирается на VM вне Docker; nginx image копирует готовый `frontend/dist`
+и не скачивает npm-пакеты. Перед первым запуском и после изменений frontend:
+
+```bash
+cd frontend
+npm run build
+cd ..
+docker compose build --pull=false nginx
+```
+
+На VM должны быть установлены Node.js/npm и зависимости из `frontend/package-lock.json`.
+Для текущего Vite нужен Node.js 20.19+ или 22.12+.
+
 ## Первый запуск
 
 ```bash
