@@ -1,5 +1,5 @@
 # Multi-stage: сборка Vite SPA + nginx как единственный вход (API + статика).
-FROM node:22-alpine AS frontend-build
+FROM node:20-alpine AS frontend-build
 
 WORKDIR /frontend
 COPY frontend/package.json frontend/package-lock.json ./

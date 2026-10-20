@@ -52,8 +52,10 @@ FastAPI импортирует `CORSMiddleware`, но не добавляет е
 Для unsafe methods с cookie-аутентификацией middleware проверяет `Origin` по
 `FRONTEND_URL`; отсутствующий и чужой Origin отклоняется. Bearer API-клиенты
 не используют cookie и не ограничены этой проверкой. `SameSite=Lax` остаётся
-дополнительным уровнем защиты. State-changing operations должны использовать
-POST/PUT/PATCH/DELETE: генерация contract PDF переведена с GET на POST.
+дополнительным уровнем защиты; отдельный CSRF token не используется. При
+переходе на cross-site frontend/API нужна явная CSRF/CORS policy.
+State-changing operations должны использовать POST/PUT/PATCH/DELETE: генерация
+contract PDF переведена с GET на POST.
 При изменении frontend/API origins требуется обновить allowlist и повторить
 CSRF review.
 
