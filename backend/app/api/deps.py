@@ -74,7 +74,6 @@ from app.services.user_service import UserService
 from fastapi import Depends, Header
 from sqlalchemy.orm import Session
 
-
 def get_email_service() -> EmailService:
     return EmailService()
 
@@ -299,9 +298,12 @@ def get_contract_service(
     event_repo: ContractEventRepository = Depends(get_contract_event_repo),
     audit_service: AuditService = Depends(get_audit_service),
     pdf_service: PdfService = Depends(get_pdf_service),
+    property_repo: PropertyRepository = Depends(get_property_repo),
+    tenant_repo: TenantRepository = Depends(get_tenant_repo),
 ) -> ContractService:
     return ContractService(
-        repo, charge_repo, payment_repo, event_repo, audit_service, pdf_service
+        repo, charge_repo, payment_repo, event_repo, audit_service, pdf_service,
+        property_repo=property_repo, tenant_repo=tenant_repo,
     )
 
 def get_rent_charge_service(

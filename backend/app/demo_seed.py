@@ -117,7 +117,8 @@ def seed_showcase_data(
     property_service = PropertyService(property_repo)
     tenant_service = TenantService(tenant_repo)
     contract_service = ContractService(
-        contract_repo, charge_repo, payment_repo, event_repo
+        contract_repo, charge_repo, payment_repo, event_repo,
+        property_repo=property_repo, tenant_repo=tenant_repo,
     )
     charge_service = RentChargeService(
         charge_repo, payment_repo, contract_repo, reminder_repo

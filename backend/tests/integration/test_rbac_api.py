@@ -1,6 +1,13 @@
 """Интеграционные тесты RBAC и команды аккаунта."""
 
+from datetime import date, timedelta
+
 from fastapi.testclient import TestClient
+
+from app.db.models.account_model import AccountModel
+from app.db.models.contract_model import ContractModel
+from app.db.models.membership_model import MembershipModel
+from app.db.models.user_model import UserModel
 
 from tests.integration.conftest import property_payload
 
@@ -92,7 +99,9 @@ class TestTeamMembers:
         addresses = [p["address"] for p in props.json()["data"]["items"]]
         assert any("Shared" in a for a in addresses)
 
-    def test_accountant_forbidden_create_property(self, client: TestClient, auth_headers):
+    def test_accountant_forbidden_create_property(
+        self, client: TestClient, auth_headers, db_session
+    ):
         accepted = _invite_and_accept(
             client, auth_headers, "acc2@example.com", role="accountant", name="Acc"
         )
@@ -105,6 +114,24 @@ class TestTeamMembers:
             json=property_payload(street="No"),
         )
         assert resp.status_code == 403
+
+        property_id = client.post(
+            "/v1/properties", headers=auth_headers,
+            json=property_payload(street="Contract target"),
+        ).json()["data"]["id"]
+        tenant_id = client.post(
+            "/v1/tenants", headers=auth_headers,
+            json={"full_name": "Contract target"},
+        ).json()["data"]["id"]
+        start_date = date.today() + timedelta(days=30)
+        contract_response = client.post("/v1/contracts", headers=member_headers, json={
+            "property_id": property_id, "tenant_id": tenant_id,
+            "start_date": str(start_date),
+            "end_date": str(start_date + timedelta(days=365)),
+            "rent_amount": "10000", "payment_day": 5,
+        })
+        assert contract_response.status_code == 403
+        assert db_session.query(ContractModel).count() == 0
 
     def test_manager_can_create_property_not_team(self, client: TestClient, auth_headers):
         accepted = _invite_and_accept(
@@ -140,6 +167,28 @@ class TestTeamMembers:
         )
         assert login.status_code == 401
 
+    def test_remove_member_deletes_member_but_preserves_tenant_data(
+        self, client: TestClient, auth_headers, db_session
+    ):
+        accepted = _invite_and_accept(
+            client, auth_headers, "retained-member@example.com", role="manager", name="Retained"
+        )
+        user_id = accepted["user"]["id"]
+        property_response = client.post(
+            "/v1/properties", headers=auth_headers,
+            json=property_payload(street="Must remain"),
+        )
+        assert property_response.status_code == 201
+        account_id = client.get("/v1/auth/me", headers=auth_headers).json()["data"]["account"]["id"]
+
+        response = client.delete(f"/v1/account/members/{user_id}", headers=auth_headers)
+        assert response.status_code == 204
+        assert db_session.query(AccountModel).filter_by(id=account_id).one_or_none() is not None
+        assert db_session.query(MembershipModel).filter_by(user_id=user_id).one_or_none() is None
+        assert db_session.query(UserModel).filter_by(id=user_id).one_or_none() is None
+        listed = client.get("/v1/properties", headers=auth_headers)
+        assert any("Must remain" in item["address"] for item in listed.json()["data"]["items"])
+
     def test_non_owner_cannot_delete_account(self, client: TestClient, auth_headers):
         accepted = _invite_and_accept(
             client, auth_headers, "mgrdel@example.com", role="manager", name="Mgr"
@@ -152,6 +201,34 @@ class TestTeamMembers:
             json={"confirmation": "DELETE"},
         )
         assert resp.status_code == 403
+
+    def test_owner_cannot_change_or_remove_member_from_another_account(
+        self, client: TestClient, db_session
+    ):
+        owner_a = _register(client, "admin-a@test.com", "Owner A")
+        owner_b = _register(client, "admin-b@test.com", "Owner B")
+        headers_a = _headers(owner_a["token"])
+        headers_b = _headers(owner_b["token"])
+        member = _invite_and_accept(
+            client, headers_b, "admin-target@test.com", role="manager", name="Target"
+        )
+        target_id = member["user"]["id"]
+
+        change = client.patch(f"/v1/account/members/{target_id}", headers=headers_a,
+            json={"role": "accountant"})
+        remove = client.delete(f"/v1/account/members/{target_id}", headers=headers_a)
+        assert change.status_code == 404
+        assert remove.status_code == 404
+
+        login = client.post("/v1/auth/login", json={
+            "email": "admin-target@test.com", "password": "secret123"
+        })
+        assert login.status_code == 200
+        me = client.get("/v1/auth/me", headers=_headers(login.json()["token"]))
+        assert me.json()["data"]["role"] == "manager"
+        assert db_session.query(AccountModel).filter_by(
+            id=me.json()["data"]["account"]["id"]
+        ).one_or_none() is not None
 
 
 class TestMemberIsolation:

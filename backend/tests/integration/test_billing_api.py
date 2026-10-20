@@ -4,6 +4,8 @@ from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
+from app.core.config import settings
+from app.db.models.account_model import AccountModel
 from app.services.yookassa_client import YooKassaPaymentResult
 
 
@@ -79,3 +81,28 @@ def test_cancel_subscription(client: TestClient, auth_headers):
     resp = client.post("/v1/billing/cancel", headers=auth_headers)
     assert resp.status_code == 200, resp.text
     assert resp.json()["data"]["subscription_status"] in ("canceled", "none")
+
+
+def test_confirm_rejects_payment_owned_by_another_account(client, auth_headers, db_session):
+    other = client.post("/v1/auth/register", json={
+        "email": "billing-other@test.com", "password": "secret123", "full_name": "Other"
+    }).json()
+    other_headers = {"Authorization": f"Bearer {other['token']}"}
+    current_id = client.get("/v1/auth/me", headers=auth_headers).json()["data"]["account"]["id"]
+    other_id = client.get("/v1/auth/me", headers=other_headers).json()["data"]["account"]["id"]
+    payment = YooKassaPaymentResult(
+        id="payment-owned-by-other", status="succeeded", paid=True,
+        amount_value="990.00", confirmation_url=None, payment_method_id="pm_other",
+        metadata={"account_id": other_id, "plan": "pro"}, test=True,
+    )
+
+    with patch.object(settings, "YOOKASSA_SHOP_ID", "test-shop"), \
+         patch.object(settings, "YOOKASSA_SECRET_KEY", "test-secret"), \
+         patch("app.services.yookassa_client.YooKassaClient.find_payment", return_value=payment):
+        response = client.post("/v1/billing/confirm", headers=auth_headers,
+            json={"payment_id": payment.id})
+
+    assert response.status_code == 422
+    db_session.expire_all()
+    assert db_session.query(AccountModel).filter_by(id=current_id).one().plan == "free"
+    assert db_session.query(AccountModel).filter_by(id=other_id).one().plan == "free"

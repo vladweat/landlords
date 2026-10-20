@@ -22,7 +22,13 @@ def mock_contract_repo():
 
 @pytest.fixture
 def contract_service(mock_contract_repo):
-    return ContractService(mock_contract_repo)
+    property_repo = Mock()
+    property_repo.get_by_id.return_value = object()
+    tenant_repo = Mock()
+    tenant_repo.get_by_id.return_value = object()
+    return ContractService(
+        mock_contract_repo, property_repo=property_repo, tenant_repo=tenant_repo
+    )
 
 
 class TestCreateContract:
