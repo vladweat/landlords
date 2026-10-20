@@ -12,19 +12,22 @@ Tailwind CSS 4. Стек запускается через Docker Compose; nginx
 ## Требования и быстрый старт
 
 - Docker с Compose plugin;
-- Node.js 22+ и npm — только для frontend с hot reload;
+- Node.js 20.19+ или 22.12+ и npm — для сборки frontend и hot reload;
 - для offline-сборки backend — корневая `.venv` на Python 3.12; на чистой
   машине используйте `INSTALL_MODE=online`.
 
 ```bash
 cp .env.example backend/.env
 cp .env.example .env
+cd frontend
+npm ci
+npm run build
+cd ..
 INSTALL_MODE=online docker compose up -d --build
 curl -sf http://localhost/ready
 
 # Отдельно frontend с hot reload на http://localhost:3000
 cd frontend
-npm ci
 npm run dev
 ```
 
