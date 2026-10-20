@@ -19,6 +19,7 @@ class UserEntity:
     phone: str | None = None
     is_active: bool = True
     created_at: datetime = field(default_factory=_utc_now)
+    password_reset_token_id: UUID | None = None
     
 @dataclass
 class AccountEntity:
@@ -47,6 +48,18 @@ class MembershipEntity:
     user_id: UUID
     role: str
     is_active: bool = True
+    created_at: datetime = field(default_factory=_utc_now)
+
+
+@dataclass
+class AuthSessionEntity:
+    """Отдельная авторизационная сессия пользователя."""
+
+    id: UUID
+    user_id: UUID
+    account_id: UUID
+    expires_at: datetime
+    revoked_at: datetime | None = None
     created_at: datetime = field(default_factory=_utc_now)
 
 
@@ -117,6 +130,7 @@ class ContractEntity:
     status: str = "draft"  # draft, active, ended, terminated, overdue
     termination_reason: str | None = None
     portal_token: str | None = None
+    portal_token_expires_at: datetime | None = None
     created_at: datetime = field(default_factory=_utc_now)
     updated_at: datetime = field(default_factory=_utc_now)
     
@@ -192,6 +206,7 @@ class InvoiceEntity:
     contract_id: UUID
     charge_id: UUID
     public_token: str
+    public_token_expires_at: datetime
     document_id: UUID | None = None
     created_at: datetime = field(default_factory=_utc_now)
     updated_at: datetime = field(default_factory=_utc_now)

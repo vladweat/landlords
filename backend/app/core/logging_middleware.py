@@ -5,6 +5,24 @@ from fastapi import Request, Response
 from loguru import logger
 from starlette.middleware.base import BaseHTTPMiddleware
 
+
+_PUBLIC_TOKEN_PREFIXES = (
+    "/v1/public/invoices/",
+    "/v1/public/portal/",
+    "/v1/public/invites/",
+)
+
+
+def _safe_request_path(path: str) -> str:
+    """Скрыть capability token в path публичных endpoints перед логированием."""
+    for prefix in _PUBLIC_TOKEN_PREFIXES:
+        if path.startswith(prefix):
+            token_and_suffix = path[len(prefix) :]
+            _, separator, suffix = token_and_suffix.partition("/")
+            return f"{prefix}[redacted]{'/' + suffix if separator else ''}"
+    return path
+
+
 class LoggingMiddleware(BaseHTTPMiddleware):
     """
     Middleware, добавляющий request_id и логирующий запросы/ответы.
@@ -27,8 +45,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             logger.info(
                 "Incoming request",
                 method=request.method,
-                path=request.url.path,
-                query=str(request.query_params),
+                path=_safe_request_path(request.url.path),
                 client_ip=request.client.host if request.client else "unknown",
             )
 
@@ -42,7 +59,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             logger.info(
                 "Outgoing response",
                 method=request.method,
-                path=request.url.path,
+                path=_safe_request_path(request.url.path),
                 status_code=response.status_code,
                 elapsed_ms=round(elapsed_ms, 2),
             )

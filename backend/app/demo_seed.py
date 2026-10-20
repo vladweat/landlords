@@ -8,6 +8,7 @@ from uuid import UUID
 
 from app.core.exceptions import ConflictError
 from app.db.repositories.account_repo import AccountRepository
+from app.db.repositories.auth_session_repo import AuthSessionRepository
 from app.db.repositories.contract_event_repo import ContractEventRepository
 from app.db.repositories.contract_repo import ContractRepository
 from app.db.repositories.membership_repo import MembershipRepository
@@ -31,6 +32,7 @@ from app.services.dto.reminder_dto import ReminderCreateDTO
 from app.services.dto.tenant_dto import TenantCreateDTO
 from app.services.dto.user_dto import UserCreateDTO
 from app.services.payment_service import PaymentService
+from app.services.auth_session_service import AuthSessionService
 from app.services.property_expense_service import PropertyExpenseService
 from app.services.property_service import PropertyService
 from app.services.reminder_service import ReminderService
@@ -72,6 +74,7 @@ def _ensure_user(
         user_repo,
         AccountRepository(session),
         membership_repo,
+        AuthSessionService(AuthSessionRepository(session)),
     )
     try:
         user_dto, account_dto, _token = user_service.register(
@@ -117,7 +120,8 @@ def seed_showcase_data(
     property_service = PropertyService(property_repo)
     tenant_service = TenantService(tenant_repo)
     contract_service = ContractService(
-        contract_repo, charge_repo, payment_repo, event_repo
+        contract_repo, charge_repo, payment_repo, event_repo,
+        property_repo=property_repo, tenant_repo=tenant_repo,
     )
     charge_service = RentChargeService(
         charge_repo, payment_repo, contract_repo, reminder_repo

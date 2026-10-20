@@ -19,8 +19,16 @@ def set_access_cookie(response: Response, token: str) -> None:
         max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         path="/",
     )
+    response.headers["Cache-Control"] = "no-store"
 
 
 def clear_access_cookie(response: Response) -> None:
     """Сбросить cookie сессии."""
-    response.delete_cookie(key=ACCESS_TOKEN_COOKIE, path="/")
+    response.delete_cookie(
+        key=ACCESS_TOKEN_COOKIE,
+        path="/",
+        httponly=True,
+        secure=settings.APP_ENV == "production",
+        samesite="lax",
+    )
+    response.headers["Cache-Control"] = "no-store"

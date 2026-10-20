@@ -99,6 +99,7 @@ class TestGenerateMessage:
             contract_id=uuid4(),
             charge_id=uuid4(),
             public_token="abcTOKEN",
+            public_token_expires_at=datetime.now(timezone.utc) + timedelta(days=90),
         )
         service = ReminderService(
             mock_reminder_repo,
@@ -110,6 +111,32 @@ class TestGenerateMessage:
         msg = service.generate_message(uuid4(), uuid4(), "first")
         assert "Квитанция:" in msg
         assert "/i/abcTOKEN" in msg
+
+    def test_does_not_include_expired_invoice_link(
+        self, mock_reminder_repo, mock_charge_repo, mock_contract_repo, mock_tenant_repo
+    ):
+        from app.domain.entities import InvoiceEntity
+
+        invoice_repo = Mock()
+        invoice_repo.get_by_charge.return_value = InvoiceEntity(
+            id=uuid4(),
+            account_id=uuid4(),
+            contract_id=uuid4(),
+            charge_id=uuid4(),
+            public_token="expired-token",
+            public_token_expires_at=datetime.now(timezone.utc) - timedelta(seconds=1),
+        )
+        service = ReminderService(
+            mock_reminder_repo,
+            mock_charge_repo,
+            mock_contract_repo,
+            mock_tenant_repo,
+            invoice_repo=invoice_repo,
+        )
+
+        msg = service.generate_message(uuid4(), uuid4(), "first")
+
+        assert "expired-token" not in msg
 
 
 class TestCreateReminder:

@@ -1,16 +1,36 @@
 from http import HTTPStatus
+from urllib.parse import urlsplit
+
+import redis
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 from loguru import logger
-
-from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
-import redis
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from app.core.config import settings
+from app.core.cookies import ACCESS_TOKEN_COOKIE
 from app.core.exceptions import AppException
-from app.core.logging_middleware import LoggingMiddleware
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.exceptions import RequestValidationError
+from app.core.logging_middleware import LoggingMiddleware, _safe_request_path
+
+
+def _origin(value: str | None) -> str | None:
+    """Нормализовать HTTP(S) origin, учитывая стандартные порты."""
+    parsed = urlsplit(value or "")
+    if parsed.scheme.lower() not in {"http", "https"} or not parsed.hostname:
+        return None
+    scheme = parsed.scheme.lower()
+    host = parsed.hostname.lower()
+    if ":" in host:
+        host = f"[{host}]"
+    try:
+        port = parsed.port
+    except ValueError:
+        return None
+    default_port = 443 if scheme == "https" else 80
+    authority = host if port is None or port == default_port else f"{host}:{port}"
+    return f"{scheme}://{authority}"
 
 
 def _init_sentry() -> None:
@@ -48,6 +68,22 @@ def create_app() -> FastAPI:
         redoc_url="/redoc" if settings.DEBUG else None,
     )
 
+    @app.middleware("http")
+    async def cookie_csrf_protection(request: Request, call_next):
+        """Проверить Origin для небезопасных запросов с cookie-аутентификацией."""
+        safe_methods = {"GET", "HEAD", "OPTIONS"}
+        authorization = request.headers.get("authorization", "")
+        has_bearer = authorization.lower().startswith("bearer ")
+        has_cookie = request.cookies.get(ACCESS_TOKEN_COOKIE) is not None
+        if request.method not in safe_methods and has_cookie and not has_bearer:
+            origin = request.headers.get("origin")
+            if not origin or _origin(origin) != _origin(settings.FRONTEND_URL):
+                return JSONResponse(
+                    status_code=403,
+                    content={"status": "error", "message": "Cross-site request blocked"},
+                )
+        return await call_next(request)
+
     # Middleware
     app.add_middleware(LoggingMiddleware)
 
@@ -63,14 +99,22 @@ def create_app() -> FastAPI:
     @app.exception_handler(AppException)
     def app_exception_handler(request: Request, exc: AppException) -> JSONResponse:
         """Обработать кастомное исключение приложения."""
-        logger.warning(f"Application exception: {exc.message}", status_code=exc.status_code, path=request.url.path)
+        logger.warning(
+            f"Application exception: {exc.message}",
+            status_code=exc.status_code,
+            path=_safe_request_path(request.url.path),
+        )
         return JSONResponse(status_code=exc.status_code, content={"status": "error", "message": exc.message})
 
     # Обработчик необработанных исключений
     @app.exception_handler(Exception)
     def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
         """Обработать неожиданное исключение."""
-        logger.exception("Unhandled exception: {}", str(exc), path=request.url.path)
+        logger.exception(
+            "Unhandled exception: {}",
+            str(exc),
+            path=_safe_request_path(request.url.path),
+        )
         return JSONResponse(status_code=HTTPStatus.INTERNAL_SERVER_ERROR, content={"status": "error", "message": "Internal server error"})
 
     # Healthcheck

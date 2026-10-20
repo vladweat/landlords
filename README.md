@@ -68,7 +68,9 @@ API применяет `alembic upgrade head` при старте контейн
 
 Шаблон находится в [`.env.example`](.env.example). В production обязательны
 `APP_ENV=production` и уникальный `SECRET_KEY`; приложение прекращает запуск с
-дефолтным ключом. Не коммитьте `.env`, SMTP/Resend, Sentry и ЮKassa credentials.
+дефолтным ключом, без email provider или с `SMTP_TLS_MODE=none`. Production
+SMTP должен использовать STARTTLS или implicit TLS. Не коммитьте `.env`,
+SMTP/Resend, Sentry и ЮKassa credentials.
 Полный справочник: [docs/development/configuration.md](docs/development/configuration.md).
 
 ## Документация

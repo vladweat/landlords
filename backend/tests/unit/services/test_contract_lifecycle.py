@@ -52,6 +52,15 @@ def _charge(contract_id, account_id, period_start, period_end, amount="30000.00"
     )
 
 
+def _service(contract_repo, charge_repo, payment_repo, event_repo, **kwargs):
+    property_repo = Mock()
+    tenant_repo = Mock()
+    return ContractService(
+        contract_repo, charge_repo, payment_repo, event_repo,
+        property_repo=property_repo, tenant_repo=tenant_repo, **kwargs,
+    )
+
+
 class TestProrateAndPlan:
     def test_prorate_half_month(self):
         amount = prorate_charge_amount(
@@ -134,7 +143,7 @@ class TestTerminateRenewService:
         payment_repo.list_by_charge.return_value = []
         payment_repo.list_unlinked_for_contract_for_update.return_value = []
 
-        service = ContractService(
+        service = _service(
             contract_repo, charge_repo, payment_repo, event_repo, pdf_service=None
         )
         result = service.terminate_contract(
@@ -189,7 +198,7 @@ class TestTerminateRenewService:
         payment_repo.list_unlinked_for_contract_for_update.return_value = []
         payment_repo.update.side_effect = lambda e: e
 
-        service = ContractService(
+        service = _service(
             contract_repo, charge_repo, payment_repo, event_repo, pdf_service=None
         )
         result = service.terminate_contract(
@@ -210,7 +219,7 @@ class TestTerminateRenewService:
         contract_repo, charge_repo, payment_repo, event_repo = repos
         contract = _contract(status="ended")
         contract_repo.get_by_id.return_value = contract
-        service = ContractService(contract_repo, charge_repo, payment_repo, event_repo)
+        service = _service(contract_repo, charge_repo, payment_repo, event_repo)
         with pytest.raises(ValidationError, match="Cannot terminate"):
             service.terminate_contract(
                 contract.id,
@@ -231,7 +240,7 @@ class TestTerminateRenewService:
         payment_repo.list_unlinked_for_contract_for_update.return_value = []
         charge_repo.list_unpaid_for_contract_for_update.return_value = []
 
-        service = ContractService(
+        service = _service(
             contract_repo, charge_repo, payment_repo, event_repo, pdf_service=None
         )
         result = service.renew_contract(
@@ -257,7 +266,7 @@ class TestTerminateRenewService:
     def test_renew_not_found(self, repos):
         contract_repo, charge_repo, payment_repo, event_repo = repos
         contract_repo.get_by_id.return_value = None
-        service = ContractService(contract_repo, charge_repo, payment_repo, event_repo)
+        service = _service(contract_repo, charge_repo, payment_repo, event_repo)
         with pytest.raises(NotFoundError):
             service.renew_contract(
                 uuid4(),

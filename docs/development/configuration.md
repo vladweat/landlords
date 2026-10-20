@@ -21,9 +21,9 @@ Compose передаёт `backend/.env` через `env_file` и принуди�
 | `FRONTEND_URL` | `http://localhost:3000` | Ссылки в письмах и billing return |
 | `SUPPORT_EMAIL` | `hello@landlords.ru` | Получатель feedback/ops alerts |
 
-При `APP_ENV=production` процесс прекращает запуск, если `SECRET_KEY` пуст или
-равен встроенному placeholder. Значения из `.env.example` являются только
-локальными примерами.
+При неизвестном `APP_ENV` процесс прекращает запуск. При `APP_ENV=production`
+процесс также прекращает запуск, если `SECRET_KEY` пуст или равен встроенному
+placeholder. Значения из `.env.example` являются только локальными примерами.
 
 ## PostgreSQL
 
@@ -68,15 +68,19 @@ Compose передаёт `backend/.env` через `env_file` и принуди�
 | Переменная | Default | Назначение |
 |---|---:|---|
 | `SMTP_HOST` | unset | Явный SMTP; при наличии приоритетнее Resend |
-| `SMTP_PORT` | `25` или `587` | 25 для explicit SMTP, 587 для Resend |
+| `SMTP_PORT` | `587` / `465` / `25` | Default зависит от `SMTP_TLS_MODE`: STARTTLS / implicit TLS / plaintext dev |
+| `SMTP_TLS_MODE` | `starttls` | `starttls`, `ssl` или `none`; production запрещает `none` |
 | `SMTP_USER` | unset | login |
 | `SMTP_PASSWORD` | unset | secret |
 | `SMTP_FROM` | `no-reply@example.com` | envelope/header From |
 | `RESEND_API_KEY` | unset | Используется как SMTP password |
 
 Без SMTP/Resend письма пишутся относительно working directory в
-`storage/emails/`. Если SMTP падает в production, исключение не маскируется; в
-non-production происходит file fallback.
+`storage/emails/` только вне production. В production отсутствие provider или
+ошибка доставки приводит к исключению; production startup завершается ошибкой,
+если provider не задан или выбран `SMTP_TLS_MODE=none`. STARTTLS handshake error не игнорируется
+и plaintext повторной отправки не происходит. Для `SMTP_TLS_MODE=ssl` используется
+SMTP_SSL с проверкой сертификата; для `starttls` сертификат также проверяется.
 
 ## Billing и внешние сервисы
 

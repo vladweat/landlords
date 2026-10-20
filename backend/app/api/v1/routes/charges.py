@@ -66,6 +66,21 @@ def create_or_refresh_invoice(
     }
 
 
+@router.post("/{charge_id}/invoice/rotate-link", response_model=InvoiceSingleResponse)
+def rotate_invoice_share_link(
+    charge_id: UUID,
+    account_id: UUID = Depends(get_current_account_id),
+    service: InvoiceService = Depends(get_invoice_service),
+    _: MembershipEntity = Depends(require_permissions(Permission.WRITE_CHARGES)),
+) -> dict:
+    """Перевыпустить публичную ссылку; прежний токен перестаёт работать."""
+    dto = service.rotate_public_link(charge_id, account_id)
+    return {
+        "status": "success",
+        "data": InvoiceResponse.model_validate(dto),
+    }
+
+
 @router.get("/{charge_id}/invoice", response_model=InvoiceSingleResponse)
 def get_invoice_for_charge(
     charge_id: UUID,

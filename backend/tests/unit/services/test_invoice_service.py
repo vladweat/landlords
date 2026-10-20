@@ -102,6 +102,7 @@ def service(account_id, charge):
         contract_id=charge.contract_id,
         charge_id=charge.id,
         public_token="tok123",
+        public_token_expires_at=_utc_now() + timedelta(days=90),
         document_id=None,
         created_at=_utc_now(),
         updated_at=_utc_now(),
@@ -145,6 +146,7 @@ class TestEnsureInvoice:
             contract_id=charge.contract_id,
             charge_id=charge.id,
             public_token="tok123",
+            public_token_expires_at=_utc_now() + timedelta(days=90),
             document_id=first.document_id,
         )
         service.invoice_repo.get_by_charge.return_value = existing
@@ -153,6 +155,24 @@ class TestEnsureInvoice:
         second = service.ensure_invoice(charge.id, account_id)
         assert second.public_token == "tok123"
         service.invoice_repo.create.assert_not_called()
+
+    def test_expired_token_is_renewed_when_invoice_is_refreshed(
+        self, service, charge, account_id
+    ):
+        existing = InvoiceEntity(
+            id=uuid4(),
+            account_id=account_id,
+            contract_id=charge.contract_id,
+            charge_id=charge.id,
+            public_token="expired-token",
+            public_token_expires_at=_utc_now() - timedelta(seconds=1),
+        )
+        service.invoice_repo.get_by_charge.return_value = existing
+
+        refreshed = service.ensure_invoice(charge.id, account_id)
+
+        assert refreshed.public_token != "expired-token"
+        assert refreshed.public_token_expires_at > _utc_now()
 
     def test_get_by_charge_404(self, service, account_id):
         service.invoice_repo.get_by_charge.return_value = None
@@ -166,6 +186,7 @@ class TestEnsureInvoice:
             contract_id=charge.contract_id,
             charge_id=charge.id,
             public_token="pubtok",
+            public_token_expires_at=_utc_now() + timedelta(days=90),
             document_id=None,
         )
         service.invoice_repo.get_by_token.return_value = invoice

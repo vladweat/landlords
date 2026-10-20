@@ -29,6 +29,11 @@ def _contract(account_id, portal_token=None):
         payment_day=1,
         status="active",
         portal_token=portal_token,
+        portal_token_expires_at=(
+            datetime.now(timezone.utc) + timedelta(hours=2)
+            if portal_token
+            else None
+        ),
     )
 
 
@@ -79,6 +84,9 @@ class TestEnsurePortal:
 
         assert result.portal_token
         assert result.share_url.endswith(f"/t/{result.portal_token}")
+        assert timedelta(hours=1, minutes=55) < (
+            result.portal_token_expires_at - datetime.now(timezone.utc)
+        )
         service.contract_repo.update.assert_called_once()
 
     def test_reuses_token(self, service, account_id):
@@ -89,6 +97,20 @@ class TestEnsurePortal:
 
         assert result.portal_token == "existing-token"
         service.contract_repo.update.assert_not_called()
+
+    def test_renews_expired_token(self, service, account_id):
+        contract = _contract(account_id, portal_token="expired-token")
+        contract.portal_token_expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+        service.contract_repo.get_by_id.return_value = contract
+        service.contract_repo.update.side_effect = lambda entity: entity
+
+        result = service.ensure_portal(contract.id, account_id)
+
+        assert result.portal_token != "expired-token"
+        assert timedelta(hours=1, minutes=55) < (
+            result.portal_token_expires_at - datetime.now(timezone.utc)
+        )
+        service.contract_repo.update.assert_called_once()
 
 
 class TestCreateClaim:

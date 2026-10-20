@@ -35,10 +35,10 @@ class LoginRequest(BaseModel):
 
 
 class AuthResponse(BaseModel):
-    """Ответ с токеном."""
+    """Ответ аутентификации; Bearer JWT выдаётся только по явному запросу."""
 
     status: str = "success"
-    token: str
+    token: str | None = None
     user: UserResponse
 
 

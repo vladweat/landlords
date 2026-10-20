@@ -9,7 +9,7 @@ from app.api.v1.schemas.account_schema import (
 from app.api.v1.schemas.user_schema import AuthResponse, UserResponse
 from app.services.dto.invite_dto import InviteAcceptDTO
 from app.services.invite_service import InviteService
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, Header, Response
 
 from app.core.cookies import set_access_cookie
 
@@ -29,11 +29,16 @@ def get_invite_preview(
     }
 
 
-@router.post("/{token}/accept", response_model=AuthResponse)
+@router.post(
+    "/{token}/accept",
+    response_model=AuthResponse,
+    response_model_exclude_none=True,
+)
 def accept_invite(
     token: str,
     body: InviteAcceptRequest,
     response: Response,
+    return_bearer_token: bool = Header(False, alias="X-Return-Bearer-Token"),
     service: InviteService = Depends(get_invite_service),
 ) -> AuthResponse:
     """Принять приглашение: задать пароль и войти."""
@@ -44,6 +49,6 @@ def accept_invite(
     set_access_cookie(response, jwt)
     return AuthResponse(
         status="success",
-        token=jwt,
+        token=jwt if return_bearer_token else None,
         user=UserResponse.model_validate(user),
     )

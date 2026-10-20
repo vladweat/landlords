@@ -18,7 +18,7 @@ export interface ApiError {
 
 export interface AuthResponse {
   status: 'success';
-  token: string;
+  token?: string;
   user: {
     id: string;
     email: string;

@@ -10,6 +10,13 @@ export const invoicesApi = {
     return response.data.data;
   },
 
+  rotateShareLink: async (chargeId: string): Promise<Invoice> => {
+    const response = await apiClient.post<{ status: string; data: Invoice }>(
+      `/charges/${chargeId}/invoice/rotate-link`,
+    );
+    return response.data.data;
+  },
+
   getByCharge: async (chargeId: string): Promise<Invoice> => {
     const response = await apiClient.get<{ status: string; data: Invoice }>(
       `/charges/${chargeId}/invoice`,

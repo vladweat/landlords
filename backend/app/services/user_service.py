@@ -11,7 +11,6 @@ from app.core.exceptions import (
     ValidationError,
 )
 from app.core.security import (
-    create_access_token,
     create_reset_token,
     hash_password,
     verify_password,
@@ -21,8 +20,11 @@ from app.domain.interfaces import IAccountRepository, IMembershipRepository, IUs
 from app.domain.permissions import Role
 from app.services.dto.account_dto import AccountDTO
 from app.services.dto.user_dto import UserCreateDTO, UserDTO
+from app.services.auth_session_service import AuthSessionService
 from app.services.email_service import EmailService
 from loguru import logger
+
+_DUMMY_PASSWORD_HASH = hash_password("landlords-invalid-user-password")
 
 
 class UserService:
@@ -33,11 +35,13 @@ class UserService:
         user_repo: IUserRepository,
         account_repo: IAccountRepository,
         membership_repo: IMembershipRepository,
+        auth_session_service: AuthSessionService,
         email_service: EmailService | None = None,
     ) -> None:
         self.user_repo = user_repo
         self.account_repo = account_repo
         self.membership_repo = membership_repo
+        self.auth_session_service = auth_session_service
         self.email_service = email_service or EmailService()
 
     def register(self, dto: UserCreateDTO) -> tuple[UserDTO, AccountDTO, str]:
@@ -73,9 +77,8 @@ class UserService:
             )
         )
 
-        token = create_access_token(
-            user_id=str(created_user.id),
-            account_id=str(created_account.id),
+        token = self.auth_session_service.issue_access_token(
+            created_user.id, created_account.id
         )
 
         try:
@@ -92,27 +95,20 @@ class UserService:
     def login(self, email: str, password: str) -> tuple[UserDTO, AccountDTO, str]:
         """Аутентифицировать пользователя."""
         user = self.user_repo.get_by_email(email)
-        if not user:
-            raise UnauthorizedError("Invalid email or password")
-
-        if not user.is_active:
-            raise UnauthorizedError("User is inactive")
-
-        if not verify_password(password, user.password_hash):
+        password_hash = user.password_hash if user else _DUMMY_PASSWORD_HASH
+        password_valid = verify_password(password, password_hash)
+        if not user or not user.is_active or not password_valid:
             raise UnauthorizedError("Invalid email or password")
 
         membership = self.membership_repo.get_by_user_id(user.id)
         if not membership or not membership.is_active:
-            raise UnauthorizedError("No active account membership")
+            raise UnauthorizedError("Invalid email or password")
 
         account = self.account_repo.get_by_id(membership.account_id)
         if not account:
-            raise NotFoundError("Account not found")
+            raise UnauthorizedError("Invalid email or password")
 
-        token = create_access_token(
-            user_id=str(user.id),
-            account_id=str(account.id),
-        )
+        token = self.auth_session_service.issue_access_token(user.id, account.id)
 
         return (
             UserDTO.model_validate(user),
@@ -148,13 +144,16 @@ class UserService:
     def request_password_reset(self, email: str) -> None:
         """
         Запрос на сброс пароля: создать токен и отправить письмо.
-        Не логируем сам токен. Без SMTP письмо пишется в storage/emails.
+        Не логируем сам токен. Файловый fallback доступен только вне production.
         """
         user = self.user_repo.get_by_email(email)
         if not user:
             return
 
-        token = create_reset_token(str(user.id))
+        token_id = uuid4()
+        token = create_reset_token(str(user.id), token_id)
+        user.password_reset_token_id = token_id
+        self.user_repo.update(user)
         try:
             frontend = settings.FRONTEND_URL.rstrip("/")
             reset_link = f"{frontend}/reset-password?token={token}"
@@ -163,15 +162,21 @@ class UserService:
         except Exception:
             logger.exception("Error while preparing password reset")
 
-    def reset_password(self, user_id: UUID, new_password: str) -> None:
+    def reset_password(
+        self, user_id: UUID, token_id: UUID, new_password: str
+    ) -> None:
         """Сбросить пароль пользователя."""
         user = self.user_repo.get_by_id(user_id)
         if not user:
             raise NotFoundError("Пользователь не найден")
         if len(new_password) < 6:
             raise ValidationError("Пароль должен быть не менее 6 символов")
+        if not self.user_repo.consume_password_reset_token(user_id, token_id):
+            raise ValidationError("Токен устарел или уже использован")
         user.password_hash = hash_password(new_password)
+        user.password_reset_token_id = None
         self.user_repo.update(user)
+        self.auth_session_service.revoke_all_for_user(user_id)
 
     def update_profile(
         self,
@@ -198,7 +203,9 @@ class UserService:
         if len(new_password) < 6:
             raise ValidationError("Пароль должен быть не менее 6 символов")
         user.password_hash = hash_password(new_password)
+        user.password_reset_token_id = None
         self.user_repo.update(user)
+        self.auth_session_service.revoke_all_for_user(user_id)
 
     def delete_account(self, user_id: UUID, confirmation: str) -> None:
         """Удалить аккаунт (только владелец)."""

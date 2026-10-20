@@ -20,6 +20,9 @@ class UserModel(TimestampMixin, Base):
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
     phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    password_reset_token_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), nullable=True
+    )
 
     def to_entity(self) -> UserEntity:
         """Преобразовать ORM-модель в доменную сущность."""
@@ -31,6 +34,7 @@ class UserModel(TimestampMixin, Base):
             phone=self.phone,
             is_active=self.is_active,
             created_at=self.created_at,
+            password_reset_token_id=self.password_reset_token_id,
         )
 
     @classmethod
@@ -44,4 +48,5 @@ class UserModel(TimestampMixin, Base):
             phone=entity.phone,
             is_active=entity.is_active,
             created_at=entity.created_at,
+            password_reset_token_id=entity.password_reset_token_id,
         )

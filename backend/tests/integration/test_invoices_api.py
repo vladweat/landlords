@@ -1,12 +1,13 @@
 """Интеграционные тесты квитанций."""
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
 
+from app.db.models.invoice_model import InvoiceModel
 from app.db.models.rent_charge_model import RentChargeModel
 from tests.integration.conftest import property_payload
 
@@ -108,6 +109,9 @@ class TestInvoicesApi:
         assert data["charge_id"] == str(charge_id)
         assert data["share_url"].endswith(f"/i/{data['public_token']}")
         assert data["document_id"] is not None
+        assert datetime.fromisoformat(data["public_token_expires_at"]) > datetime.now(
+            timezone.utc
+        )
         token = data["public_token"]
 
         again = client.post(
@@ -137,6 +141,42 @@ class TestInvoicesApi:
         assert pdf.status_code == 200
         assert pdf.headers["content-type"].startswith("application/pdf")
         assert pdf.content[:4] == b"%PDF"
+
+        rotated = client.post(
+            f"/v1/charges/{charge_id}/invoice/rotate-link",
+            headers=auth_headers,
+        )
+        assert rotated.status_code == 200
+        new_token = rotated.json()["data"]["public_token"]
+        assert new_token != token
+        assert client.get(f"/v1/public/invoices/{token}").status_code == 404
+        assert client.get(f"/v1/public/invoices/{token}/pdf").status_code == 404
+        assert client.get(f"/v1/public/invoices/{new_token}").status_code == 200
+
+    def test_expired_invoice_link_is_rejected_on_all_public_routes(
+        self, client: TestClient, auth_headers, db_session
+    ):
+        contract_id = _create_active_contract(client, auth_headers)
+        account_id = _account_id(client, auth_headers)
+        charge_id = _insert_charge(db_session, account_id, contract_id)
+        created = client.post(
+            f"/v1/charges/{charge_id}/invoice", headers=auth_headers
+        )
+        assert created.status_code == 200
+        token = created.json()["data"]["public_token"]
+        invoice = (
+            db_session.query(InvoiceModel)
+            .filter_by(public_token=token)
+            .one()
+        )
+        invoice.public_token_expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+        db_session.flush()
+
+        assert client.get(f"/v1/public/invoices/{token}").status_code == 404
+        assert client.get(f"/v1/public/invoices/{token}/pdf").status_code == 404
+        assert client.post(
+            f"/v1/public/invoices/{token}/claim", json={"amount": "100.00"}
+        ).status_code == 404
 
     def test_public_404(self, client: TestClient):
         resp = client.get("/v1/public/invoices/not-a-real-token")

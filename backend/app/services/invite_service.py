@@ -9,7 +9,7 @@ from uuid import UUID, uuid4
 
 from app.core.config import settings
 from app.core.exceptions import ConflictError, GoneError, NotFoundError, ValidationError
-from app.core.security import create_access_token, hash_password
+from app.core.security import hash_password
 from app.domain.entities import AccountInviteEntity, MembershipEntity, UserEntity
 from app.domain.interfaces import (
     IAccountInviteRepository,
@@ -25,6 +25,7 @@ from app.services.dto.invite_dto import (
     InvitePreviewDTO,
 )
 from app.services.dto.user_dto import UserDTO
+from app.services.auth_session_service import AuthSessionService
 from app.services.email_service import EmailService
 from loguru import logger
 
@@ -48,6 +49,7 @@ class InviteService:
         account_repo: IAccountRepository,
         user_repo: IUserRepository,
         membership_repo: IMembershipRepository,
+        auth_session_service: AuthSessionService,
         email_service: EmailService | None = None,
         plan_limit_service: PlanLimitService | None = None,
     ) -> None:
@@ -55,6 +57,7 @@ class InviteService:
         self.account_repo = account_repo
         self.user_repo = user_repo
         self.membership_repo = membership_repo
+        self.auth_session_service = auth_session_service
         self.email_service = email_service or EmailService()
         self.plan_limit_service = plan_limit_service
 
@@ -180,10 +183,7 @@ class InviteService:
         invite.accepted_at = datetime.now(timezone.utc)
         self.invite_repo.update(invite)
 
-        jwt = create_access_token(
-            user_id=str(user.id),
-            account_id=str(invite.account_id),
-        )
+        jwt = self.auth_session_service.issue_access_token(user.id, invite.account_id)
         return UserDTO.model_validate(user), jwt
 
     def _get_valid_invite(self, token: str) -> AccountInviteEntity:

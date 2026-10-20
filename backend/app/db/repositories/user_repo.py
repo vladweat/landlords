@@ -42,8 +42,22 @@ class UserRepository(IUserRepository):
         model.full_name = entity.full_name
         model.phone = entity.phone
         model.is_active = entity.is_active
+        model.password_reset_token_id = entity.password_reset_token_id
         self.session.flush()
         return model.to_entity()
+
+    def consume_password_reset_token(self, user_id: UUID, token_id: UUID) -> bool:
+        """Погасить только совпадающий reset token; конкурентный replay проигрывает."""
+        updated = (
+            self.session.query(UserModel)
+            .filter_by(id=user_id, password_reset_token_id=token_id)
+            .update(
+                {UserModel.password_reset_token_id: None},
+                synchronize_session=False,
+            )
+        )
+        self.session.flush()
+        return updated == 1
 
 
     def delete(self, user_id: UUID) -> None:

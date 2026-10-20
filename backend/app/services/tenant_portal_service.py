@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import secrets
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from uuid import UUID, uuid4
 
@@ -35,6 +35,8 @@ from app.services.dto.portal_dto import (
 from app.services.invoice_service import InvoiceService
 from app.services.ledger_service import LedgerService
 from app.services.payment_service import PaymentService
+
+PORTAL_TOKEN_TTL = timedelta(hours=2)
 
 
 class TenantPortalService:
@@ -90,14 +92,17 @@ class TenantPortalService:
         if not contract:
             raise NotFoundError(f"Contract with id={contract_id} not found")
 
-        if not contract.portal_token:
+        if not contract.portal_token or self._portal_token_expired(contract):
             contract.portal_token = secrets.token_urlsafe(32)
+            contract.portal_token_expires_at = self._new_token_expiration()
             contract = self.contract_repo.update(contract)
 
         assert contract.portal_token is not None
+        assert contract.portal_token_expires_at is not None
         return PortalLinkDTO(
             portal_token=contract.portal_token,
             share_url=self._share_url(contract.portal_token),
+            portal_token_expires_at=contract.portal_token_expires_at,
         )
 
     def rotate_portal(self, contract_id: UUID, account_id: UUID) -> PortalLinkDTO:
@@ -107,12 +112,28 @@ class TenantPortalService:
             raise NotFoundError(f"Contract with id={contract_id} not found")
 
         contract.portal_token = secrets.token_urlsafe(32)
+        contract.portal_token_expires_at = self._new_token_expiration()
         contract = self.contract_repo.update(contract)
         assert contract.portal_token is not None
+        assert contract.portal_token_expires_at is not None
         return PortalLinkDTO(
             portal_token=contract.portal_token,
             share_url=self._share_url(contract.portal_token),
+            portal_token_expires_at=contract.portal_token_expires_at,
         )
+
+    @staticmethod
+    def _new_token_expiration() -> datetime:
+        return datetime.now(timezone.utc) + PORTAL_TOKEN_TTL
+
+    @staticmethod
+    def _portal_token_expired(contract: ContractEntity) -> bool:
+        expires_at = contract.portal_token_expires_at
+        if expires_at is None:
+            return True
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        return expires_at <= datetime.now(timezone.utc)
 
     def _resolve_contract_by_token(self, token: str):
         contract = self.contract_repo.get_by_portal_token(token)

@@ -59,6 +59,28 @@ class TestInvitesApi:
         )
         assert again.status_code == 410
 
+    def test_accept_invite_omits_bearer_token_for_browser(self, client, auth_headers):
+        created = client.post(
+            "/v1/account/invites",
+            headers=auth_headers,
+            json={
+                "email": "cookie-invite@example.com",
+                "full_name": "Cookie Invite",
+                "role": "manager",
+            },
+        )
+        token = created.json()["data"]["token"]
+
+        accepted = client.post(
+            f"/v1/public/invites/{token}/accept",
+            headers={"X-Return-Bearer-Token": "false"},
+            json={"password": "secret123"},
+        )
+
+        assert accepted.status_code == 200
+        assert "token" not in accepted.json()
+        assert accepted.cookies.get("access_token")
+
     def test_conflict_existing_email(self, client: TestClient, auth_headers):
         resp = client.post(
             "/v1/account/invites",

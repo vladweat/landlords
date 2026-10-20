@@ -129,6 +129,7 @@ export const accountApi = {
     const response = await apiClient.post<AuthResponse>(
       `/public/invites/${token}/accept`,
       data,
+      { headers: { 'X-Return-Bearer-Token': 'false' } },
     );
     return response.data;
   },

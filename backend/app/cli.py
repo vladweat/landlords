@@ -12,6 +12,7 @@ from uuid import UUID
 
 from app.core.exceptions import ConflictError
 from app.db.repositories.account_repo import AccountRepository
+from app.db.repositories.auth_session_repo import AuthSessionRepository
 from app.db.repositories.membership_repo import MembershipRepository
 from app.db.repositories.property_repo import PropertyRepository
 from app.db.repositories.tenant_repo import TenantRepository
@@ -26,6 +27,7 @@ from app.demo_seed import (
 from app.services.dto.property_dto import PropertyCreateDTO
 from app.services.dto.tenant_dto import TenantCreateDTO
 from app.services.dto.user_dto import UserCreateDTO
+from app.services.auth_session_service import AuthSessionService
 from app.services.property_service import PropertyService
 from app.services.tenant_service import TenantService
 from app.services.user_service import UserService
@@ -36,6 +38,7 @@ def _build_user_service(session) -> UserService:
         UserRepository(session),
         AccountRepository(session),
         MembershipRepository(session),
+        AuthSessionService(AuthSessionRepository(session)),
     )
 
 

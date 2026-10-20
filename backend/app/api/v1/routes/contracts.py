@@ -293,8 +293,8 @@ def allocate_advance(
     return {"status": "success", "data": data}
 
 
-@router.get("/{contract_id}/document")
-def get_contract_document(
+@router.post("/{contract_id}/document")
+def generate_contract_document(
     contract_id: UUID,
     account_id: UUID = Depends(get_current_account_id),
     service: PdfService = Depends(get_pdf_service),

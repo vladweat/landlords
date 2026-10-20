@@ -10,7 +10,9 @@ from app.domain.interfaces import (
     IContractEventRepository,
     IContractRepository,
     IPaymentRepository,
+    IPropertyRepository,
     IRentChargeRepository,
+    ITenantRepository,
 )
 from app.domain.rules import (
     compute_charge_status,
@@ -57,8 +59,13 @@ class ContractService:
         event_repo: IContractEventRepository | None = None,
         audit_service: AuditService | None = None,
         pdf_service=None,
+        *,
+        property_repo: IPropertyRepository,
+        tenant_repo: ITenantRepository,
     ) -> None:
         self.repo = repo
+        self.property_repo = property_repo
+        self.tenant_repo = tenant_repo
         self.charge_repo = charge_repo
         self.payment_repo = payment_repo
         self.event_repo = event_repo
@@ -88,6 +95,13 @@ class ContractService:
         """Создать контракт."""
         _run_rule(validate_contract_dates, dto.start_date, dto.end_date)
         _run_rule(validate_payment_day, dto.payment_day)
+
+        # ID пришли от клиента: перед созданием связи проверяем принадлежность
+        # обоих ресурсов аутентифицированному аккаунту.
+        if not self.property_repo.get_by_id(dto.property_id, account_id):
+            raise NotFoundError(f"Property with id={dto.property_id} not found")
+        if not self.tenant_repo.get_by_id(dto.tenant_id, account_id):
+            raise NotFoundError(f"Tenant with id={dto.tenant_id} not found")
 
         entity = ContractEntity(
             id=uuid4(),

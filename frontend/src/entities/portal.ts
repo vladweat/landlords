@@ -47,4 +47,5 @@ export interface PublicPortal {
 export interface PortalLink {
   portal_token: string;
   share_url: string;
+  portal_token_expires_at: string;
 }
