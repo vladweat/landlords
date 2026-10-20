@@ -12,7 +12,7 @@ from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from app.core.config import settings
 from app.core.cookies import ACCESS_TOKEN_COOKIE
 from app.core.exceptions import AppException
-from app.core.logging_middleware import LoggingMiddleware
+from app.core.logging_middleware import LoggingMiddleware, _safe_request_path
 
 
 def _origin(value: str | None) -> str | None:
@@ -99,14 +99,22 @@ def create_app() -> FastAPI:
     @app.exception_handler(AppException)
     def app_exception_handler(request: Request, exc: AppException) -> JSONResponse:
         """Обработать кастомное исключение приложения."""
-        logger.warning(f"Application exception: {exc.message}", status_code=exc.status_code, path=request.url.path)
+        logger.warning(
+            f"Application exception: {exc.message}",
+            status_code=exc.status_code,
+            path=_safe_request_path(request.url.path),
+        )
         return JSONResponse(status_code=exc.status_code, content={"status": "error", "message": exc.message})
 
     # Обработчик необработанных исключений
     @app.exception_handler(Exception)
     def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
         """Обработать неожиданное исключение."""
-        logger.exception("Unhandled exception: {}", str(exc), path=request.url.path)
+        logger.exception(
+            "Unhandled exception: {}",
+            str(exc),
+            path=_safe_request_path(request.url.path),
+        )
         return JSONResponse(status_code=HTTPStatus.INTERNAL_SERVER_ERROR, content={"status": "error", "message": "Internal server error"})
 
     # Healthcheck

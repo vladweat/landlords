@@ -12,6 +12,8 @@ Compose доступны только сети `app-network`. В dev override и
 
 - Пароли хэшируются Passlib bcrypt; bcrypt ограничен 72 bytes и настроен
   `truncate_error=True`.
+- Вход возвращает одинаковую ошибку для отсутствующего, неактивного пользователя
+  и неверного пароля; для неизвестного email выполняется bcrypt-проверка dummy-хэша.
 - Access JWT: HS256, 24 часа, `sub` + `account_id` + `jti` + `exp`; каждый JWT
   привязан к записи `auth_sessions` и проверяется по ней на каждом protected request.
 - Browser transport: HttpOnly `access_token`, `SameSite=Lax`, `Secure` в
@@ -63,7 +65,8 @@ Rate limiting существует только в nginx и обходится �
 
 Secrets загружаются из environment/`backend/.env`; secret manager не
 интегрирован. `.env` не должен попадать в Git. Application logs не включают
-query string и редактируют capability tokens в public API paths; nginx отключает
+query string и редактируют capability tokens в public API paths, включая
+обработчики ошибок; nginx отключает
 access log для таких API и frontend token routes. Внешний TLS ingress также
 должен исключить token-bearing URL из access logs и analytics. Sentry DSN, SMTP,
 Redis password и YooKassa key считаются чувствительными.

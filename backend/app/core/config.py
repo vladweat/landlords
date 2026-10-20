@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     
     APP_NAME: str = "FastAPI DDD Service"
     APP_VERSION: str = "0.1.0"
-    APP_ENV: str = "development"  # development | staging | production
+    APP_ENV: Literal["development", "staging", "production"] = "development"
     DEBUG: bool = True
     # Публичный POST /v1/auth/register. Для портфолио/прода — false; CLI seed не зависит от флага.
     ALLOW_PUBLIC_REGISTRATION: bool = True

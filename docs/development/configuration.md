@@ -21,9 +21,9 @@ Compose передаёт `backend/.env` через `env_file` и принуди�
 | `FRONTEND_URL` | `http://localhost:3000` | Ссылки в письмах и billing return |
 | `SUPPORT_EMAIL` | `hello@landlords.ru` | Получатель feedback/ops alerts |
 
-При `APP_ENV=production` процесс прекращает запуск, если `SECRET_KEY` пуст или
-равен встроенному placeholder. Значения из `.env.example` являются только
-локальными примерами.
+При неизвестном `APP_ENV` процесс прекращает запуск. При `APP_ENV=production`
+процесс также прекращает запуск, если `SECRET_KEY` пуст или равен встроенному
+placeholder. Значения из `.env.example` являются только локальными примерами.
 
 ## PostgreSQL
 

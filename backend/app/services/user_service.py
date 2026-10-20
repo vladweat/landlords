@@ -24,6 +24,8 @@ from app.services.auth_session_service import AuthSessionService
 from app.services.email_service import EmailService
 from loguru import logger
 
+_DUMMY_PASSWORD_HASH = hash_password("landlords-invalid-user-password")
+
 
 class UserService:
     """Сервис управления пользователями и аутентификацией."""
@@ -93,22 +95,18 @@ class UserService:
     def login(self, email: str, password: str) -> tuple[UserDTO, AccountDTO, str]:
         """Аутентифицировать пользователя."""
         user = self.user_repo.get_by_email(email)
-        if not user:
-            raise UnauthorizedError("Invalid email or password")
-
-        if not user.is_active:
-            raise UnauthorizedError("User is inactive")
-
-        if not verify_password(password, user.password_hash):
+        password_hash = user.password_hash if user else _DUMMY_PASSWORD_HASH
+        password_valid = verify_password(password, password_hash)
+        if not user or not user.is_active or not password_valid:
             raise UnauthorizedError("Invalid email or password")
 
         membership = self.membership_repo.get_by_user_id(user.id)
         if not membership or not membership.is_active:
-            raise UnauthorizedError("No active account membership")
+            raise UnauthorizedError("Invalid email or password")
 
         account = self.account_repo.get_by_id(membership.account_id)
         if not account:
-            raise NotFoundError("Account not found")
+            raise UnauthorizedError("Invalid email or password")
 
         token = self.auth_session_service.issue_access_token(user.id, account.id)
 
