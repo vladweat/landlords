@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import re
+import tempfile
 from datetime import datetime, timezone
 from io import BytesIO
 from typing import TYPE_CHECKING
@@ -35,7 +36,7 @@ from app.services.contract_template_service import ContractTemplateService
 if TYPE_CHECKING:
     from app.services.plan_limit_service import PlanLimitService
 
-STORAGE_DIR = "/app/storage/documents"
+STORAGE_DIR = os.getenv("DOCUMENTS_STORAGE_DIR", "/app/storage/documents")
 FONT_PATH = "/app/fonts/DejaVuSans.ttf"
 FONT_BOLD_PATH = "/app/fonts/DejaVuSans-Bold.ttf"
 
@@ -250,8 +251,22 @@ class PdfService:
         )
         file_path = os.path.join(dir_path, filename)
 
-        with open(file_path, "wb") as f:
-            f.write(pdf_bytes)
+        temp_path: str | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="wb", dir=dir_path, prefix=".upload-", delete=False
+            ) as stream:
+                temp_path = stream.name
+                stream.write(pdf_bytes)
+            os.replace(temp_path, file_path)
+            temp_path = None
+        except OSError:
+            if temp_path and os.path.exists(temp_path):
+                try:
+                    os.remove(temp_path)
+                except OSError:
+                    pass
+            raise
 
         if category is None:
             if "invoice" in prefix:
@@ -274,7 +289,14 @@ class PdfService:
             title=filename,
         )
         if self.document_repo:
-            return self.document_repo.create(doc)
+            try:
+                return self.document_repo.create(doc)
+            except Exception:
+                try:
+                    os.remove(file_path)
+                except OSError:
+                    pass
+                raise
         return doc
 
     def generate_and_save(

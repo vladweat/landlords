@@ -82,82 +82,82 @@ def get_email_service() -> EmailService:
 
 # ==================== БАЗОВЫЕ ====================
 
-def get_user_repo(session: Session = Depends(get_db_session)) -> UserRepository:
+def get_user_repo(session: Session = Depends(get_db_session, scope="function")) -> UserRepository:
     return UserRepository(session)
 
 
 def get_auth_session_repo(
-    session: Session = Depends(get_db_session),
+    session: Session = Depends(get_db_session, scope="function"),
 ) -> AuthSessionRepository:
     return AuthSessionRepository(session)
 
-def get_account_repo(session: Session = Depends(get_db_session)) -> AccountRepository:
+def get_account_repo(session: Session = Depends(get_db_session, scope="function")) -> AccountRepository:
     return AccountRepository(session)
 
-def get_membership_repo(session: Session = Depends(get_db_session)) -> MembershipRepository:
+def get_membership_repo(session: Session = Depends(get_db_session, scope="function")) -> MembershipRepository:
     return MembershipRepository(session)
 
-def get_property_repo(session: Session = Depends(get_db_session)) -> PropertyRepository:
+def get_property_repo(session: Session = Depends(get_db_session, scope="function")) -> PropertyRepository:
     return PropertyRepository(session)
 
-def get_tenant_repo(session: Session = Depends(get_db_session)) -> TenantRepository:
+def get_tenant_repo(session: Session = Depends(get_db_session, scope="function")) -> TenantRepository:
     return TenantRepository(session)
 
-def get_contract_repo(session: Session = Depends(get_db_session)) -> ContractRepository:
+def get_contract_repo(session: Session = Depends(get_db_session, scope="function")) -> ContractRepository:
     return ContractRepository(session)
 
 def get_contract_template_repo(
-    session: Session = Depends(get_db_session),
+    session: Session = Depends(get_db_session, scope="function"),
 ) -> ContractTemplateRepository:
     return ContractTemplateRepository(session)
 
-def get_rent_charge_repo(session: Session = Depends(get_db_session)) -> RentChargeRepository:
+def get_rent_charge_repo(session: Session = Depends(get_db_session, scope="function")) -> RentChargeRepository:
     return RentChargeRepository(session)
 
-def get_payment_repo(session: Session = Depends(get_db_session)) -> PaymentRepository:
+def get_payment_repo(session: Session = Depends(get_db_session, scope="function")) -> PaymentRepository:
     return PaymentRepository(session)
 
 def get_property_expense_repo(
-    session: Session = Depends(get_db_session),
+    session: Session = Depends(get_db_session, scope="function"),
 ) -> PropertyExpenseRepository:
     return PropertyExpenseRepository(session)
 
-def get_reminder_repo(session: Session = Depends(get_db_session)) -> ReminderRepository:
+def get_reminder_repo(session: Session = Depends(get_db_session, scope="function")) -> ReminderRepository:
     return ReminderRepository(session)
 
-def get_document_repo(session: Session = Depends(get_db_session)) -> DocumentRepository:
+def get_document_repo(session: Session = Depends(get_db_session, scope="function")) -> DocumentRepository:
     return DocumentRepository(session)
 
-def get_contract_event_repo(session: Session = Depends(get_db_session)) -> ContractEventRepository:
+def get_contract_event_repo(session: Session = Depends(get_db_session, scope="function")) -> ContractEventRepository:
     return ContractEventRepository(session)
 
-def get_feedback_repo(session: Session = Depends(get_db_session)) -> FeedbackRepository:
+def get_feedback_repo(session: Session = Depends(get_db_session, scope="function")) -> FeedbackRepository:
     return FeedbackRepository(session)
 
-def get_invoice_repo(session: Session = Depends(get_db_session)) -> InvoiceRepository:
+def get_invoice_repo(session: Session = Depends(get_db_session, scope="function")) -> InvoiceRepository:
     return InvoiceRepository(session)
 
 def get_payment_claim_repo(
-    session: Session = Depends(get_db_session),
+    session: Session = Depends(get_db_session, scope="function"),
 ) -> PaymentClaimRepository:
     return PaymentClaimRepository(session)
 
 def get_notification_dismissal_repo(
-    session: Session = Depends(get_db_session),
+    session: Session = Depends(get_db_session, scope="function"),
 ) -> NotificationDismissalRepository:
     return NotificationDismissalRepository(session)
 
 def get_email_dispatch_log_repo(
-    session: Session = Depends(get_db_session),
+    session: Session = Depends(get_db_session, scope="function"),
 ) -> EmailDispatchLogRepository:
     return EmailDispatchLogRepository(session)
 
 def get_account_invite_repo(
-    session: Session = Depends(get_db_session),
+    session: Session = Depends(get_db_session, scope="function"),
 ) -> AccountInviteRepository:
     return AccountInviteRepository(session)
 
-def get_audit_service(session: Session = Depends(get_db_session)) -> AuditService:
+def get_audit_service(session: Session = Depends(get_db_session, scope="function")) -> AuditService:
     return AuditService(session)
 
 

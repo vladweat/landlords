@@ -21,6 +21,8 @@ logger = get_task_logger(__name__)
 @shared_task(
     name="app.tasks.charge_tasks.generate_charges_for_contract",
     retry_backoff=True,
+    retry_backoff_max=60,
+    retry_jitter=True,
     retry_kwargs={"max_retries": 3},
     soft_time_limit=120,
     time_limit=180,
@@ -68,9 +70,13 @@ def generate_charges_for_contract(account_id: str, contract_id: str) -> dict[str
 @shared_task(
     name="app.tasks.charge_tasks.update_overdue_charges",
     retry_backoff=True,
+    retry_backoff_max=60,
+    retry_jitter=True,
     retry_kwargs={"max_retries": 3},
     soft_time_limit=300,
     time_limit=600,
+    # Retry database availability/transaction failures; do not retry business errors.
+    autoretry_for=(OperationalError,),
 )
 def update_overdue_charges() -> dict[str, Any]:
     """Update overdue charges and contract statuses (bulk task)."""
@@ -82,7 +88,7 @@ def update_overdue_charges() -> dict[str, Any]:
     logger.info("Updating overdue charges and contracts")
 
     # Acquire distributed lock to avoid concurrent runs across workers.
-    lock = RedisLock("update_overdue_charges", ttl=600)
+    lock = RedisLock("update_overdue_charges", ttl=900)
     if not lock.try_acquire():
         logger.info("update_overdue_charges: could not acquire lock, another worker is running")
         return {"status": "skipped", "reason": "lock_not_acquired"}

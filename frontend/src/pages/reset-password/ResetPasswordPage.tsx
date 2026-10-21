@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation } from '@tanstack/react-query';
@@ -19,8 +19,15 @@ const schema = z.object({
 
 export default function ResetPasswordPage() {
   const [searchParams] = useSearchParams();
-  const token = searchParams.get('token');
+  const [token] = useState(() => {
+    const fragmentToken = new URLSearchParams(window.location.hash.slice(1)).get('token');
+    return fragmentToken || searchParams.get('token');
+  });
   const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    if (token) window.history.replaceState(window.history.state, '', window.location.pathname);
+  }, [token]);
 
   const { register, handleSubmit, formState: { errors } } = useForm({ resolver: zodResolver(schema) });
 

@@ -165,6 +165,18 @@ class TestAuthLogin:
         assert "Max-Age=0" in response.headers["set-cookie"]
         assert client.get("/v1/auth/me").status_code == 401
 
+    def test_cookie_mutation_rejects_null_origin_when_config_is_invalid(
+        self, client: TestClient, auth_headers, monkeypatch
+    ):
+        monkeypatch.setattr(settings, "FRONTEND_URL", "null")
+        response = client.put(
+            "/v1/auth/me",
+            headers={"Origin": "null"},
+            json={"full_name": "Should not change"},
+        )
+
+        assert response.status_code == 403
+
     def test_logout_revokes_bearer_copy_of_session(self, client: TestClient, auth_headers):
         response = client.post("/v1/auth/logout", headers=auth_headers)
 
@@ -287,14 +299,14 @@ class TestPasswordReset:
         assert files, "expected password reset email file"
         content = files[0].read_text(encoding="utf-8")
         assert "Сброс пароля" in content
-        assert "reset-password?token=" in content
+        assert "reset-password#token=" in content
 
         reset_link = next(
             line.strip()
             for line in content.splitlines()
-            if "/reset-password?token=" in line
+            if "/reset-password#token=" in line
         )
-        token = parse_qs(urlsplit(reset_link).query)["token"][0]
+        token = parse_qs(urlsplit(reset_link).fragment)["token"][0]
         reset = client.post(
             "/v1/auth/reset-password",
             json={"token": token, "new_password": "newpass99"},

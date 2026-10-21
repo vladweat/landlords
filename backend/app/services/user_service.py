@@ -156,7 +156,8 @@ class UserService:
         self.user_repo.update(user)
         try:
             frontend = settings.FRONTEND_URL.rstrip("/")
-            reset_link = f"{frontend}/reset-password?token={token}"
+            # Фрагмент не отправляется в HTTP-запросе и не попадает в proxy logs.
+            reset_link = f"{frontend}/reset-password#token={token}"
             self.email_service.send_password_reset(user.email, reset_link)
             logger.info("Password reset email dispatched (no token in logs).")
         except Exception:

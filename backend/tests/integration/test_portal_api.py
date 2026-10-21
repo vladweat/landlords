@@ -17,6 +17,7 @@ def _portal_invoice_storage(tmp_path, monkeypatch):
     storage = tmp_path / "documents"
     storage.mkdir()
     monkeypatch.setattr("app.services.pdf_service.STORAGE_DIR", str(storage))
+    monkeypatch.setattr("app.services.document_service.STORAGE_DIR", str(storage))
     return storage
 
 
@@ -254,6 +255,33 @@ class TestPortalApi:
 
         assert client.get(f"/v1/public/portal/{old_token}").status_code == 404
         assert client.get(f"/v1/public/portal/{new_token}").status_code == 200
+
+    def test_terminated_contract_revokes_public_portal_access(
+        self, client: TestClient, auth_headers, db_session
+    ):
+        contract_id = _create_active_contract(client, auth_headers)
+        ensured = client.post(
+            f"/v1/contracts/{contract_id}/portal", headers=auth_headers
+        )
+        token = ensured.json()["data"]["portal_token"]
+
+        terminated = client.post(
+            f"/v1/contracts/{contract_id}/terminate",
+            headers=auth_headers,
+            json={
+                "effective_date": date.today().isoformat(),
+                "termination_reason": "test",
+                "generate_act": False,
+            },
+        )
+        assert terminated.status_code == 200, terminated.text
+        contract = db_session.query(ContractModel).filter_by(id=contract_id).one()
+        assert contract.portal_token is None
+
+        assert client.get(f"/v1/public/portal/{token}").status_code == 404
+        assert client.post(
+            f"/v1/public/portal/{token}/claim", json={"amount": "100.00"}
+        ).status_code == 404
 
     def test_public_404(self, client: TestClient):
         resp = client.get("/v1/public/portal/not-a-real-token")

@@ -9,6 +9,7 @@ from app.api.v1.schemas.invoice_schema import (
     PublicInvoiceSingleResponse,
 )
 from app.api.v1.schemas.portal_schema import PaymentClaimResponse, PaymentClaimSingleResponse
+from app.services.document_service import document_attachment_headers
 from app.services.dto.portal_dto import CreatePaymentClaimDTO
 from app.services.invoice_service import InvoiceService
 from app.services.tenant_portal_service import TenantPortalService
@@ -39,7 +40,7 @@ def download_public_invoice_pdf(
     return Response(
         content=content,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers=document_attachment_headers(filename),
     )
 
 

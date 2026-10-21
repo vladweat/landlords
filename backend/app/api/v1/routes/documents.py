@@ -7,7 +7,12 @@ from fastapi import APIRouter, Depends, File, Form, Response, UploadFile
 from app.api.deps import get_current_account_id, get_document_service, require_permissions
 from app.domain.entities import MembershipEntity
 from app.domain.permissions import Permission
-from app.services.document_service import DocumentService, serialize_document
+from app.services.document_service import (
+    DocumentService,
+    document_attachment_headers,
+    document_file_path,
+    serialize_document,
+)
 
 router = APIRouter(prefix="/v1/documents", tags=["Documents"])
 
@@ -20,12 +25,13 @@ def download_document(
 ) -> Response:
     """Скачать документ по ID."""
     doc = service.get_document(doc_id, account_id)
-    with open(doc.file_path, "rb") as f:
+    path = document_file_path(doc, account_id)
+    with open(path, "rb") as f:
         content = f.read()
     return Response(
         content=content,
         media_type=doc.mime_type or "application/octet-stream",
-        headers={"Content-Disposition": f'attachment; filename="{doc.filename}"'},
+        headers=document_attachment_headers(doc.filename),
     )
 
 

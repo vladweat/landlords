@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import os
 import re
+import tempfile
+from pathlib import Path
 from typing import TYPE_CHECKING
+from urllib.parse import quote
 from uuid import UUID, uuid4
 
 from fastapi import UploadFile
@@ -41,6 +44,35 @@ MIME_BY_EXT = {
 def document_download_url(doc_id: UUID) -> str:
     """Публичный API-путь для скачивания документа."""
     return f"/api/v1/documents/{doc_id}"
+
+
+def document_file_path(doc: DocumentEntity, account_id: UUID) -> Path:
+    """Разрешить путь только внутри каталога хранения текущего аккаунта."""
+    try:
+        root = Path(STORAGE_DIR).resolve(strict=True)
+        path = Path(doc.file_path).resolve(strict=True)
+        relative = path.relative_to(root)
+    except (OSError, ValueError):
+        raise NotFoundError("Document file not found") from None
+    if (
+        not path.is_file()
+        or not relative.parts
+        or relative.parts[0] != str(account_id)
+    ):
+        raise NotFoundError("Document file not found")
+    return path
+
+
+def document_attachment_headers(filename: str) -> dict[str, str]:
+    """Сформировать безопасные HTTP-заголовки для скачивания файла."""
+    name = os.path.basename(filename).replace("\r", "").replace("\n", "") or "document"
+    fallback = re.sub(r"[^A-Za-z0-9._-]", "_", name) or "document"
+    return {
+        "Content-Disposition": (
+            f'attachment; filename="{fallback}"; filename*=UTF-8\'\'{quote(name, safe="")}'
+        ),
+        "X-Content-Type-Options": "nosniff",
+    }
 
 
 def serialize_document(doc: DocumentEntity) -> dict:
@@ -134,15 +166,13 @@ class DocumentService:
         )
 
     def delete(self, doc_id: UUID, account_id: UUID) -> None:
-        doc = self.get_document(doc_id, account_id)
+        self.get_document(doc_id, account_id)
         deleted = self.document_repo.delete(doc_id, account_id)
         if not deleted:
             raise NotFoundError(f"Document {doc_id} not found")
-        if doc.file_path and os.path.isfile(doc.file_path):
-            try:
-                os.remove(doc.file_path)
-            except OSError:
-                pass
+        # Keep the file until the request transaction commits. If the later DB
+        # commit fails, the still-present file keeps the existing row downloadable.
+        # Orphan files are removed by the documented reconciliation command.
 
     async def _upload(
         self,
@@ -160,18 +190,25 @@ class DocumentService:
 
         original_name = file.filename or "file"
         safe_name = self._safe_filename(original_name)
-        mime_type = self._resolve_mime(file.content_type, safe_name)
-        if mime_type not in ALLOWED_MIME_TYPES:
-            raise ValidationError(
-                "Допустимы только PDF, JPEG, PNG и WebP"
-            )
-
-        content = await file.read()
+        content = await file.read(MAX_UPLOAD_BYTES + 1)
         size = len(content)
         if size == 0:
             raise ValidationError("Пустой файл")
         if size > MAX_UPLOAD_BYTES:
             raise ValidationError("Размер файла не должен превышать 15 МБ")
+        mime_type = self._detect_mime(content)
+        extension_mime = MIME_BY_EXT.get(os.path.splitext(safe_name)[1].lower())
+        declared_mime = file.content_type
+        if (
+            mime_type not in ALLOWED_MIME_TYPES
+            or extension_mime != mime_type
+            or (
+                declared_mime
+                and declared_mime != "application/octet-stream"
+                and declared_mime != mime_type
+            )
+        ):
+            raise ValidationError("Содержимое файла не соответствует PDF, JPEG, PNG или WebP")
         if self.plan_limit_service:
             self.plan_limit_service.assert_can_upload(account_id, size)
 
@@ -185,8 +222,22 @@ class DocumentService:
 
         stored_name = f"{uuid4().hex[:12]}_{safe_name}"
         file_path = os.path.join(dir_path, stored_name)
-        with open(file_path, "wb") as f:
-            f.write(content)
+        temp_path: str | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="wb", dir=dir_path, prefix=".upload-", delete=False
+            ) as stream:
+                temp_path = stream.name
+                stream.write(content)
+            os.replace(temp_path, file_path)
+            temp_path = None
+        except OSError:
+            if temp_path and os.path.exists(temp_path):
+                try:
+                    os.remove(temp_path)
+                except OSError:
+                    pass
+            raise
 
         doc = DocumentEntity(
             id=uuid4(),
@@ -201,7 +252,14 @@ class DocumentService:
             size_bytes=size,
             source="uploaded",
         )
-        return self.document_repo.create(doc)
+        try:
+            return self.document_repo.create(doc)
+        except Exception:
+            try:
+                os.remove(file_path)
+            except OSError:
+                pass
+            raise
 
     @staticmethod
     def _safe_filename(name: str) -> str:
@@ -210,8 +268,14 @@ class DocumentService:
         return base[:180]
 
     @staticmethod
-    def _resolve_mime(content_type: str | None, filename: str) -> str:
-        if content_type and content_type in ALLOWED_MIME_TYPES:
-            return content_type
-        ext = os.path.splitext(filename)[1].lower()
-        return MIME_BY_EXT.get(ext, content_type or "application/octet-stream")
+    def _detect_mime(content: bytes) -> str:
+        """Определить поддерживаемый тип по сигнатуре, а не заголовку клиента."""
+        if content.startswith(b"%PDF-"):
+            return "application/pdf"
+        if content.startswith(b"\xff\xd8\xff"):
+            return "image/jpeg"
+        if content.startswith(b"\x89PNG\r\n\x1a\n"):
+            return "image/png"
+        if len(content) >= 12 and content[:4] == b"RIFF" and content[8:12] == b"WEBP":
+            return "image/webp"
+        return "application/octet-stream"

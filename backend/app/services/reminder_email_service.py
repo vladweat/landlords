@@ -2,6 +2,8 @@
 
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
+import smtplib
+import socket
 from uuid import uuid4
 
 from app.core.config import settings
@@ -30,12 +32,14 @@ class ReminderEmailService:
         calendar_service: CalendarService,
         dispatch_log_repo: IEmailDispatchLogRepository,
         email_service: EmailService | None = None,
+        commit=None,
     ) -> None:
         self.account_repo = account_repo
         self.user_repo = user_repo
         self.calendar_service = calendar_service
         self.dispatch_log_repo = dispatch_log_repo
         self.email_service = email_service or EmailService()
+        self.commit = commit or (lambda: None)
 
     def send_daily_reminders(self) -> dict[str, int]:
         """Обойти аккаунты и отправить письма owner при необходимости."""
@@ -44,6 +48,7 @@ class ReminderEmailService:
         sent = 0
         skipped = 0
         errors = 0
+        retryable_errors = 0
 
         for account in self.account_repo.list_all():
             owner = self.user_repo.get_by_id(account.owner_id)
@@ -84,7 +89,16 @@ class ReminderEmailService:
                                 notification_key=key,
                             )
                         )
+                        self.commit()
                         sent += 1
+                    except (smtplib.SMTPServerDisconnected, socket.timeout, ConnectionError):
+                        logger.exception(
+                            "Failed overdue email account_id={} key={}",
+                            account.id,
+                            key,
+                        )
+                        errors += 1
+                        retryable_errors += 1
                     except Exception:
                         logger.exception(
                             "Failed overdue email account_id={} key={}",
@@ -118,7 +132,16 @@ class ReminderEmailService:
                                 notification_key=key,
                             )
                         )
+                        self.commit()
                         sent += 1
+                    except (smtplib.SMTPServerDisconnected, socket.timeout, ConnectionError):
+                        logger.exception(
+                            "Failed ending email account_id={} key={}",
+                            account.id,
+                            key,
+                        )
+                        errors += 1
+                        retryable_errors += 1
                     except Exception:
                         logger.exception(
                             "Failed ending email account_id={} key={}",
@@ -127,4 +150,9 @@ class ReminderEmailService:
                         )
                         errors += 1
 
-        return {"sent": sent, "skipped": skipped, "errors": errors}
+        return {
+            "sent": sent,
+            "skipped": skipped,
+            "errors": errors,
+            "retryable_errors": retryable_errors,
+        }

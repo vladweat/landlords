@@ -192,11 +192,27 @@ class TestMultiTenancyIsolation:
             "email": "document-other@test.com", "password": "secret123", "full_name": "Other"
         }).json()
         owner_headers = {"Authorization": f"Bearer {owner['token']}"}
-        other_headers = {"Authorization": f"Bearer {other['token']}"}
+        invite = client.post(
+            "/v1/account/invites",
+            headers={"Authorization": f"Bearer {other['token']}"},
+            json={
+                "email": "document-manager@test.com",
+                "full_name": "Manager",
+                "role": "manager",
+            },
+        )
+        assert invite.status_code == 201
+        accepted = client.post(
+            f"/v1/public/invites/{invite.json()['data']['token']}/accept",
+            json={"password": "secret123", "full_name": "Manager"},
+        )
+        assert accepted.status_code == 200
+        owner_headers = {"Authorization": f"Bearer {owner['token']}"}
+        other_headers = {"Authorization": f"Bearer {accepted.json()['token']}"}
         prop = client.post("/v1/properties", headers=owner_headers,
             json=property_payload(street="Document owner")).json()["data"]["id"]
         upload = client.post(f"/v1/properties/{prop}/documents", headers=owner_headers,
-            files={"file": ("private.pdf", BytesIO(b"%PDF private"), "application/pdf")},
+            files={"file": ("private.pdf", BytesIO(b"%PDF-1.4\nprivate"), "application/pdf")},
             data={"category": "other"})
         assert upload.status_code == 200
         doc_id = upload.json()["data"]["id"]

@@ -234,6 +234,8 @@ class ContractService:
 
         entity.status = "terminated"
         entity.termination_reason = dto.termination_reason
+        entity.portal_token = None
+        entity.portal_token_expires_at = None
         if dto.effective_date < entity.end_date:
             entity.end_date = dto.effective_date
 

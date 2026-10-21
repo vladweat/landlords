@@ -154,12 +154,14 @@ class TestTeamMembers:
             client, auth_headers, "temp@example.com", role="manager", name="Temp"
         )
         user_id = accepted["user"]["id"]
+        stale_member_headers = _headers(accepted["token"])
 
         delete = client.delete(
             f"/v1/account/members/{user_id}",
             headers=auth_headers,
         )
         assert delete.status_code == 204
+        assert client.get("/v1/auth/me", headers=stale_member_headers).status_code == 401
 
         login = client.post(
             "/v1/auth/login",

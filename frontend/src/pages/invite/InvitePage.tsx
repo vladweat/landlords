@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -23,10 +23,17 @@ const schema = z.object({
 
 export default function InvitePage() {
   const [searchParams] = useSearchParams();
-  const token = searchParams.get('token');
+  const [token] = useState(() => {
+    const fragmentToken = new URLSearchParams(window.location.hash.slice(1)).get('token');
+    return fragmentToken || searchParams.get('token');
+  });
   const navigate = useNavigate();
   const setAuth = useAuthStore((s) => s.setAuth);
   const [gone, setGone] = useState(false);
+
+  useEffect(() => {
+    if (token) window.history.replaceState(window.history.state, '', window.location.pathname);
+  }, [token]);
 
   const { data: preview, isLoading, isError } = useQuery({
     queryKey: ['invite-preview', token],

@@ -1,5 +1,6 @@
 from http import HTTPStatus
-from urllib.parse import urlsplit
+from typing import Any
+from urllib.parse import urlsplit, urlunsplit
 
 import redis
 from fastapi import FastAPI, Request
@@ -18,7 +19,14 @@ from app.core.logging_middleware import LoggingMiddleware, _safe_request_path
 def _origin(value: str | None) -> str | None:
     """Нормализовать HTTP(S) origin, учитывая стандартные порты."""
     parsed = urlsplit(value or "")
-    if parsed.scheme.lower() not in {"http", "https"} or not parsed.hostname:
+    if (
+        parsed.scheme.lower() not in {"http", "https"}
+        or not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.query
+        or parsed.fragment
+    ):
         return None
     scheme = parsed.scheme.lower()
     host = parsed.hostname.lower()
@@ -31,6 +39,41 @@ def _origin(value: str | None) -> str | None:
     default_port = 443 if scheme == "https" else 80
     authority = host if port is None or port == default_port else f"{host}:{port}"
     return f"{scheme}://{authority}"
+
+
+def _sanitize_sentry_event(event: dict[str, Any], hint: object = None) -> dict[str, Any]:
+    """Очистить telemetry от capability URL и заголовков с credentials."""
+    request = event.get("request")
+    if isinstance(request, dict):
+        url = request.get("url")
+        if isinstance(url, str):
+            parsed = urlsplit(url)
+            request["url"] = urlunsplit(
+                (
+                    parsed.scheme,
+                    parsed.netloc,
+                    _safe_request_path(parsed.path),
+                    "",
+                    "",
+                )
+            )
+        request.pop("query_string", None)
+        request.pop("data", None)
+        request.pop("cookies", None)
+        headers = request.get("headers")
+        if isinstance(headers, dict):
+            for key in list(headers):
+                if key.lower() in {"authorization", "cookie", "set-cookie"}:
+                    headers.pop(key, None)
+
+    transaction = event.get("transaction")
+    if isinstance(transaction, str):
+        method, separator, path = transaction.partition(" ")
+        if separator:
+            event["transaction"] = f"{method} {_safe_request_path(path.split('?', 1)[0])}"
+        else:
+            event["transaction"] = _safe_request_path(transaction.split("?", 1)[0])
+    return event
 
 
 def _init_sentry() -> None:
@@ -49,6 +92,9 @@ def _init_sentry() -> None:
         release=settings.APP_VERSION,
         integrations=[FastApiIntegration(), CeleryIntegration(), SqlalchemyIntegration()],
         traces_sample_rate=0.1 if settings.APP_ENV == "production" else 0.0,
+        send_default_pii=False,
+        before_send=_sanitize_sentry_event,
+        before_send_transaction=_sanitize_sentry_event,
     )
 
 
@@ -77,7 +123,14 @@ def create_app() -> FastAPI:
         has_cookie = request.cookies.get(ACCESS_TOKEN_COOKIE) is not None
         if request.method not in safe_methods and has_cookie and not has_bearer:
             origin = request.headers.get("origin")
-            if not origin or _origin(origin) != _origin(settings.FRONTEND_URL):
+            expected_origin = _origin(settings.FRONTEND_URL)
+            request_origin = _origin(origin)
+            origin_path = urlsplit(origin or "").path
+            if (
+                not expected_origin
+                or request_origin != expected_origin
+                or origin_path not in {"", "/"}
+            ):
                 return JSONResponse(
                     status_code=403,
                     content={"status": "error", "message": "Cross-site request blocked"},
@@ -132,9 +185,8 @@ def create_app() -> FastAPI:
         try:
             from sqlalchemy import text
 
-            session = SessionLocal()
-            session.execute(text("SELECT 1"))
-            session.close()
+            with SessionLocal() as session:
+                session.execute(text("SELECT 1"))
         except Exception:
             return JSONResponse(status_code=503, content={"status": "error", "message": "db_unavailable"})
 

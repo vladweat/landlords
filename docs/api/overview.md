@@ -36,7 +36,12 @@ Logout отзывает сессию; скопированный cookie или B
 получает `401`. Смена и сброс пароля отзывают все активные сессии пользователя;
 после смены пароля frontend возвращает пользователя на login. Reset token —
 отдельный JWT с `type=reset`, действует один час и принимается один раз; новый
-запрос сброса инвалидирует предыдущую ссылку.
+запрос сброса инвалидирует предыдущую ссылку. Reset/invite capability помещается
+в URL fragment, frontend читает его и удаляет из адресной строки; старые
+query-ссылки принимаются для обратной совместимости. Browser session revocation
+опирается на `auth_sessions` в PostgreSQL: logout отзывает одну сессию, смена/reset
+пароля — все сессии пользователя. Account switching не предоставляется: в v1
+пользователь получает одну активную membership при login.
 
 Для unsafe HTTP methods с cookie-аутентификацией backend требует `Origin`,
 совпадающий с origin `FRONTEND_URL`; Bearer API-клиенты не зависят от Origin.
@@ -48,10 +53,14 @@ URL token, status и YooKassa webhook. Остальные routes требуют 
 Invoice-ссылка действует 90 дней. `POST /v1/charges/{charge_id}/invoice/rotate-link`
 выпускает новый token и сразу инвалидирует предыдущий; маршрут требует
 `WRITE_CHARGES`. Публичные invoice data/PDF/claim routes отклоняют expired token.
+Публичный PDF GET только читает сохранённый файл; если документ недоступен,
+владелец восстанавливает его через `POST /v1/charges/{charge_id}/invoice`.
 Ссылка tenant portal действует 2 часа; после истечения владелец может создать
 новую ссылку через `POST /v1/contracts/{contract_id}/portal`. Старый токен
 отклоняется на публичных data и claim routes. После миграции старые portal
-ссылки нужно перевыпустить из договора.
+ссылки нужно перевыпустить из договора. Расторжение немедленно отзывает token;
+договор со статусом ended/terminated или прошедшей датой окончания не
+обслуживается публичным порталом.
 
 ## RBAC и tenant isolation
 

@@ -20,6 +20,7 @@ from app.domain.interfaces import (
     ITenantRepository,
 )
 from app.domain.rules import compute_charge_status
+from app.services.document_service import document_file_path
 from app.services.dto.invoice_dto import InvoiceDTO, PublicInvoiceDTO
 from app.services.pdf_service import PdfService
 
@@ -218,23 +219,15 @@ class InvoiceService:
         )
 
     def get_public_pdf_bytes(self, token: str) -> tuple[bytes, str]:
-        """PDF квитанции по публичному токену."""
+        """Вернуть существующий PDF по публичному токену без побочных записей."""
         invoice = self.invoice_repo.get_by_token(token)
         if not invoice:
             raise NotFoundError("Invoice not found")
 
-        if invoice.document_id:
-            doc = self.document_repo.get_by_id(invoice.document_id, invoice.account_id)
-            if doc:
-                with open(doc.file_path, "rb") as f:
-                    return f.read(), doc.filename
-
-        # Нет сохранённого PDF — создать через ensure
-        dto = self.ensure_invoice(invoice.charge_id, invoice.account_id)
-        if not dto.document_id:
+        if not invoice.document_id:
             raise NotFoundError("Invoice PDF not available")
-        doc = self.document_repo.get_by_id(dto.document_id, invoice.account_id)
+        doc = self.document_repo.get_by_id(invoice.document_id, invoice.account_id)
         if not doc:
             raise NotFoundError("Invoice PDF not available")
-        with open(doc.file_path, "rb") as f:
+        with open(document_file_path(doc, invoice.account_id), "rb") as f:
             return f.read(), doc.filename

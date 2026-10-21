@@ -137,7 +137,11 @@ class TenantPortalService:
 
     def _resolve_contract_by_token(self, token: str):
         contract = self.contract_repo.get_by_portal_token(token)
-        if not contract:
+        if (
+            not contract
+            or contract.status not in {"active", "overdue"}
+            or contract.end_date < date.today()
+        ):
             raise NotFoundError("Portal link not found")
         return contract
 

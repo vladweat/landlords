@@ -7,6 +7,7 @@ from uuid import UUID, uuid4
 import pytest
 from fastapi.testclient import TestClient
 
+from app.db.models.document_model import DocumentModel
 from app.db.models.invoice_model import InvoiceModel
 from app.db.models.rent_charge_model import RentChargeModel
 from tests.integration.conftest import property_payload
@@ -18,6 +19,7 @@ def _invoice_storage(tmp_path, monkeypatch):
     storage = tmp_path / "documents"
     storage.mkdir()
     monkeypatch.setattr("app.services.pdf_service.STORAGE_DIR", str(storage))
+    monkeypatch.setattr("app.services.document_service.STORAGE_DIR", str(storage))
     return storage
 
 
@@ -89,6 +91,28 @@ def _insert_charge(db_session, account_id: UUID, contract_id: UUID) -> UUID:
 
 
 class TestInvoicesApi:
+    def test_public_pdf_get_does_not_generate_missing_document(
+        self, client: TestClient, auth_headers, db_session
+    ):
+        contract_id = _create_active_contract(client, auth_headers)
+        charge_id = _insert_charge(
+            db_session, _account_id(client, auth_headers), contract_id
+        )
+        created = client.post(
+            f"/v1/charges/{charge_id}/invoice", headers=auth_headers
+        )
+        assert created.status_code == 200
+        token = created.json()["data"]["public_token"]
+        invoice = db_session.query(InvoiceModel).filter_by(public_token=token).one()
+        invoice.document_id = None
+        db_session.flush()
+        document_count = db_session.query(DocumentModel).count()
+
+        response = client.get(f"/v1/public/invoices/{token}/pdf")
+
+        assert response.status_code == 404
+        assert db_session.query(DocumentModel).count() == document_count
+
     def test_create_and_public_get(self, client: TestClient, auth_headers, db_session):
         contract_id = _create_active_contract(client, auth_headers)
         account_id = _account_id(client, auth_headers)

@@ -2,10 +2,24 @@
 
 from datetime import date, timedelta
 from io import BytesIO
+from pathlib import Path
 
 from fastapi.testclient import TestClient
+import pytest
+from sqlalchemy.exc import SQLAlchemyError
 
+from app.db.models.document_model import DocumentModel
+from app.db.session import get_db_session
 from tests.integration.conftest import property_payload
+
+
+@pytest.fixture(autouse=True)
+def document_storage(tmp_path, monkeypatch):
+    storage = tmp_path / "documents"
+    storage.mkdir()
+    monkeypatch.setattr("app.services.document_service.STORAGE_DIR", str(storage))
+    monkeypatch.setattr("app.services.pdf_service.STORAGE_DIR", str(storage))
+    return storage
 
 
 def _create_property(client, headers, street="Вложения"):
@@ -89,6 +103,7 @@ class TestDocumentsApi:
         download = client.get(f"/v1/documents/{doc['id']}", headers=auth_headers)
         assert download.status_code == 200
         assert download.headers["content-type"].startswith("application/pdf")
+        assert download.headers["x-content-type-options"] == "nosniff"
         assert download.content.startswith(b"%PDF")
 
         deleted = client.delete(f"/v1/documents/{doc['id']}", headers=auth_headers)
@@ -96,9 +111,73 @@ class TestDocumentsApi:
         listed2 = client.get(f"/v1/contracts/{contract_id}/documents", headers=auth_headers)
         assert listed2.json()["data"] == []
 
+    def test_transaction_rollback_leaves_file_for_reconciliation(
+        self, client: TestClient, auth_headers, db_session, document_storage
+    ):
+        contract_id, _ = _create_active_contract(client, auth_headers)
+
+        def fail_commit():
+            try:
+                yield db_session
+            except Exception:
+                db_session.rollback()
+                raise
+            db_session.rollback()
+            raise SQLAlchemyError("simulated commit failure")
+
+        client.app.dependency_overrides[get_db_session] = fail_commit
+        failing_client = TestClient(client.app, raise_server_exceptions=False)
+        upload = failing_client.post(
+            f"/v1/contracts/{contract_id}/documents",
+            headers=auth_headers,
+            files={
+                "file": (
+                    "scan.pdf",
+                    BytesIO(b"%PDF-1.4 rollback"),
+                    "application/pdf",
+                )
+            },
+            data={"category": "other"},
+        )
+        assert upload.status_code == 500
+        assert db_session.query(DocumentModel).count() == 0
+        assert len(list(document_storage.rglob("*.pdf"))) == 1
+
+    def test_download_rejects_path_outside_storage(
+        self, client: TestClient, auth_headers, db_session, tmp_path
+    ):
+        contract_id, _ = _create_active_contract(client, auth_headers)
+        upload = client.post(
+            f"/v1/contracts/{contract_id}/documents",
+            headers=auth_headers,
+            files={
+                "file": (
+                    "scan.pdf",
+                    BytesIO(b"%PDF-1.4 data"),
+                    "application/pdf",
+                )
+            },
+            data={"category": "other"},
+        )
+        doc_id = upload.json()["data"]["id"]
+        document = db_session.query(DocumentModel).filter_by(id=doc_id).one()
+        outside = tmp_path / "private.pdf"
+        outside.write_bytes(b"%PDF private")
+        document.file_path = str(outside)
+        db_session.flush()
+
+        response = client.get(f"/v1/documents/{doc_id}", headers=auth_headers)
+        assert response.status_code == 404
+
     def test_upload_property(self, client: TestClient, auth_headers):
         property_id = _create_property(client, auth_headers, street="Фотообъект")
-        files = {"file": ("room.png", BytesIO(b"\x89PNG\r\n"), "image/png")}
+        files = {
+            "file": (
+                "room.png",
+                BytesIO(b"\x89PNG\r\n\x1a\n"),
+                "image/png",
+            )
+        }
         data = {"category": "photo"}
         upload = client.post(
             f"/v1/properties/{property_id}/documents",

@@ -208,7 +208,7 @@ class InviteService:
             full_name=entity.full_name,
             role=entity.role,
             token=entity.token,
-            invite_url=f"{frontend}/invite?token={entity.token}",
+            invite_url=f"{frontend}/invite#token={entity.token}",
             expires_at=entity.expires_at,
             invited_by_user_id=entity.invited_by_user_id,
             created_at=entity.created_at,

@@ -28,7 +28,7 @@ class TestInvitesApi:
         assert data["email"] == "newmgr@example.com"
         assert data["role"] == "manager"
         assert "token" in data
-        assert "/invite?token=" in data["invite_url"]
+        assert "/invite#token=" in data["invite_url"]
         token = data["token"]
 
         listed = client.get("/v1/account/invites", headers=auth_headers)

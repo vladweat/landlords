@@ -19,6 +19,8 @@ logger = get_task_logger(__name__)
 @shared_task(
     name="app.tasks.billing_tasks.process_subscription_renewals",
     retry_backoff=True,
+    retry_backoff_max=60,
+    retry_jitter=True,
     retry_kwargs={"max_retries": 2},
     soft_time_limit=300,
     time_limit=360,
@@ -26,7 +28,7 @@ logger = get_task_logger(__name__)
 )
 def process_subscription_renewals() -> dict[str, Any]:
     """Продлить Pro или отключить при неоплате (ежедневно)."""
-    lock = RedisLock("process_subscription_renewals", ttl=600)
+    lock = RedisLock("process_subscription_renewals", ttl=900)
     if not lock.try_acquire():
         logger.info("process_subscription_renewals: lock not acquired")
         return {"status": "skipped", "reason": "lock_not_acquired"}

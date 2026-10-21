@@ -13,6 +13,7 @@ from sqlalchemy.orm import sessionmaker
 from app.core.config import settings
 from app.db.session import get_db_session
 from app.main import create_app
+from app.services.email_service import EmailService
 
 TEST_DB_NAME = "landlords_test"
 ALEMBIC_INI = Path(__file__).resolve().parents[2] / "alembic.ini"
@@ -80,8 +81,15 @@ def db_session(test_engine):
 
 
 @pytest.fixture(scope="function")
-def client(db_session):
+def client(db_session, monkeypatch):
     """Создать тестовый клиент FastAPI."""
+
+    def skip_smtp(
+        service: EmailService, to: str, subject: str, body_text: str
+    ) -> None:
+        return None
+
+    monkeypatch.setattr(EmailService, "_send_smtp", skip_smtp)
 
     def override_get_db():
         try:

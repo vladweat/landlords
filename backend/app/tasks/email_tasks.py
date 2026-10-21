@@ -1,6 +1,10 @@
 """Celery tasks for email notifications."""
 
+import smtplib
+import socket
 from typing import Any
+
+from sqlalchemy.exc import OperationalError
 
 from app.db.repositories.account_repo import AccountRepository
 from app.db.repositories.contract_repo import ContractRepository
@@ -21,16 +25,23 @@ from celery.utils.log import get_task_logger
 logger = get_task_logger(__name__)
 
 
+class TransientEmailDeliveryError(Exception):
+    """Временная ошибка SMTP, для которой допустим ограниченный повтор."""
+
+
 @shared_task(
     name="app.tasks.email_tasks.send_daily_reminder_emails",
     retry_backoff=True,
+    retry_backoff_max=60,
+    retry_jitter=True,
     retry_kwargs={"max_retries": 2},
+    autoretry_for=(OperationalError, smtplib.SMTPServerDisconnected, socket.timeout, ConnectionError),
     soft_time_limit=300,
     time_limit=600,
 )
 def send_daily_reminder_emails() -> dict[str, Any]:
     """Ежедневная рассылка писем owner о просрочках и конце договоров."""
-    lock = RedisLock("send_daily_reminder_emails", ttl=600)
+    lock = RedisLock("send_daily_reminder_emails", ttl=900)
     if not lock.try_acquire():
         logger.info("send_daily_reminder_emails: lock not acquired")
         return {"status": "skipped", "reason": "lock_not_acquired"}
@@ -49,9 +60,13 @@ def send_daily_reminder_emails() -> dict[str, Any]:
             ),
             dispatch_log_repo=EmailDispatchLogRepository(session),
             email_service=EmailService(),
+            commit=session.commit,
         )
         stats = service.send_daily_reminders()
-        session.commit()
+        if stats.get("retryable_errors", 0):
+            raise TransientEmailDeliveryError(
+                f"SMTP temporarily failed for {stats['retryable_errors']} reminder(s)"
+            )
         from app.services.ops_heartbeat import mark_beat_ok
 
         mark_beat_ok()
