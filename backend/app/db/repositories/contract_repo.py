@@ -26,6 +26,18 @@ class ContractRepository(IContractRepository):
         )
         return model.to_entity() if model else None
 
+    def get_by_id_for_update(
+        self, contract_id: UUID, account_id: UUID
+    ) -> ContractEntity | None:
+        """Получить контракт и заблокировать его до конца транзакции."""
+        model = (
+            self.session.query(ContractModel)
+            .filter_by(id=contract_id, account_id=account_id)
+            .with_for_update()
+            .first()
+        )
+        return model.to_entity() if model else None
+
     def list_by_account(
         self, account_id: UUID, page: int = 1, per_page: int = 20,
         overdue_only: bool = False, search: str | None = None,

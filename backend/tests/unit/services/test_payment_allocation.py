@@ -45,12 +45,13 @@ class TestAllocateUnlinkedPayments:
     def test_noop_without_advances(self):
         charge_repo = Mock()
         payment_repo = Mock()
+        charge_repo.list_unpaid_for_contract_for_update.return_value = []
         payment_repo.list_unlinked_for_contract_for_update.return_value = []
         count = allocate_unlinked_payments(
             charge_repo, payment_repo, Mock(), uuid4(), uuid4()
         )
         assert count == 0
-        charge_repo.list_unpaid_for_contract_for_update.assert_not_called()
+        charge_repo.list_unpaid_for_contract_for_update.assert_called_once()
 
     def test_noop_without_unpaid_charges(self):
         charge_repo = Mock()

@@ -50,8 +50,15 @@ service/repository, но отдельного task idempotency key или DB uni
 `status=skipped`. Lock уменьшает параллельный запуск, но истечение TTL во время
 долгой операции допускает overlap.
 
-Email dedup дополнительно хранится в `email_dispatch_log`. Billing полагается на
-состояние account/YooKassa. У bulk email и overdue tasks нет ограниченного
+Email dedup дополнительно хранится в `email_dispatch_log`. Billing renewal
+использует `accounts.subscription_period_end` как identity оплачиваемого
+периода, время первой попытки, детерминированный idempotence key, статус и
+YooKassa payment ID. Попытка коммитится до HTTP вызова. Перед новым запросом и
+восстановлением клиент ищет совпадение по metadata периода во всех страницах
+списка платежей; найденный ID сверяется через `Payment.find_one`. Если поиск
+не сработал, период остаётся `unknown`, повторное списание не создаётся.
+Webhook/confirm читают состояние у YooKassa и блокируют account row при
+применении entitlement. У bulk email и overdue tasks нет ограниченного
 `autoretry_for`: исключение завершает текущий запуск; retry policy Celery
 декоратором для них фактически не включена.
 

@@ -129,7 +129,7 @@ class ContractService:
         user_id: UUID | None = None,
     ) -> ContractDTO:
         """Обновить контракт."""
-        entity = self.repo.get_by_id(contract_id, account_id)
+        entity = self.repo.get_by_id_for_update(contract_id, account_id)
         if not entity:
             raise NotFoundError(f"Contract with id={contract_id} not found")
 
@@ -207,7 +207,7 @@ class ContractService:
         user_id: UUID | None = None,
     ) -> ContractLifecycleResultDTO:
         """Расторгнуть договор: статус, пересчёт начислений, акт."""
-        entity = self.repo.get_by_id(contract_id, account_id)
+        entity = self.repo.get_by_id_for_update(contract_id, account_id)
         if not entity:
             raise NotFoundError(f"Contract with id={contract_id} not found")
 
@@ -301,7 +301,7 @@ class ContractService:
         user_id: UUID | None = None,
     ) -> ContractLifecycleResultDTO:
         """Продлить договор: новая дата окончания, начисления, допсоглашение."""
-        entity = self.repo.get_by_id(contract_id, account_id)
+        entity = self.repo.get_by_id_for_update(contract_id, account_id)
         if not entity:
             raise NotFoundError(f"Contract with id={contract_id} not found")
 

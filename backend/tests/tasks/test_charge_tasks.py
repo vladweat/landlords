@@ -23,14 +23,14 @@ class TestGenerateCharges:
             from decimal import Decimal
             from uuid import uuid4
 
-            mock_contract_repo.return_value.get_by_id.return_value = ContractEntity(
+            mock_contract_repo.return_value.get_by_id_for_update.return_value = ContractEntity(
                 id=uuid4(), account_id=uuid4(), property_id=uuid4(),
                 tenant_id=uuid4(), start_date=date.today(), end_date=date.today(),
                 rent_amount=Decimal("1000"), currency="RUB", payment_day=5,
                 status="active",
             )
             mock_charge_repo.return_value.list_by_contract.return_value = []
-            mock_charge_repo.return_value.create.return_value = Mock()
+            mock_charge_repo.return_value.create_if_absent.return_value = Mock()
             mock_charge_repo.return_value.list_unpaid_for_contract_for_update.return_value = []
             mock_payment_repo.return_value.list_unlinked_for_contract_for_update.return_value = []
 

@@ -21,13 +21,14 @@ def allocate_unlinked_payments(
     Returns:
         Число созданных linked-платежей.
     """
+    # Общий lock для операций по контракту задаёт порядок: contract -> charges -> payments.
+    contract_repo.get_by_id_for_update(contract_id, account_id)
+    unpaid = list(charge_repo.list_unpaid_for_contract_for_update(contract_id, account_id))
     advances = list(
         payment_repo.list_unlinked_for_contract_for_update(contract_id, account_id)
     )
     if not advances:
         return 0
-
-    unpaid = list(charge_repo.list_unpaid_for_contract_for_update(contract_id, account_id))
     if not unpaid:
         return 0
 

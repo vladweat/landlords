@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-from uuid import UUID
+from typing import Callable
+from uuid import UUID, uuid5
 
 from app.core.config import settings
 from app.core.exceptions import NotFoundError, ValidationError
@@ -26,9 +27,11 @@ class BillingService:
         self,
         account_repo: IAccountRepository,
         yookassa: YooKassaClient | None = None,
+        commit: Callable[[], None] | None = None,
     ) -> None:
         self.account_repo = account_repo
         self.yookassa = yookassa or YooKassaClient()
+        self.commit = commit or (lambda: None)
 
     def create_checkout(self, account_id: UUID) -> dict:
         """Создать платёж Pro и вернуть confirmation_url."""
@@ -96,12 +99,25 @@ class BillingService:
         if expected_account_id is not None and account_id != expected_account_id:
             raise ValidationError("Платёж принадлежит другому аккаунту")
 
-        account = self._require_account(account_id)
+        account = self._require_account_for_update(account_id)
+        if account is None:
+            raise NotFoundError("Account not found")
         if account.yookassa_last_payment_id == payment.id:
             return {"status": "ignored", "reason": "duplicate"}
 
         if payment.status == "succeeded" and payment.paid:
-            self._apply_successful_payment(account, payment)
+            if payment.metadata.get("renew") == "1" and payment.metadata.get(
+                "billing_period_end"
+            ):
+                period_end = self._parse_period_end(payment.metadata["billing_period_end"])
+                if (
+                    account.subscription_period_end is None
+                    or self._as_utc(account.subscription_period_end) != period_end
+                ):
+                    return {"status": "ignored", "reason": "period_already_advanced"}
+                self._apply_renewal_payment(account, payment, period_end)
+            else:
+                self._apply_successful_payment(account, payment)
             return {"status": "applied", "account_id": str(account_id)}
 
         if payment.status in ("canceled", "cancelled"):
@@ -111,7 +127,9 @@ class BillingService:
 
     def cancel_subscription(self, account_id: UUID) -> AccountEntity:
         """Отменить автоплатежи; Free сразу или в конце оплаченного периода."""
-        account = self._require_account(account_id)
+        account = self._require_account_for_update(account_id)
+        if account is None:
+            raise NotFoundError("Account not found")
         if account.plan != PlanId.PRO.value:
             raise ValidationError("Нет активной подписки Pro для отмены")
 
@@ -134,69 +152,138 @@ class BillingService:
         downgraded = 0
         skipped = 0
 
-        for account in self.account_repo.list_pro_subscriptions():
+        for listed_account in self.account_repo.list_pro_subscriptions():
+            account = self._require_account_for_update(listed_account.id)
+            if account is None or account.plan != PlanId.PRO.value:
+                continue
             if not is_pro_period_due(account, now=moment):
                 skipped += 1
+                self.commit()
                 continue
 
             # Отмена: в конце оплаченного периода сразу на Free
             if account.subscription_status == SubscriptionStatus.CANCELED.value:
                 self._downgrade_to_free(account)
+                self.commit()
                 downgraded += 1
                 continue
 
             if not account.yookassa_payment_method_id:
                 if self._grace_expired(account, moment):
                     self._downgrade_to_free(account)
+                    self.commit()
                     downgraded += 1
                 elif account.subscription_status != SubscriptionStatus.PAST_DUE.value:
                     account.subscription_status = SubscriptionStatus.PAST_DUE.value
                     self.account_repo.update(account)
+                    self.commit()
                     past_due += 1
                 else:
+                    self.commit()
                     skipped += 1
                 continue
 
             if not self.yookassa.enabled:
                 account.subscription_status = SubscriptionStatus.PAST_DUE.value
                 self.account_repo.update(account)
+                self.commit()
                 past_due += 1
                 if self._grace_expired(account, moment):
                     self._downgrade_to_free(account)
+                    self.commit()
                     downgraded += 1
                 continue
 
+            period_end = self._as_utc(account.subscription_period_end)
+            idempotence_key = f"renew-{uuid5(account.id, period_end.isoformat())}"
+            if (
+                account.yookassa_renewal_period_end is None
+                or self._as_utc(account.yookassa_renewal_period_end) != period_end
+            ):
+                account.yookassa_renewal_period_end = period_end
+                account.yookassa_renewal_started_at = moment
+                account.yookassa_renewal_idempotence_key = idempotence_key
+                account.yookassa_renewal_payment_id = None
+                account.yookassa_renewal_status = "pending"
+                self.account_repo.update(account)
+                # Commit the stable period identity and release the row lock before HTTP.
+                self.commit()
+            elif account.yookassa_renewal_started_at is None:
+                account.yookassa_renewal_started_at = moment
+                self.account_repo.update(account)
+                self.commit()
+
+            idempotence_key = account.yookassa_renewal_idempotence_key or idempotence_key
+            # Existing attempts also release their row lock before provider I/O.
+            self.commit()
             try:
-                payment = self.yookassa.create_recurring_payment(
-                    amount_rub=Decimal(settings.BILLING_PRO_PRICE_RUB),
-                    description=f"Landlords Pro (renew) — {account.name}",
-                    payment_method_id=account.yookassa_payment_method_id,
-                    metadata={
-                        "account_id": str(account.id),
-                        "plan": PlanId.PRO.value,
-                        "renew": "1",
-                    },
-                    idempotence_key=f"renew-{account.id}-{moment.date().isoformat()}",
-                )
+                if account.yookassa_renewal_payment_id:
+                    payment = self.yookassa.find_payment(
+                        account.yookassa_renewal_payment_id
+                    )
+                else:
+                    payment_id = self.yookassa.find_renewal_payment_id(
+                        account_id=str(account.id),
+                        billing_period_end=period_end.isoformat(),
+                        created_after=account.yookassa_renewal_started_at or moment,
+                    )
+                    if payment_id:
+                        payment = self.yookassa.find_payment(payment_id)
+                    else:
+                        payment = self.yookassa.create_recurring_payment(
+                            amount_rub=Decimal(settings.BILLING_PRO_PRICE_RUB),
+                            description=f"Landlords Pro (renew) — {account.name}",
+                            payment_method_id=account.yookassa_payment_method_id,
+                            metadata={
+                                "account_id": str(account.id),
+                                "plan": PlanId.PRO.value,
+                                "renew": "1",
+                                "billing_period_end": period_end.isoformat(),
+                            },
+                            idempotence_key=idempotence_key,
+                        )
             except Exception:
+                # Reconciliation must succeed before any retry can create a payment.
+                account = self._require_account_for_update(listed_account.id)
+                if account is None or account.subscription_period_end is None:
+                    continue
+                if self._as_utc(account.subscription_period_end) != period_end:
+                    continue
+                account.yookassa_renewal_status = "unknown"
                 account.subscription_status = SubscriptionStatus.PAST_DUE.value
                 self.account_repo.update(account)
+                self.commit()
                 past_due += 1
                 if self._grace_expired(account, moment):
                     self._downgrade_to_free(account)
+                    self.commit()
                     downgraded += 1
                 continue
 
+            # Reacquire and refresh after HTTP. A webhook may have finalized the
+            # same period while the request was in flight.
+            account = self._require_account_for_update(listed_account.id)
+            if account is None or account.subscription_period_end is None:
+                self.commit()
+                continue
+            if self._as_utc(account.subscription_period_end) != period_end:
+                self.commit()
+                continue
+
+            account.yookassa_renewal_payment_id = payment.id
+            account.yookassa_renewal_status = payment.status
             if payment.status == "succeeded" and payment.paid:
-                self._apply_successful_payment(account, payment, from_period_end=True)
+                self._apply_renewal_payment(account, payment, period_end)
+                self.commit()
                 renewed += 1
             else:
                 account.subscription_status = SubscriptionStatus.PAST_DUE.value
-                account.yookassa_last_payment_id = payment.id
                 self.account_repo.update(account)
+                self.commit()
                 past_due += 1
                 if self._grace_expired(account, moment):
                     self._downgrade_to_free(account)
+                    self.commit()
                     downgraded += 1
 
         return {
@@ -226,6 +313,22 @@ class BillingService:
             account.yookassa_payment_method_id = payment.payment_method_id
         return self.account_repo.update(account)
 
+    def _apply_renewal_payment(
+        self, account: AccountEntity, payment: YooKassaPaymentResult, period_end: datetime
+    ) -> AccountEntity:
+        """Применить списание только к исходному неоплаченному периоду."""
+        if account.yookassa_last_payment_id == payment.id:
+            return account
+        if account.subscription_period_end is None:
+            return account
+        if self._as_utc(account.subscription_period_end) != self._as_utc(period_end):
+            return account
+        self._apply_successful_payment(account, payment, from_period_end=True)
+        account.yookassa_renewal_period_end = period_end
+        account.yookassa_renewal_payment_id = payment.id
+        account.yookassa_renewal_status = "succeeded"
+        return self.account_repo.update(account)
+
     def _downgrade_to_free(self, account: AccountEntity) -> AccountEntity:
         account.plan = DEFAULT_PLAN
         account.subscription_status = SubscriptionStatus.NONE.value
@@ -246,6 +349,16 @@ class BillingService:
         if not account:
             raise NotFoundError("Account not found")
         return account
+
+    def _require_account_for_update(self, account_id: UUID) -> AccountEntity | None:
+        return self.account_repo.get_by_id_for_update(account_id)
+
+    @staticmethod
+    def _parse_period_end(value: str) -> datetime:
+        parsed = datetime.fromisoformat(value)
+        if parsed.tzinfo is None:
+            return parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
 
     @staticmethod
     def _as_utc(dt: datetime) -> datetime:

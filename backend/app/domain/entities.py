@@ -36,6 +36,11 @@ class AccountEntity:
     subscription_period_end: datetime | None = None
     yookassa_payment_method_id: str | None = None
     yookassa_last_payment_id: str | None = None
+    yookassa_renewal_period_end: datetime | None = None
+    yookassa_renewal_started_at: datetime | None = None
+    yookassa_renewal_idempotence_key: str | None = None
+    yookassa_renewal_payment_id: str | None = None
+    yookassa_renewal_status: str | None = None
     created_at: datetime = field(default_factory=_utc_now)
 
 

@@ -74,6 +74,11 @@ class IAccountRepository(ABC):
         ...
 
     @abstractmethod
+    def get_by_id_for_update(self, account_id: UUID) -> AccountEntity | None:
+        """Получить аккаунт с блокировкой строки."""
+        ...
+
+    @abstractmethod
     def get_by_owner_id(self, owner_id: UUID) -> AccountEntity | None:
         """Получить аккаунт по владельцу."""
         ...
@@ -229,6 +234,13 @@ class IContractRepository(ABC):
         ...
 
     @abstractmethod
+    def get_by_id_for_update(
+        self, contract_id: UUID, account_id: UUID
+    ) -> ContractEntity | None:
+        """Получить контракт с блокировкой строки до конца транзакции."""
+        ...
+
+    @abstractmethod
     def list_by_account(
         self, account_id: UUID, page: int = 1, per_page: int = 20,
         overdue_only: bool = False, search: str | None = None,
@@ -316,6 +328,11 @@ class IRentChargeRepository(ABC):
         ...
 
     @abstractmethod
+    def create_if_absent(self, entity: RentChargeEntity) -> bool:
+        """Создать начисление периода, если оно отсутствует."""
+        ...
+
+    @abstractmethod
     def update(self, entity: RentChargeEntity) -> RentChargeEntity:
         """Обновить начисление."""
         ...
@@ -373,6 +390,13 @@ class IPaymentRepository(ABC):
     @abstractmethod
     def get_by_id(self, payment_id: UUID, account_id: UUID) -> PaymentEntity | None:
         """Получить платёж по ID."""
+        ...
+
+    @abstractmethod
+    def get_by_id_for_update(
+        self, payment_id: UUID, account_id: UUID
+    ) -> PaymentEntity | None:
+        """Получить платёж с блокировкой строки."""
         ...
 
     @abstractmethod

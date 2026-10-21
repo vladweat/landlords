@@ -23,6 +23,7 @@ def mock_payment_repo():
     )
     repo.get_total_paid_for_charge.return_value = Decimal("0")
     repo.list_unlinked_for_contract_for_update.return_value = []
+    repo.get_by_id_for_update.side_effect = lambda *args: repo.get_by_id(*args)
     return repo
 
 
@@ -34,6 +35,7 @@ def mock_contract_repo():
         start_date=date.today(), end_date=date.today(), rent_amount=Decimal("1000"),
         currency="RUB", payment_day=5, status="active",
     )
+    repo.get_by_id_for_update.side_effect = lambda *args: repo.get_by_id(*args)
     return repo
 
 

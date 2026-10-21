@@ -19,6 +19,16 @@ class AccountRepository(IAccountRepository):
         model = self.session.query(AccountModel).filter_by(id=account_id).first()
         return model.to_entity() if model else None
 
+    def get_by_id_for_update(self, account_id: UUID) -> AccountEntity | None:
+        """Получить аккаунт и заблокировать его до конца транзакции."""
+        model = (
+            self.session.query(AccountModel)
+            .filter_by(id=account_id)
+            .with_for_update()
+            .first()
+        )
+        return model.to_entity() if model else None
+
     def get_by_owner_id(self, owner_id: UUID) -> AccountEntity | None:
         """Получить аккаунт по владельцу."""
         model = self.session.query(AccountModel).filter_by(owner_id=owner_id).first()
@@ -45,6 +55,11 @@ class AccountRepository(IAccountRepository):
         model.subscription_period_end = entity.subscription_period_end
         model.yookassa_payment_method_id = entity.yookassa_payment_method_id
         model.yookassa_last_payment_id = entity.yookassa_last_payment_id
+        model.yookassa_renewal_period_end = entity.yookassa_renewal_period_end
+        model.yookassa_renewal_started_at = entity.yookassa_renewal_started_at
+        model.yookassa_renewal_idempotence_key = entity.yookassa_renewal_idempotence_key
+        model.yookassa_renewal_payment_id = entity.yookassa_renewal_payment_id
+        model.yookassa_renewal_status = entity.yookassa_renewal_status
         self.session.flush()
         return model.to_entity()
 

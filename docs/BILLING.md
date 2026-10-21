@@ -38,8 +38,8 @@ docker compose up -d api celery-worker celery-beat
 | Шаг | Что происходит |
 |-----|----------------|
 | Checkout | `POST /v1/billing/checkout` → платёж с `save_payment_method=true` → redirect |
-| Confirm / webhook | `Payment.find` в API ЮKassa → `plan=pro`, `active`, `period_end=+30д`, сохраняется `payment_method_id` |
-| Renew | Celery beat ежедневно: автоплатёж по сохранённому методу |
+| Confirm / webhook | `Payment.find` в API ЮKassa → идемпотентное изменение подписки; повторное уведомление того же payment ID не продлевает период повторно |
+| Renew | Celery beat сохраняет identity `subscription_period_end`, время первой попытки и детерминированный ключ. Перед созданием/повтором сверяет список платежей по metadata аккаунта и периода; найденный ID проверяет через `Payment.find`. Если reconciliation недоступен, новая попытка списания не отправляется |
 | Неоплата | `past_due` → через `BILLING_GRACE_DAYS` (3) → Free + write-block на мутации |
 | Cancel | Сброс метода оплаты; Free сразу или в конце оплаченного периода |
 
@@ -51,6 +51,7 @@ docker compose up -d api celery-worker celery-beat
 | Нет 54-ФЗ чеков | В платёж не уходит `receipt`; для боевого магазина с онлайн-кассой нужно доработать |
 | Автоплатежи в live | В демо доступны сразу; на боевом магазине — согласование с менеджером ЮKassa |
 | Webhook без подписи | ЮKassa не подписывает тело; истина всегда из `Payment.find`. IP allowlist в development не режем |
+| История платежей для reconciliation | YooKassa возвращает список платежей только за последние 3 года; для более старой неизвестной попытки автоматический повтор блокируется и требуется ручная сверка |
 | Без публичного URL | Первая оплата ок через `confirm`. Автопродление идёт через Celery, не через webhook; webhook — запасной канал |
 | Цена в коде/env | `BILLING_PRO_PRICE_RUB`; в кабинете ЮKassa отдельных «продуктов» нет |
 | Карты с 3DS | Для сохранения метода бери карту **без** 3DS (`5555…4444`), иначе автоплатёж может не сохраниться |

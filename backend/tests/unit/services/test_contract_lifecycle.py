@@ -53,6 +53,7 @@ def _charge(contract_id, account_id, period_start, period_end, amount="30000.00"
 
 
 def _service(contract_repo, charge_repo, payment_repo, event_repo, **kwargs):
+    contract_repo.get_by_id_for_update.side_effect = lambda *args: contract_repo.get_by_id(*args)
     property_repo = Mock()
     tenant_repo = Mock()
     return ContractService(

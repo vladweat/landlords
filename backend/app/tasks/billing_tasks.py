@@ -33,7 +33,9 @@ def process_subscription_renewals() -> dict[str, Any]:
 
     session = SessionLocal()
     try:
-        service = BillingService(AccountRepository(session), YooKassaClient())
+        service = BillingService(
+            AccountRepository(session), YooKassaClient(), commit=session.commit
+        )
         result = service.process_renewals(now=datetime.now(timezone.utc))
         session.commit()
         from app.services.ops_heartbeat import mark_beat_ok
