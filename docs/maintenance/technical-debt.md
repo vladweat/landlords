@@ -10,7 +10,8 @@ verification; «дефект» непосредственно следует и�
 | High | Multi-tenancy | Риск | `app/api/deps.py:get_current_membership`; tenant filters распределены по `db/repositories/*` | RLS/центрального query scope нет: пропущенный `account_id` способен раскрыть данные. Добавить систематические cross-tenant integration tests и рассмотреть scoped repository/RLS. |
 | High | Reproducibility | Подтверждено | `backend/requirements.txt` почти полностью без version pins | Online build со временем получает иной dependency graph и может сломаться/получить уязвимую версию. Ввести lock/constraints и controlled update process. |
 | Medium | Readiness | Дефект | `app/main.py:readiness`: `session.close()` вызывается только после успешного `execute` | При ошибке после создания Session connection может не закрыться до GC. Использовать context manager/finally; покрыть failure test. |
-| Medium | Transactions/scale | Риск | `db/session.py` commit на request; модели не имеют version columns; locks только у bulk Celery | Конкурентные mutations одного договора могут lost-update/race. Выделить критичные use cases, добавить locking/versioning и concurrency tests. |
+| Medium | Transactions/scale | Частично закрыто | PaymentService блокирует contract → charges → advances; rent charges имеют unique period constraint; PostgreSQL scenarios в `tests/integration/test_financial_concurrency.py` прошли | Locks защищают реализованные service paths; прямые SQL mutations в обход сервисов остаются вне гарантии. |
+| Medium | YooKassa reconciliation | Ограничено API retention | Renewal сохраняет start time и ищет платёж по account/period metadata; YooKassa list API ограничен историей 3 года | Если неизвестная попытка старше доступной истории, renewal остаётся `unknown` без нового списания; требуется ручная сверка. При недоступности API повтор также ждёт успешного reconciliation. |
 | Medium | Task delivery | Риск | `celery_app.py`: late ack; enqueue и PostgreSQL commit не объединены; outbox отсутствует | Возможны повтор/пропуск на crash boundary. Сделать все enqueue use cases идемпотентными; для критичных событий рассмотреть transactional outbox. |
 | Medium | Celery retries | Подтверждено | `charge_tasks.update_overdue_charges` и `email_tasks.send_daily_reminder_emails` задают `retry_kwargs`, но не `autoretry_for`/`bind+self.retry` | `retry_kwargs` сами по себе не ретраят exception. Определить transient errors и явную retry policy; бизнес-ошибки не ретраить. |
 | Medium | File/email durability | Ограничено dev | `email_service.py:_write_file` пишет `storage/emails`; Compose монтирует documents/status, не emails | File fallback работает только вне production и может теряться с container. Production startup требует provider и TLS; readiness не проверяет доступность удалённого SMTP. |
@@ -28,10 +29,11 @@ verification; «дефект» непосредственно следует и�
 ## Coverage gaps
 
 Integration tests покрывают основные resources, RBAC, invoices/portal и
-billing, но по inventory отсутствуют отдельные integration suites для
+billing, включая добавленные сценарии финансовой конкурентности. Новый
+financial concurrency module проверен на PostgreSQL. По inventory отсутствуют отдельные integration suites для
 reminders, feedback, reports/export formats, notifications и полного
 password-reset/email delivery. Task tests сосредоточены на charge tasks; beat
-schedule, email, billing и ops tasks требуют дополнительных failure/retry tests.
+schedule, email и ops tasks требуют дополнительных failure/retry tests.
 
 ## Устаревший исторический долг
 

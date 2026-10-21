@@ -17,6 +17,7 @@ from app.services.dto.contract_dto import ContractCreateDTO, ContractUpdateDTO
 def mock_contract_repo():
     repo = Mock()
     repo.get_active_by_property.return_value = None
+    repo.get_by_id_for_update.side_effect = lambda *args: repo.get_by_id(*args)
     return repo
 
 

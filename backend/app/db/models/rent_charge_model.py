@@ -4,7 +4,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID, uuid4
 
-from sqlalchemy import Date, DateTime, ForeignKey, Numeric, String, func, Index
+from sqlalchemy import Date, DateTime, ForeignKey, Numeric, String, func, Index, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -16,6 +16,10 @@ class RentChargeModel(TimestampMixin, Base):
     __tablename__ = "rent_charges"
     
     __table_args__ = (
+        UniqueConstraint(
+            "account_id", "contract_id", "period_start", "period_end",
+            name="uq_rent_charges_contract_period",
+        ),
         Index("ix_rent_charges_contract_status", "contract_id", "status"),
         Index("ix_rent_charges_due_date_status", "due_date", "status"),
         Index("ix_rent_charges_account_status", "account_id", "status"),

@@ -37,6 +37,7 @@ def mock_contract_repo():
         rent_amount=Decimal("50000"), currency="RUB", payment_day=5,
         status="active",
     )
+    repo.get_by_id_for_update.return_value = repo.get_by_id.return_value
     return repo
 
 
@@ -70,6 +71,7 @@ class TestCreateCharge:
     def test_contract_not_found(self, service, mock_contract_repo):
         """Контракт не найден."""
         mock_contract_repo.get_by_id.return_value = None
+        mock_contract_repo.get_by_id_for_update.return_value = None
         dto = RentChargeCreateDTO(
             contract_id=uuid4(),
             due_date=date.today(),
@@ -84,13 +86,15 @@ class TestCreateCharge:
 class TestCreateChargesBatch:
     def test_generates_charges(self, service, mock_charge_repo):
         """Генерация начислений для контракта."""
-        mock_charge_repo.list_by_contract.return_value = []  # нет существующих
-        mock_charge_repo.create.return_value = RentChargeEntity(
-            id=uuid4(), account_id=uuid4(), contract_id=uuid4(),
-            due_date=date(2026, 8, 5), period_start=date(2026, 8, 1),
-            period_end=date(2026, 9, 1), amount=Decimal("50000"),
-            currency="RUB", status="pending",
-        )
+        mock_charge_repo.create_if_absent.return_value = True
+        mock_charge_repo.list_by_contract.return_value = [
+            RentChargeEntity(
+                id=uuid4(), account_id=uuid4(), contract_id=uuid4(),
+                due_date=date(2026, 8, 5), period_start=date(2026, 8, 1),
+                period_end=date(2026, 9, 1), amount=Decimal("50000"),
+                currency="RUB", status="pending",
+            ) for _ in range(12)
+        ]
         result = service.create_charges_batch(uuid4(), uuid4())
         assert len(result) == 12
 
@@ -112,23 +116,28 @@ class TestCreateChargesBatch:
     def test_contract_not_found(self, service, mock_contract_repo):
         """Контракт не найден."""
         mock_contract_repo.get_by_id.return_value = None
+        mock_contract_repo.get_by_id_for_update.return_value = None
         with pytest.raises(NotFoundError):
             service.create_charges_batch(uuid4(), uuid4())
 
 class TestCreateChargesBatchMore:
     def test_contract_not_found_for_batch(self, service, mock_contract_repo):
         mock_contract_repo.get_by_id.return_value = None
+        mock_contract_repo.get_by_id_for_update.return_value = None
         with pytest.raises(NotFoundError):
             service.create_charges_batch(uuid4(), uuid4())
 
     def test_creates_exact_count(self, service, mock_charge_repo):
         mock_charge_repo.list_by_contract.return_value = []
-        mock_charge_repo.create.return_value = RentChargeEntity(
-            id=uuid4(), account_id=uuid4(), contract_id=uuid4(),
-            due_date=date.today(), period_start=date.today(),
-            period_end=date.today(), amount=Decimal("50000"),
-            currency="RUB", status="pending",
-        )
+        mock_charge_repo.create_if_absent.return_value = True
+        mock_charge_repo.list_by_contract.return_value = [
+            RentChargeEntity(
+                id=uuid4(), account_id=uuid4(), contract_id=uuid4(),
+                due_date=date.today(), period_start=date.today(),
+                period_end=date.today(), amount=Decimal("50000"),
+                currency="RUB", status="pending",
+            ) for _ in range(12)
+        ]
         result = service.create_charges_batch(uuid4(), uuid4())
         assert len(result) == 12
 

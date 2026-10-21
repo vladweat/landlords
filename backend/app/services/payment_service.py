@@ -103,7 +103,7 @@ class PaymentService:
         self, account_id: UUID, dto: PaymentCreateDTO
     ) -> PaymentCreateResultDTO:
         """Создать платёж с автоматическим распределением по charges."""
-        contract = self.contract_repo.get_by_id(dto.contract_id, account_id)
+        contract = self.contract_repo.get_by_id_for_update(dto.contract_id, account_id)
         if not contract:
             raise NotFoundError(f"Contract with id={dto.contract_id} not found")
 
@@ -117,7 +117,7 @@ class PaymentService:
 
     def allocate_advance(self, contract_id: UUID, account_id: UUID) -> dict:
         """По запросу распределить аванс по неоплаченным начислениям."""
-        contract = self.contract_repo.get_by_id(contract_id, account_id)
+        contract = self.contract_repo.get_by_id_for_update(contract_id, account_id)
         if not contract:
             raise NotFoundError(f"Contract with id={contract_id} not found")
 
@@ -300,12 +300,30 @@ class PaymentService:
         entity = self.payment_repo.get_by_id(payment_id, account_id)
         if not entity:
             raise NotFoundError(f"Payment with id={payment_id} not found")
+        contract = self.contract_repo.get_by_id_for_update(entity.contract_id, account_id)
+        if not contract:
+            raise NotFoundError(f"Contract with id={entity.contract_id} not found")
+        if entity.rent_charge_id:
+            self.charge_repo.get_by_id_for_update(entity.rent_charge_id, account_id)
+        entity = self.payment_repo.get_by_id_for_update(payment_id, account_id)
+        if not entity:
+            raise NotFoundError(f"Payment with id={payment_id} not found")
 
         if dto.date_paid is not None:
             entity.date_paid = dto.date_paid
         if dto.amount is not None:
             if dto.amount <= 0:
                 raise ValidationError("Payment amount must be greater than 0")
+            if entity.rent_charge_id:
+                charge = self.charge_repo.get_by_id_for_update(
+                    entity.rent_charge_id, account_id
+                )
+                if charge:
+                    total_paid = self.payment_repo.get_total_paid_for_charge(
+                        charge.id, account_id
+                    )
+                    if total_paid - entity.amount + dto.amount > charge.amount:
+                        raise ValidationError("Payment exceeds the remaining charge amount")
             entity.amount = dto.amount
         if dto.method is not None:
             entity.method = dto.method
@@ -315,13 +333,18 @@ class PaymentService:
         updated = self.payment_repo.update(entity)
 
         if updated.rent_charge_id:
-            charge = self.charge_repo.get_by_id(updated.rent_charge_id, account_id)
+            charge = self.charge_repo.get_by_id_for_update(updated.rent_charge_id, account_id)
             if charge:
                 total_paid = self.payment_repo.get_total_paid_for_charge(
                     updated.rent_charge_id, account_id
                 )
                 new_status = compute_charge_status(charge.amount, total_paid, charge.due_date)
                 self.charge_repo.update_status(updated.rent_charge_id, account_id, new_status)
+
+        allocate_unlinked_payments(
+            self.charge_repo, self.payment_repo, self.contract_repo,
+            updated.contract_id, account_id,
+        )
 
         check_and_update_contract_status(
             self.charge_repo, self.payment_repo, self.contract_repo,
@@ -335,17 +358,30 @@ class PaymentService:
         entity = self.payment_repo.get_by_id(payment_id, account_id)
         if not entity:
             raise NotFoundError(f"Payment with id={payment_id} not found")
-
+        contract = self.contract_repo.get_by_id_for_update(entity.contract_id, account_id)
+        if not contract:
+            raise NotFoundError(f"Contract with id={entity.contract_id} not found")
         charge_id = entity.rent_charge_id
+        if charge_id:
+            self.charge_repo.get_by_id_for_update(charge_id, account_id)
+        entity = self.payment_repo.get_by_id_for_update(payment_id, account_id)
+        if not entity:
+            raise NotFoundError(f"Payment with id={payment_id} not found")
+
         contract_id = entity.contract_id
         self.payment_repo.delete(payment_id, account_id)
 
         if charge_id:
-            charge = self.charge_repo.get_by_id(charge_id, account_id)
+            charge = self.charge_repo.get_by_id_for_update(charge_id, account_id)
             if charge:
                 total_paid = self.payment_repo.get_total_paid_for_charge(charge_id, account_id)
                 new_status = compute_charge_status(charge.amount, total_paid, charge.due_date)
                 self.charge_repo.update_status(charge_id, account_id, new_status)
+
+        allocate_unlinked_payments(
+            self.charge_repo, self.payment_repo, self.contract_repo,
+            contract_id, account_id,
+        )
 
         check_and_update_contract_status(
             self.charge_repo, self.payment_repo, self.contract_repo,

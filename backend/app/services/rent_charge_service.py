@@ -102,18 +102,9 @@ class RentChargeService:
         Используется Celery-задачей при активации контракта.
         Идемпотентен: если начисления уже есть — не создаёт дубли.
         """
-        contract = self.contract_repo.get_by_id(contract_id, account_id)
+        contract = self.contract_repo.get_by_id_for_update(contract_id, account_id)
         if not contract:
             raise NotFoundError(f"Contract with id={contract_id} not found")
-
-        # Проверяем, есть ли уже начисления
-        existing = self.charge_repo.list_by_contract(contract_id, account_id)
-        if existing:
-            allocate_unlinked_payments(
-                self.charge_repo, self.payment_repo, self.contract_repo,
-                contract_id, account_id,
-            )
-            return [RentChargeDTO.model_validate(e) for e in existing]
 
         # Генерируем расписание
         from app.domain.rules import generate_charge_schedule
@@ -126,7 +117,6 @@ class RentChargeService:
             billing_period=contract.billing_period,
         )
 
-        charges = []
         for item in schedule:
             dto = RentChargeCreateDTO(
                 contract_id=contract_id,
@@ -137,11 +127,24 @@ class RentChargeService:
                 currency=contract.currency,
             )
 
-            charge = self.create_charge(account_id, dto)
-            charges.append(charge)
+            entity = RentChargeEntity(
+                id=uuid4(),
+                account_id=account_id,
+                contract_id=contract_id,
+                due_date=dto.due_date,
+                period_start=dto.period_start,
+                period_end=dto.period_end,
+                amount=dto.amount,
+                currency=dto.currency,
+                status="pending",
+            )
+            self.charge_repo.create_if_absent(entity)
 
         allocate_unlinked_payments(
             self.charge_repo, self.payment_repo, self.contract_repo,
             contract_id, account_id,
         )
-        return charges
+        return [
+            RentChargeDTO.model_validate(e)
+            for e in self.charge_repo.list_by_contract(contract_id, account_id)
+        ]

@@ -80,7 +80,8 @@ ORM/domain используют `Decimal`; API должен сериализов
 
 - contracts: `(property_id, status)`, `(account_id, status)`;
 - rent charges: `(contract_id, status)`, `(due_date, status)`,
-  `(account_id, status)`;
+  `(account_id, status)`; unique period identity
+  `(account_id, contract_id, period_start, period_end)`;
 - payments: `(contract_id, date_paid)`;
 - expenses: `(property_id, date_incurred)`.
 - auth sessions: primary key `id` для проверки активной сессии, индекс `expires_at` для очистки.
@@ -93,9 +94,17 @@ production cardinality в репозитории не зафиксированы
 - HTTP: `get_db_session` commit/rollback на весь request.
 - Celery: task создаёт `SessionLocal` и явно commit/rollback.
 - Bulk scheduled tasks используют Redis locks с TTL 600 секунд.
-- В коде нет общего optimistic version column или систематического
-  `SELECT ... FOR UPDATE`; конкурентные мутации одного договора требуют
-  отдельного анализа.
+- Генерация начислений защищена unique constraint
+  `(account_id, contract_id, period_start, period_end)` и PostgreSQL
+  `ON CONFLICT DO NOTHING`. Миграция проверяет существующие дубли и отказывает
+  в upgrade без удаления финансовых строк.
+- Платежные операции берут блокировки в порядке: договор, начисления по due
+  date, платежи аванса по дате/созданию. Это сериализует платежные mutations и
+  аллокацию авансов внутри договора.
+- SaaS renewal фиксирует период, время первой попытки, idempotence key, статус
+  и provider payment ID в accounts. Перед новым запросом/восстановлением список
+  YooKassa сверяется по metadata периода. Попытка коммитится до HTTP запроса,
+  поэтому внешний вызов не удерживает DB transaction/row lock.
 - Integration tests создают отдельную `landlords_test`, применяют Alembic head
   и удаляют БД после session.
 

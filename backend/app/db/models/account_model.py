@@ -33,6 +33,21 @@ class AccountModel(TimestampMixin, Base):
     yookassa_last_payment_id: Mapped[str | None] = mapped_column(
         String(128), nullable=True
     )
+    yookassa_renewal_period_end: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    yookassa_renewal_started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    yookassa_renewal_idempotence_key: Mapped[str | None] = mapped_column(
+        String(128), nullable=True
+    )
+    yookassa_renewal_payment_id: Mapped[str | None] = mapped_column(
+        String(128), nullable=True
+    )
+    yookassa_renewal_status: Mapped[str | None] = mapped_column(
+        String(32), nullable=True
+    )
 
     def to_entity(self) -> AccountEntity:
         """Преобразовать ORM-модель в доменную сущность."""
@@ -48,6 +63,11 @@ class AccountModel(TimestampMixin, Base):
             subscription_period_end=self.subscription_period_end,
             yookassa_payment_method_id=self.yookassa_payment_method_id,
             yookassa_last_payment_id=self.yookassa_last_payment_id,
+            yookassa_renewal_period_end=self.yookassa_renewal_period_end,
+            yookassa_renewal_started_at=self.yookassa_renewal_started_at,
+            yookassa_renewal_idempotence_key=self.yookassa_renewal_idempotence_key,
+            yookassa_renewal_payment_id=self.yookassa_renewal_payment_id,
+            yookassa_renewal_status=self.yookassa_renewal_status,
             created_at=self.created_at,
         )
 
@@ -66,5 +86,10 @@ class AccountModel(TimestampMixin, Base):
             subscription_period_end=entity.subscription_period_end,
             yookassa_payment_method_id=entity.yookassa_payment_method_id,
             yookassa_last_payment_id=entity.yookassa_last_payment_id,
+            yookassa_renewal_period_end=entity.yookassa_renewal_period_end,
+            yookassa_renewal_started_at=entity.yookassa_renewal_started_at,
+            yookassa_renewal_idempotence_key=entity.yookassa_renewal_idempotence_key,
+            yookassa_renewal_payment_id=entity.yookassa_renewal_payment_id,
+            yookassa_renewal_status=entity.yookassa_renewal_status,
             created_at=entity.created_at,
         )

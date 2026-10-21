@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any
 from uuid import uuid4
@@ -125,6 +126,55 @@ class YooKassaClient:
                 f"Не удалось получить платёж ЮKassa: {exc}"
             ) from exc
         return self._to_result(payment)
+
+    def find_renewal_payment_id(
+        self,
+        *,
+        account_id: str,
+        billing_period_end: str,
+        created_after: datetime,
+    ) -> str | None:
+        """Найти ранее созданный renewal по стабильным metadata периода."""
+        self._configure()
+        if created_after < datetime.now(timezone.utc) - timedelta(days=365 * 3):
+            raise ServiceUnavailableError(
+                "Срок поиска платежа ЮKassa превышает доступную историю"
+            )
+
+        from yookassa import Payment
+
+        params: dict[str, Any] = {
+            "created_at.gte": (
+                created_after.astimezone(timezone.utc) - timedelta(minutes=5)
+            ).isoformat(),
+            "limit": 100,
+        }
+        matches: list[str] = []
+        try:
+            while True:
+                page = Payment.list(params)
+                for payment in page.items or []:
+                    metadata = getattr(payment, "metadata", None) or {}
+                    if (
+                        str(metadata.get("account_id")) == account_id
+                        and str(metadata.get("renew")) == "1"
+                        and str(metadata.get("billing_period_end"))
+                        == billing_period_end
+                    ):
+                        matches.append(str(payment.id))
+                if not page.next_cursor:
+                    break
+                params["cursor"] = page.next_cursor
+        except Exception as exc:
+            raise ServiceUnavailableError(
+                f"Не удалось сверить автоплатёж ЮKassa: {exc}"
+            ) from exc
+
+        if len(matches) > 1:
+            raise ServiceUnavailableError(
+                "ЮKassa вернула несколько автоплатежей за один billing period"
+            )
+        return matches[0] if matches else None
 
     @staticmethod
     def _to_result(payment: Any) -> YooKassaPaymentResult:

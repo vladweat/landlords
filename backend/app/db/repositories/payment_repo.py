@@ -29,6 +29,16 @@ class PaymentRepository(IPaymentRepository):
         )
         return model.to_entity() if model else None
 
+    def get_by_id_for_update(self, payment_id: UUID, account_id: UUID) -> PaymentEntity | None:
+        """Получить платёж с блокировкой строки."""
+        model = (
+            self.session.query(PaymentModel)
+            .filter_by(id=payment_id, account_id=account_id)
+            .with_for_update()
+            .first()
+        )
+        return model.to_entity() if model else None
+
     def list_by_contract(
         self, contract_id: UUID, account_id: UUID
     ) -> list[PaymentEntity]:

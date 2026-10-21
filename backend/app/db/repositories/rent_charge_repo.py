@@ -5,6 +5,7 @@ from uuid import UUID
 from datetime import date, datetime, timezone
 
 from sqlalchemy import func
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from app.db.models.rent_charge_model import RentChargeModel
@@ -55,6 +56,25 @@ class RentChargeRepository(IRentChargeRepository):
         self.session.add(model)
         self.session.flush()
         return model.to_entity()
+
+    def create_if_absent(self, entity: RentChargeEntity) -> bool:
+        """Вставить начисление, если период ещё не существует."""
+        values = {
+            "id": entity.id,
+            "account_id": entity.account_id,
+            "contract_id": entity.contract_id,
+            "due_date": entity.due_date,
+            "period_start": entity.period_start,
+            "period_end": entity.period_end,
+            "amount": entity.amount,
+            "currency": entity.currency,
+            "status": entity.status,
+        }
+        statement = insert(RentChargeModel).values(**values).on_conflict_do_nothing(
+            constraint="uq_rent_charges_contract_period"
+        )
+        result = self.session.execute(statement)
+        return result.rowcount == 1
 
     def update(self, entity: RentChargeEntity) -> RentChargeEntity:
         """Обновить начисление."""
