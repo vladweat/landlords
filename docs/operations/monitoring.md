@@ -19,9 +19,9 @@ Stale beat и ops gauges обновляются во время `/ready`, но �
 latency и `request_id`; response содержит `X-Request-ID`. Celery использует task
 logger. Не передавайте secrets/tokens в query string: query логируется.
 
-`LOG_LEVEL` используется uvicorn entry path; `LOG_FORMAT` объявлен, но
-централизованная настройка Loguru JSON sink в просмотренном коде отсутствует.
-Compose полагается на container stdout/stderr и не задаёт rotation policy.
+`LOG_LEVEL` используется uvicorn entry path. Отдельная настройка JSON logging
+не предусмотрена; Loguru и Uvicorn выводят сообщения в container stdout/stderr.
+Compose не задаёт rotation policy.
 
 ```bash
 docker compose logs --since=30m api nginx

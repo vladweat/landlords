@@ -4,7 +4,8 @@ Backend использует `pydantic-settings` (`backend/app/core/config.py`):
 переменные окружения имеют приоритет над `.env` текущего working directory.
 Compose передаёт `backend/.env` через `env_file` и принудительно задаёт
 `DB_HOST=postgres`, `REDIS_HOST=redis`. Корневой `.env` используется Compose
-для `${DB_*}` PostgreSQL container, но не передаётся приложению автоматически.
+для `${DB_*}` и `REDIS_PASSWORD`; пароль Redis Compose передаёт API, worker,
+beat и Redis.
 
 Ниже указаны defaults из кода, не рекомендуемые production-значения.
 
@@ -49,7 +50,7 @@ placeholder. Значения из `.env.example` являются только 
 | `REDIS_HOST` | `localhost` | Redis hostname |
 | `REDIS_PORT` | `6379` | port |
 | `REDIS_DB` | `0` | logical DB |
-| `REDIS_PASSWORD` | unset | secret; добавляется в URL |
+| `REDIS_PASSWORD` | unset | secret; передаётся приложению и Redis, добавляется в URL |
 | `CELERY_TASK_DEFAULT_QUEUE` | `default` | queue |
 | `CELERY_TASK_SOFT_TIME_LIMIT` | `300` | seconds |
 | `CELERY_TASK_TIME_LIMIT` | `600` | seconds |
@@ -58,10 +59,9 @@ placeholder. Значения из `.env.example` являются только 
 `REDIS_URL`, broker и result backend вычисляются; отдельные
 `CELERY_BROKER_URL`/`CELERY_RESULT_BACKEND` не используются.
 
-Базовый `docker-compose.yml` не включает Redis `requirepass`. Поэтому одного
-`REDIS_PASSWORD` в application env недостаточно: Redis server необходимо
-отдельно запустить с тем же password/configuration. Иначе client попытается
-выполнить `AUTH` против server без настроенного пароля.
+Compose включает Redis `requirepass`, если задан `REDIS_PASSWORD`, и передаёт
+это значение API, worker, beat и Redis. В production приложение отказывается
+запускаться без пароля. Локально переменную можно оставить пустой.
 
 ## Email
 
@@ -104,7 +104,6 @@ SMTP_SSL с проверкой сертификата; для `starttls` сер�
 | `OPS_DISK_MIN_FREE_MB` | `500` | Порог alert |
 | `OPS_BEAT_STALE_HOURS` | `26` | Порог stale heartbeat |
 | `LOG_LEVEL` | `INFO` | Уровень |
-| `LOG_FORMAT` | `json` | Настройка объявлена, но global Loguru sink по ней в просмотренном коде не конфигурируется |
 
 ## Runtime/build переменные вне `Settings`
 

@@ -5,8 +5,8 @@
 
 ## Подготовка
 
-1. Скопируй [`.env.example`](../.env.example) в `backend/.env` и при необходимости в корневой `.env` (подстановка `${DB_*}` в compose).
-2. Задай уникальный `SECRET_KEY`, `APP_ENV=production`, `DEBUG=false`, `ALLOW_PUBLIC_REGISTRATION=false`, email provider (`SMTP_HOST` или `RESEND_API_KEY`) и `SMTP_TLS_MODE=starttls` либо `ssl`.
+1. Скопируй [`.env.example`](../.env.example) в `backend/.env` и корневой `.env` (Compose читает из корневого файла `${DB_*}` и `REDIS_PASSWORD`).
+2. В `backend/.env` задай уникальный `SECRET_KEY`, `APP_ENV=production`, `DEBUG=false`, `ALLOW_PUBLIC_REGISTRATION=false`, email provider (`SMTP_HOST` или `RESEND_API_KEY`) и `SMTP_TLS_MODE=starttls` либо `ssl`. В корневом `.env` задай непустой `REDIS_PASSWORD`; Compose передаст его приложению и настроит Redis `requirepass`.
 3. Пароли Postgres/Redis — только из env; в prod-профиле порты БД на хост не публикуются (см. `docker-compose.yml` без override).
 
 Online-сборка образа API (CI / машина с PyPI):

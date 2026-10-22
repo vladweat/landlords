@@ -14,8 +14,7 @@ OpenAPI является источником детальных request/respons
 - `http://localhost:8000/redoc`;
 - `http://localhost:8000/openapi.json`.
 
-При `DEBUG=false` Swagger/ReDoc отключены, но FastAPI по умолчанию продолжает
-публиковать `/openapi.json`; отдельного `openapi_url=None` в коде нет.
+При `DEBUG=false` Swagger, ReDoc и `/openapi.json` отключены.
 
 ## Аутентификация
 

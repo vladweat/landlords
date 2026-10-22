@@ -141,20 +141,28 @@ class Settings(BaseSettings):
     # ==================== Logging ====================
     
     LOG_LEVEL: str = "INFO"
-    LOG_FORMAT: str = "json"
     
 settings = Settings()
-# Ensure SECRET_KEY is explicitly set in production
-if settings.APP_ENV == "production":
-    if not settings.SECRET_KEY or settings.SECRET_KEY == "change-me-in-production-change-me":
+
+
+def _validate_production_settings(config: Settings) -> None:
+    """Проверить обязательные настройки production при старте приложения."""
+    if config.APP_ENV != "production":
+        return
+    if not config.SECRET_KEY or config.SECRET_KEY == "change-me-in-production-change-me":
         raise RuntimeError(
             "SECRET_KEY must be set in production. Set SECRET_KEY in the environment and restart."
         )
-    if not (settings.SMTP_HOST or "").strip() and not (
-        settings.RESEND_API_KEY or ""
+    if not (config.SMTP_HOST or "").strip() and not (
+        config.RESEND_API_KEY or ""
     ).strip():
         raise RuntimeError(
             "An email provider (SMTP_HOST or RESEND_API_KEY) must be configured in production."
         )
-    if settings.SMTP_TLS_MODE == "none":
+    if config.SMTP_TLS_MODE == "none":
         raise RuntimeError("SMTP_TLS_MODE=none is forbidden in production.")
+    if not (config.REDIS_PASSWORD or "").strip():
+        raise RuntimeError("REDIS_PASSWORD must be set in production.")
+
+
+_validate_production_settings(settings)

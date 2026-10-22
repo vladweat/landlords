@@ -38,17 +38,26 @@ Beat schedule находится только в коде; persistent scheduler 
 
 Создаёт repositories/session, вызывает `RentChargeService.create_charges_batch`,
 commit. Повтор должен быть безопасен за счёт проверки существующих периодов в
-service/repository, но отдельного task idempotency key или DB unique constraint
-на период в модели не обнаружено. Retry только для SQLAlchemy
-`OperationalError`, максимум 3, с backoff; task limits 120/180 секунд.
+service/repository и DB unique constraint
+`(account_id, contract_id, period_start, period_end)`; task idempotency key не
+используется. Retry ограничен SQLAlchemy `OperationalError`, максимум 3, с
+backoff; task limits 120/180 секунд.
 
 ### Bulk tasks
 
 `update_overdue_charges`, `send_daily_reminder_emails` и
 `process_subscription_renewals` используют `RedisLock("locks:<name>")` с TTL
-600 секунд и non-blocking acquire. Если lock занят, task возвращает
+900 секунд и non-blocking acquire. Если lock занят, task возвращает
 `status=skipped`. Lock уменьшает параллельный запуск, но истечение TTL во время
 долгой операции допускает overlap.
+
+`update_overdue_charges` повторяется только при SQLAlchemy `OperationalError`
+(максимум 3 раза). `send_daily_reminder_emails` повторяется при
+`OperationalError`, `SMTPServerDisconnected`, `socket.timeout`,
+`ConnectionError` и агрегированной `TransientEmailDeliveryError` (максимум 2
+раза). `process_subscription_renewals` повторяется только при
+`OperationalError` (максимум 2 раза). Остальные исключения не повторяются
+автоматически.
 
 Email dedup дополнительно хранится в `email_dispatch_log`. Billing renewal
 использует `accounts.subscription_period_end` как identity оплачиваемого

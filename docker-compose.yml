@@ -32,6 +32,7 @@ services:
     environment:
       DB_HOST: postgres
       REDIS_HOST: redis
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
       RUN_MIGRATIONS: "1"
     depends_on:
       postgres:
@@ -63,6 +64,7 @@ services:
     environment:
       DB_HOST: postgres
       REDIS_HOST: redis
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
     depends_on:
       api:
         condition: service_healthy
@@ -91,6 +93,7 @@ services:
     environment:
       DB_HOST: postgres
       REDIS_HOST: redis
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
     depends_on:
       api:
         condition: service_healthy
@@ -114,6 +117,7 @@ services:
     environment:
       DB_HOST: postgres
       REDIS_HOST: redis
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
     depends_on:
       redis:
         condition: service_healthy
@@ -144,10 +148,28 @@ services:
 
   redis:
     image: redis:7
+    command:
+      - sh
+      - -c
+      - |
+        if [ -n "$$REDIS_PASSWORD" ]; then
+          exec redis-server --requirepass "$$REDIS_PASSWORD"
+        else
+          exec redis-server
+        fi
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test:
+        - CMD-SHELL
+        - >-
+          if [ -n "$$REDIS_PASSWORD" ]; then
+            REDISCLI_AUTH="$$REDIS_PASSWORD" redis-cli --no-auth-warning ping;
+          else
+            redis-cli ping;
+          fi
       interval: 5s
       timeout: 3s
       retries: 5

@@ -35,7 +35,13 @@ class TransientEmailDeliveryError(Exception):
     retry_backoff_max=60,
     retry_jitter=True,
     retry_kwargs={"max_retries": 2},
-    autoretry_for=(OperationalError, smtplib.SMTPServerDisconnected, socket.timeout, ConnectionError),
+    autoretry_for=(
+        OperationalError,
+        smtplib.SMTPServerDisconnected,
+        socket.timeout,
+        ConnectionError,
+        TransientEmailDeliveryError,
+    ),
     soft_time_limit=300,
     time_limit=600,
 )
