@@ -19,6 +19,7 @@ from app.domain.entities import (
     InvoiceEntity,
     MembershipEntity,
     NotificationDismissalEntity,
+    OutboxMessageEntity,
     PaymentClaimEntity,
     PaymentEntity,
     PropertyEntity,
@@ -800,4 +801,69 @@ class IPaymentClaimRepository(ABC):
         status: str | None = None,
     ) -> Sequence[PaymentClaimEntity]:
         """Список заявок по договору."""
+        ...
+
+
+class IOutboxMessageRepository(ABC):
+    """Интерфейс очереди надёжной доставки фоновых команд."""
+
+    @abstractmethod
+    def create_charge_generation(self, account_id: UUID, contract_id: UUID) -> UUID:
+        """Добавить команду генерации начислений в текущую транзакцию."""
+        ...
+
+    @abstractmethod
+    def claim_due_batch(
+        self, batch_size: int, lease_seconds: int
+    ) -> list[OutboxMessageEntity]:
+        """Захватить команды для dispatch с ограниченной lease."""
+        ...
+
+    @abstractmethod
+    def get_for_update(
+        self, outbox_id: UUID, account_id: UUID
+    ) -> OutboxMessageEntity | None:
+        """Получить команду с блокировкой для атомарного выполнения."""
+        ...
+
+    @abstractmethod
+    def mark_published(
+        self, outbox_id: UUID, account_id: UUID, lease_token: UUID
+    ) -> bool:
+        """Зафиксировать publish только для актуальной lease."""
+        ...
+
+    @abstractmethod
+    def mark_dispatch_failure(
+        self,
+        outbox_id: UUID,
+        account_id: UUID,
+        lease_token: UUID,
+        available_at: datetime,
+        error_type: str,
+        max_attempts: int,
+    ) -> bool:
+        """Назначить следующую безопасную попытку без хранения текста ошибки."""
+        ...
+
+    @abstractmethod
+    def mark_completed(self, outbox_id: UUID, account_id: UUID) -> None:
+        """Отметить завершение в текущей финансовой транзакции."""
+        ...
+
+    @abstractmethod
+    def record_task_failure(
+        self,
+        outbox_id: UUID,
+        account_id: UUID,
+        error_type: str,
+        max_failures: int,
+        available_at: datetime,
+    ) -> bool:
+        """Зафиксировать безопасную retryable или terminal ошибку task."""
+        ...
+
+    @abstractmethod
+    def backlog_snapshot(self) -> tuple[int, float, int]:
+        """Вернуть pending count, возраст старейшей команды и terminal failures."""
         ...

@@ -97,7 +97,11 @@ class TestMultiTenancyIsolation:
             json={**body, "account_id": _account_id(client, headers_b)})
         assert forged_context.status_code == 201
         assert forged_context.json()["data"]["account_id"] == _account_id(client, headers_a)
-        assert db_session.query(ContractModel).count() == 1
+        assert db_session.query(ContractModel).filter_by(
+            account_id=UUID(_account_id(client, headers_a)),
+            property_id=UUID(property_a),
+            tenant_id=UUID(tenant_a),
+        ).count() == 1
         assert db_session.query(TenantModel).filter_by(id=tenant_a).one().account_id == db_session.query(
             PropertyModel
         ).filter_by(id=property_a).one().account_id

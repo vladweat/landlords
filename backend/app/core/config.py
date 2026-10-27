@@ -1,6 +1,9 @@
 from typing import Literal
+from pathlib import Path
+from urllib.parse import quote
 
 from pydantic import field_validator
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -123,13 +126,36 @@ class Settings(BaseSettings):
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379
     REDIS_DB: int = 0
-    REDIS_PASSWORD: str | None = None
+    REDIS_KEY_PREFIX: str = "landlords:"
+    REDIS_USERNAME: str | None = None
+    REDIS_PASSWORD_FILE: str | None = None
+    REDIS_PASSWORD: SecretStr | None = None  # локальная совместимость; production uses a file
+
+    def _get_redis_password(self) -> str | None:
+        if self.REDIS_PASSWORD_FILE:
+            try:
+                password = Path(self.REDIS_PASSWORD_FILE).read_text(encoding="utf-8").strip()
+            except OSError:
+                raise RuntimeError("Unable to read Redis password file") from None
+            if not password:
+                raise RuntimeError("Redis password file is empty")
+            return password
+        if self.REDIS_PASSWORD is not None:
+            return self.REDIS_PASSWORD.get_secret_value()
+        return None
     
     @property
     def REDIS_URL(self) -> str:
-        if self.REDIS_PASSWORD:
-            return f"redis://:{self.REDIS_PASSWORD}@{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
-        return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
+        password = self._get_redis_password()
+        if self.REDIS_USERNAME and not password:
+            raise RuntimeError("Redis username is configured without a password")
+        credentials = ""
+        if password:
+            if self.REDIS_USERNAME:
+                credentials = f"{quote(self.REDIS_USERNAME, safe='')}:{quote(password, safe='')}@"
+            else:
+                credentials = f":{quote(password, safe='')}@"
+        return f"redis://{credentials}{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
     
     # ==================== Celery ====================
     
@@ -137,6 +163,15 @@ class Settings(BaseSettings):
     CELERY_TASK_SOFT_TIME_LIMIT: int = 300  # 5 минут
     CELERY_TASK_TIME_LIMIT: int = 600  # 10 минут
     CELERY_WORKER_MAX_TASKS_PER_CHILD: int = 1000  # Перезапуск воркера после N задач
+
+    # ==================== Transactional outbox ====================
+    OUTBOX_RELAY_POLL_SECONDS: float = 2.0
+    OUTBOX_RELAY_BATCH_SIZE: int = 50
+    OUTBOX_RELAY_LEASE_SECONDS: int = 300
+    OUTBOX_RELAY_MAX_ATTEMPTS: int = 12
+    OUTBOX_RELAY_BASE_BACKOFF_SECONDS: float = 2.0
+    OUTBOX_RELAY_MAX_BACKOFF_SECONDS: int = 300
+    OUTBOX_TASK_MAX_FAILURES: int = 5
     
     # ==================== Logging ====================
     
@@ -161,8 +196,11 @@ def _validate_production_settings(config: Settings) -> None:
         )
     if config.SMTP_TLS_MODE == "none":
         raise RuntimeError("SMTP_TLS_MODE=none is forbidden in production.")
-    if not (config.REDIS_PASSWORD or "").strip():
-        raise RuntimeError("REDIS_PASSWORD must be set in production.")
+    if not (config.REDIS_USERNAME or "").strip():
+        raise RuntimeError("REDIS_USERNAME must be set in production.")
+    if not (config.REDIS_PASSWORD_FILE or "").strip():
+        raise RuntimeError("REDIS_PASSWORD_FILE must be set in production.")
+    config._get_redis_password()
 
 
 _validate_production_settings(settings)

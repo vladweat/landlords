@@ -34,14 +34,31 @@ Beat schedule находится только в коде; persistent scheduler 
 
 ## Tasks и гарантии
 
-### `generate_charges_for_contract(account_id, contract_id)`
+### `generate_charges_for_contract(account_id, contract_id, outbox_id)`
 
 Создаёт repositories/session, вызывает `RentChargeService.create_charges_batch`,
-commit. Повтор должен быть безопасен за счёт проверки существующих периодов в
-service/repository и DB unique constraint
-`(account_id, contract_id, period_start, period_end)`; task idempotency key не
-используется. Retry ограничен SQLAlchemy `OperationalError`, максимум 3, с
-backoff; task limits 120/180 секунд.
+и обновляет `task_outbox.completed_at` в одной транзакции. Завершённый outbox ID
+делает повтор no-op; уникальность периода
+`(account_id, contract_id, period_start, period_end)` дополнительно защищает
+финансовые записи. Старые Redis messages без `outbox_id` временно обрабатываются
+как legacy deliveries до drain очереди.
+
+### Transactional outbox
+
+Bulk/single charge-generation endpoints и активация договора записывают
+allow-listed `generate_charges_for_contract` command в `task_outbox` внутри
+request transaction. HTTP возвращает UUID outbox как стабильный Celery `task_id`.
+Отдельный Compose process `outbox-relay` использует bounded
+`FOR UPDATE SKIP LOCKED` claims и expiring leases, затем публикует вне DB
+transaction. Broker failure получает ограниченный exponential backoff с
+jitter; после лимита запись сохраняется как terminal failure.
+
+Публикация at-least-once, не exactly-once: падение relay после publish может
+создать duplicate delivery. Worker сверяет account/contract scope, а бизнес
+эффект и completion marker коммитит атомарно. Если Redis теряет queued message,
+не завершённая строка становится доступна после lease и будет опубликована
+снова. Relay пишет в лог pending count, возраст старейшей команды и число
+terminal failures; payload и credentials в лог не попадают.
 
 ### Bulk tasks
 
@@ -82,10 +99,14 @@ business data; очистка Redis теряет heartbeat, locks, dedup и Cele
 ```mermaid
 sequenceDiagram
   participant API
+  participant DB as PostgreSQL outbox
+  participant Relay
   participant Redis
   participant Worker
   participant DB
-  API->>Redis: enqueue task
+  API->>DB: insert command in request transaction
+  DB->>Relay: claim rows with lease
+  Relay->>Redis: publish outside DB transaction
   Redis->>Worker: deliver
   Worker->>DB: open Session, read/write
   alt success

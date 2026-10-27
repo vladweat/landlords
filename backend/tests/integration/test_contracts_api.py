@@ -2,11 +2,12 @@
 
 from datetime import date, timedelta
 from decimal import Decimal
-from unittest.mock import MagicMock, patch
+from uuid import UUID
 
 from fastapi.testclient import TestClient
 
 from tests.integration.conftest import property_payload
+from app.db.models.outbox_message_model import OutboxMessageModel
 
 
 def _create_property(client, headers, street="Тестовая"):
@@ -181,7 +182,7 @@ class TestContractsCRUD:
 
 
 class TestGenerateChargesBulk:
-    def test_enqueue_active_skip_draft(self, client: TestClient, auth_headers):
+    def test_enqueue_active_skip_draft(self, client: TestClient, auth_headers, db_session):
         """Активный — в очередь, черновик — skipped."""
         property_id = _create_property(client, auth_headers, "BulkGen")
         tenant_id = _create_tenant(client, auth_headers, "BulkGen Tenant")
@@ -223,36 +224,34 @@ class TestGenerateChargesBulk:
             headers=auth_headers,
         )
 
-        mock_result = MagicMock()
-        mock_result.id = "task-bulk-1"
-        with patch("app.celery_app.celery_app.send_task", return_value=mock_result) as mock_task:
-            resp = client.post(
-                "/v1/contracts/generate-charges-bulk",
-                json={"contract_ids": [active_id, draft_id]},
-                headers=auth_headers,
-            )
+        resp = client.post(
+            "/v1/contracts/generate-charges-bulk",
+            json={"contract_ids": [active_id, draft_id]},
+            headers=auth_headers,
+        )
 
         assert resp.status_code == 200
         data = resp.json()["data"]
         assert len(data["enqueued"]) == 1
         assert data["enqueued"][0]["contract_id"] == active_id
-        assert data["enqueued"][0]["task_id"] == "task-bulk-1"
+        task_id = UUID(data["enqueued"][0]["task_id"])
+        row = db_session.get(OutboxMessageModel, task_id)
+        assert row is not None
+        assert str(row.contract_id) == active_id
+        assert row.task_name == "app.tasks.charge_tasks.generate_charges_for_contract"
         assert len(data["skipped"]) == 1
         assert data["skipped"][0]["contract_id"] == draft_id
         assert "invalid_status:draft" in data["skipped"][0]["reason"]
-        mock_task.assert_called_once()
 
     def test_skip_not_found(self, client: TestClient, auth_headers):
         """Несуществующий договор — skipped."""
         missing = "00000000-0000-0000-0000-000000000000"
-        with patch("app.celery_app.celery_app.send_task") as mock_task:
-            resp = client.post(
-                "/v1/contracts/generate-charges-bulk",
-                json={"contract_ids": [missing]},
-                headers=auth_headers,
-            )
+        resp = client.post(
+            "/v1/contracts/generate-charges-bulk",
+            json={"contract_ids": [missing]},
+            headers=auth_headers,
+        )
         assert resp.status_code == 200
         data = resp.json()["data"]
         assert data["enqueued"] == []
         assert data["skipped"][0]["reason"] == "not_found"
-        mock_task.assert_not_called()

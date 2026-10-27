@@ -1,6 +1,7 @@
 """Интеграционные тесты RBAC и команды аккаунта."""
 
 from datetime import date, timedelta
+from uuid import UUID
 
 from fastapi.testclient import TestClient
 
@@ -131,7 +132,13 @@ class TestTeamMembers:
             "rent_amount": "10000", "payment_day": 5,
         })
         assert contract_response.status_code == 403
-        assert db_session.query(ContractModel).count() == 0
+        account_response = client.get("/v1/auth/me", headers=auth_headers)
+        account_id = UUID(account_response.json()["data"]["account"]["id"])
+        assert db_session.query(ContractModel).filter_by(
+            account_id=account_id,
+            property_id=UUID(property_id),
+            tenant_id=UUID(tenant_id),
+        ).count() == 0
 
     def test_manager_can_create_property_not_team(self, client: TestClient, auth_headers):
         accepted = _invite_and_accept(

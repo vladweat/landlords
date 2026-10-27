@@ -1,15 +1,17 @@
 """Celery tasks for rent charges."""
 
-from uuid import UUID
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
+from uuid import UUID
 
 from celery import shared_task
 from celery.utils.log import get_task_logger
 from sqlalchemy.exc import OperationalError
 
+from app.core.config import settings
 from app.tasks.lock import RedisLock
 from app.db.repositories.contract_repo import ContractRepository
+from app.db.repositories.outbox_message_repo import OutboxMessageRepository
 from app.db.repositories.payment_repo import PaymentRepository
 from app.db.repositories.rent_charge_repo import RentChargeRepository
 from app.db.session import SessionLocal
@@ -29,7 +31,9 @@ logger = get_task_logger(__name__)
     # retry only for transient DB/connection errors
     autoretry_for=(OperationalError,),
 )
-def generate_charges_for_contract(account_id: str, contract_id: str) -> dict[str, Any]:
+def generate_charges_for_contract(
+    account_id: str, contract_id: str, outbox_id: str | None = None
+) -> dict[str, Any]:
     """Generate charges for a contract (idempotent)."""
     logger.info(
         "Generating charges for contract account_id=%s contract_id=%s",
@@ -37,8 +41,23 @@ def generate_charges_for_contract(account_id: str, contract_id: str) -> dict[str
         contract_id,
     )
 
+    message_id = UUID(outbox_id) if outbox_id is not None else None
     session = SessionLocal()
     try:
+        outbox_repo = OutboxMessageRepository(session) if message_id else None
+        if outbox_repo:
+            message = outbox_repo.get_for_update(message_id, UUID(account_id))
+            if message is None:
+                raise LookupError("Outbox message does not exist")
+            if message.account_id != UUID(account_id) or message.contract_id != UUID(contract_id):
+                raise ValueError("Outbox message does not match charge task scope")
+            if message.task_name != "app.tasks.charge_tasks.generate_charges_for_contract":
+                raise ValueError("Outbox message task is not allow-listed")
+            if message.status == "completed":
+                return {"status": "already_completed", "outbox_id": outbox_id}
+            if message.status == "failed":
+                return {"status": "terminal_failure", "outbox_id": outbox_id}
+
         charge_repo = RentChargeRepository(session)
         payment_repo = PaymentRepository(session)
         contract_repo = ContractRepository(session)
@@ -49,6 +68,8 @@ def generate_charges_for_contract(account_id: str, contract_id: str) -> dict[str
             contract_id=UUID(contract_id),
         )
 
+        if outbox_repo and message_id:
+            outbox_repo.mark_completed(message_id, UUID(account_id))
         session.commit()
 
         logger.info(
@@ -57,11 +78,42 @@ def generate_charges_for_contract(account_id: str, contract_id: str) -> dict[str
             len(charges),
         )
 
-        return {"status": "success", "contract_id": contract_id, "charges_created": len(charges)}
+        return {
+            "status": "success",
+            "contract_id": contract_id,
+            "charges_created": len(charges),
+            "outbox_id": outbox_id,
+        }
 
-    except Exception:
+    except Exception as exc:
         session.rollback()
-        logger.exception("Failed to generate charges contract_id=%s", contract_id)
+        if message_id:
+            failure_session = SessionLocal()
+            try:
+                OutboxMessageRepository(failure_session).record_task_failure(
+                    message_id,
+                    UUID(account_id),
+                    type(exc).__name__,
+                    settings.OUTBOX_TASK_MAX_FAILURES,
+                    datetime.now(timezone.utc) + timedelta(seconds=180),
+                )
+                failure_session.commit()
+            except Exception:
+                failure_session.rollback()
+                logger.error(
+                    "Failed to persist outbox task failure outbox_id=%s error_type=%s",
+                    outbox_id,
+                    type(exc).__name__,
+                )
+            finally:
+                failure_session.close()
+            logger.error(
+                "Failed to generate outbox charges outbox_id=%s error_type=%s",
+                outbox_id,
+                type(exc).__name__,
+            )
+        else:
+            logger.exception("Failed to generate charges contract_id=%s", contract_id)
         raise
     finally:
         session.close()

@@ -1,51 +1,53 @@
 # Технический долг и риски
 
-Дата статического аудита: 21 октября 2026. Severity отражает потенциальное
-влияние, а не подтверждённый production incident. «Риск» требует runtime/load
-verification; «дефект» непосредственно следует из кода.
+Группировка обновлена 27 октября 2026. Раздел «Закрытые» содержит исправленные
+пункты с подтверждением в коде или проверках. Результаты прежних прогонов
+перенесены из реестра; в этой редакции повторно выполнены только Redis ACL checks.
+В разделе «Остаются в проекте» собраны действующие ограничения, частично
+решённые вопросы и непроверенные эксплуатационные сценарии. Уровень показывает
+потенциальное влияние, а не подтверждённый production incident.
 
-| Severity | Компонент | Тип | Evidence | Влияние и рекомендация |
+## Закрытые пункты
+
+| Уровень | Компонент | Что закрыто | Подтверждение |
+|---|---|---|---|
+| Medium | Readiness: утечка DB session | Сессия закрывается и при ошибке DB probe. | `backend/app/main.py:readiness` использует `with SessionLocal()`; `tests/unit/test_readiness.py::test_readiness_closes_session_when_database_probe_fails` проверяет закрытие при ошибке. Целевой прогон прошёл. Нагрузочная проверка production readiness не выполнялась. |
+| Medium | Redis ACL: аутентификация и key/channel scope | Ролевые ACL развернуты и проверены для API, worker и Flower. | Gated integration tests прошли для каждой identity (2 теста); Celery ping — `pong`, API `/ready` — `200`, Flower EventReceiver capture прошёл; свежих ACL ошибок в логах нет. Установленный Kombu добавляет `landlords:` к Pub/Sub patterns. Сужение команд Redis вынесено в открытый риск ниже. |
+| Low | OpenAPI exposure | OpenAPI, Swagger и ReDoc выключены при `DEBUG=false`. | `backend/app/main.py` задаёт `openapi_url=None` для production-like режима; `tests/unit/test_openapi_exposure.py` проверяет production-like и debug режимы. |
+| Low | Config drift: `LOG_FORMAT` | Удалена неиспользуемая настройка и обновлены ссылки в документации. | `LOG_FORMAT` отсутствует в Settings и `.env.example`; поиск находит имя только в этом реестре. Логи остаются в stdout/stderr с форматом библиотек. |
+
+## Риски, остающиеся в проекте
+
+| Уровень | Компонент | Статус | Подтверждение | Влияние и следующий шаг |
 |---|---|---|---|---|
-| High | Deployment security | Риск | `nginx/nginx.conf` слушает только 80; base Compose публикует `80:80` | TLS завершает внешний ingress; до public go-live требуется проверить HTTPS redirect, HSTS, приватность origin и redaction URL tokens в ingress logs. |
-| High | Multi-tenancy | Риск | `app/api/deps.py:get_current_membership`; tenant filters распределены по `db/repositories/*` | RLS/центрального query scope нет: пропущенный `account_id` способен раскрыть данные. Добавить систематические cross-tenant integration tests и рассмотреть scoped repository/RLS. |
-| High | Reproducibility | Подтверждено | `backend/requirements.txt` почти полностью без version pins | Online build со временем получает иной dependency graph и может сломаться/получить уязвимую версию. Ввести lock/constraints и controlled update process. |
-| Medium | Readiness | Закрыто; unit-проверка прошла | `app/main.py:readiness` использует `with SessionLocal()`; `tests/unit/test_readiness.py::test_readiness_closes_session_when_database_probe_fails` проверяет закрытие при ошибке; целевой прогон прошёл | DB session закрывается при ошибке probe. Runtime load/failure поведение production отдельно не проверялось. |
-| Medium | Transactions/scale | Частично закрыто | PaymentService блокирует contract → charges → advances; rent charges имеют unique period constraint; PostgreSQL scenarios в `tests/integration/test_financial_concurrency.py` прошли | Locks защищают реализованные service paths; прямые SQL mutations в обход сервисов остаются вне гарантии. |
-| Medium | YooKassa reconciliation | Ограничено API retention | Renewal сохраняет start time и ищет платёж по account/period metadata; YooKassa list API ограничен историей 3 года | Если неизвестная попытка старше доступной истории, renewal остаётся `unknown` без нового списания; требуется ручная сверка. При недоступности API повтор также ждёт успешного reconciliation. |
-| Medium | Task delivery | Риск | `celery_app.py`: late ack; enqueue и PostgreSQL commit не объединены; outbox отсутствует | Возможны повтор/пропуск на crash boundary. Сделать все enqueue use cases идемпотентными; для критичных событий рассмотреть transactional outbox. |
-| Medium | Celery retries | Unit-проверки прошли; worker-level retry не проверялся | `charge_tasks.update_overdue_charges` ограничен `OperationalError`; `email_tasks.send_daily_reminder_emails` включает `TransientEmailDeliveryError` в `autoretry_for`; целевые проверки retry policy, email dedup и lock прошли (`8 passed`) | Политика ограничивает retry временными DB/SMTP сбоями; бизнес-ошибки не включены. Фактические повторные запуски Celery worker и backoff не проверялись интеграционно. |
-| Medium | File/email durability | Ограничено dev | `email_service.py:_write_file` пишет `storage/emails`; Compose монтирует documents/status, не emails | File fallback работает только вне production и может теряться с container. Production startup требует provider и TLS; readiness не проверяет доступность удалённого SMTP. |
-| Medium | Backup/recovery | Пробел | `docs/deploy.md` содержит ручные команды; automation/CI restore drill отсутствуют | Нельзя подтвердить RPO/RTO и восстанавливаемость. Автоматизировать dump, encryption, off-host copy, retention и периодический restore test. |
-| Medium | Observability | Пробел | `/metrics` есть; Compose не содержит Prometheus/Alertmanager/log rotation; beat healthcheck disabled | Incident detection зависит от ручных проверок/Sentry/email. Определить scrape/alerts, retention и owner. |
-| Medium | Redis hardening | Частично закрыто; unit и Compose config прошли | Compose конфигурирует server-side `requirepass` при заданном `REDIS_PASSWORD`, передаёт его API/worker/beat; production startup требует пароль; `docker compose config --quiet` и unit-проверки прошли | Живое Redis AUTH не запускалось; TLS и фактическая production topology требуют отдельной проверки. |
-| Medium | API process model | Подтверждено | Docker CMD запускает один uvicorn process; `gunicorn` установлен, но не используется | Один process ограничивает concurrency и создаёт single process failure domain. Нагрузочно проверить и выбрать явную worker/restart strategy. |
-| Medium | CSRF/topology | Ограничено topology | Cookie auth на unsafe methods проверяет `Origin` по `FRONTEND_URL`; synchronizer token отсутствует; state-changing contract PDF использует POST | Текущая same-origin схема зависит от Origin allowlist и `SameSite=Lax`. При смене public origin или cross-site frontend/API обновить policy и провести CSRF review; ingress должен сохранять browser origin. |
-| Medium | Public token lifecycle | Частично ограничено временем | Invite token имеет expiry/revoke; invoice token истекает через 90 дней; portal token — через 2 часа; оба можно перевыпустить | Любой получатель capability URL может открыть данные до истечения срока. Внешний ingress и analytics должны не сохранять token-bearing URL. |
-| Low | API consistency | Подтверждено | `api/responses.py` задаёт envelope, но `routes/auth.py` имеет ответы только с `message` или top-level token/user | Клиентам сложнее иметь единый error/success contract. Унифицировать постепенно с versioned compatibility. |
-| Low | OpenAPI exposure | Закрыто; unit-проверка прошла | `main.py` отключает docs/redoc/openapi при `DEBUG=false`; `tests/unit/test_openapi_exposure.py` проверяет production-like и debug режимы | Schema недоступна в production-like конфигурации; developer docs остаются доступны при `DEBUG=true`. |
-| Low | Module coupling | Подтверждено | `api/deps.py`, `services/contract_service.py`, `routes/contracts.py` агрегируют много domains | Изменения имеют широкий blast radius. Делить по bounded feature при следующем функциональном изменении, без rewrite. |
-| Low | Config drift | Закрыто; статическая проверка прошла | `LOG_FORMAT` удалён из `Settings` и `.env.example`; ссылки в config/monitoring docs обновлены; `rg` находит имя только в этой записи реестра | Неиспользуемая настройка больше не обещает JSON формат; логирование остаётся в stdout/stderr с форматом библиотек. |
-
-## Coverage gaps
-
-Integration tests покрывают основные resources, RBAC, invoices/portal и
-billing, включая добавленные сценарии финансовой конкурентности. Новый
-financial concurrency module проверен на PostgreSQL. По inventory отсутствуют отдельные integration suites для
-reminders, feedback, reports/export formats, notifications и полного
-password-reset/email delivery. Task tests сосредоточены на charge tasks; beat
-schedule, email и ops tasks требуют дополнительных failure/retry tests.
+| High | Deployment security | Зависит от внешней топологии | `nginx/nginx.conf` слушает порт 80; base Compose публикует `80:80`. | До публичного запуска проверить HTTPS redirect, HSTS, приватность origin, закрытие прямых API/DB/Redis ports и redaction URL tokens в ingress logs. TLS termination внешним ingress пока является предположением. |
+| High | Multi-tenancy | Частично закрыто | `tests/integration/test_multi_tenacy.py` проверяет foreign IDs и основные API paths для tenants, contracts/ledger, documents, charges/payments/invoices и exports; в реестре зафиксирован полный прогон `124 passed`. | Проверенные API paths scoped, но RLS/центрального query scope на уровне БД нет. Расширять cross-tenant проверки для новых ресурсов; отдельно оценить DB-level isolation. |
+| High | Dependency reproducibility | Частично закрыто; clean CI build остаётся контрольной точкой | `backend/requirements.lock` содержит pinned dependencies; CI и `backend/Dockerfile` используют lock. Resolver dry-run, `pip check` и `236` unit/task tests прошли в текущем Linux API-контейнере; чистую установку на VM проверить не удалось из-за отсутствия DNS/PyPI. | Подтвердить сборку backend image в CI и периодически проверять чистую установку из lock. |
+| Medium | Transactions/scale | Частично закрыто | PaymentService блокирует contract → charges → advances; rent charges имеют unique period constraint; PostgreSQL scenarios в `tests/integration/test_financial_concurrency.py` прошли. | Locks защищают реализованные service paths; прямые SQL mutations в обход сервисов не входят в гарантию. Новые денежные paths включать в concurrency tests. |
+| Medium | YooKassa reconciliation | Ограничено сроком хранения API | Renewal сохраняет start time и ищет платёж по account/period metadata; [списки платежей ЮKassa содержат платежи за последние 3 года](https://yookassa.ru/developers/using-api/lists). | Неизвестная попытка старше доступной истории остаётся `unknown` без нового списания и требует ручной сверки. При недоступности API повтор ждёт успешного reconciliation. |
+| Medium | Task delivery | Реализовано; live dispatch не подтверждён | Transactional outbox реализован в `services/task_outbox_service.py`, `services/outbox_relay.py` и миграции `task_outbox`; unit и PostgreSQL integration проверки прошли. Live relay опрашивал PostgreSQL и сообщал `claimed=0`. | В live БД не было eligible outbox rows, поэтому реальную публикацию через Celery не проверили. Проверить в staging безопасной тестовой задачей; не создавать тестовое бизнес-событие в рабочей БД. |
+| Medium | Celery retries | Unit-проверки прошли; worker-level retry не подтверждён | `charge_tasks.update_overdue_charges` ограничен `OperationalError`; `email_tasks.send_daily_reminder_emails` включает `TransientEmailDeliveryError` в `autoretry_for`; проверки retry policy, email dedup и lock прошли (`8 passed`). | Интеграционно проверить повторные запуски worker и backoff на временных DB/SMTP ошибках. Бизнес-ошибки в retry не включать без отдельного обоснования. |
+| Medium | File/email durability | Ограничено dev | `email_service.py:_write_file` пишет в `storage/emails`; Compose не монтирует этот каталог как постоянное хранилище. | File fallback может потеряться вместе с контейнером и не предназначен для production. Production требует provider и TLS; readiness не проверяет доступность SMTP. |
+| Medium | Backup/recovery | Пробел | `docs/deploy.md` содержит ручные команды; автоматизированного backup/restore drill в CI нет. | Подтвердить RPO/RTO автоматизацией dump, encryption, off-host copy, retention и периодическим restore test. |
+| Medium | Observability | Пробел | `/metrics` реализован; Compose не включает Prometheus/Alertmanager/log rotation; healthcheck Celery beat отключён. | Incident detection зависит от ручных проверок/Sentry/email. Определить scrape, alerts, retention, healthcheck и ответственных. |
+| Medium | Redis ACL: command scope | Остаётся широким | Генератор ACL задаёт `+@all -@admin -@dangerous` для worker/Flower и `+@read +@write +@connection -@admin -@dangerous` для API; key/channel selectors ограничивают доступ к данным. | Перейти к проверенному allowlist конкретных команд, если совместимость используемых Redis/Celery путей позволяет; расширять права только по результатам smoke tests. |
+| Medium | API process model | Стратегия выбрана; нагрузкой не подтверждена | `backend/Dockerfile` запускает один Uvicorn process на API container; настройки задают `DB_POOL_SIZE=20`, `DB_MAX_OVERFLOW=40`, PostgreSQL `max_connections=100`. | До запуска нескольких replicas проверить memory/connection limits под нагрузкой, уменьшить pool budget на instance и настроить scrape каждой replica. |
+| Medium | CSRF/topology | Ограничено same-origin схемой | Cookie auth на unsafe methods проверяет `Origin` по `FRONTEND_URL`; synchronizer token отсутствует; contract PDF использует POST. | При смене public origin или cross-site frontend/API пересмотреть CSRF policy. Ingress должен сохранять browser Origin. |
+| Medium | Public token lifecycle | Частично ограничено временем | Invite token имеет expiry/revoke; invoice token истекает через 90 дней; portal token — через 2 часа; их можно перевыпустить. | Получатель capability URL имеет доступ до истечения срока. Не сохранять token-bearing URL во внешнем ingress и analytics; при необходимости сокращать TTL/revoke. |
+| Low | API consistency | Подтверждённое ограничение | `api/responses.py` задаёт envelope, но `routes/auth.py` также возвращает ответы только с `message` или top-level token/user. | Унифицировать постепенно с сохранением versioned compatibility. |
+| Low | Module coupling | Подтверждённое ограничение | `api/deps.py`, `services/contract_service.py`, `routes/contracts.py` агрегируют много domains. | Изменения имеют широкий blast radius. Разделять по bounded feature при следующем функциональном изменении, без rewrite. |
+| Medium | Test coverage | Неполное покрытие | Отдельные integration suites отсутствуют для reminders, feedback, reports/export formats, notifications и полного password-reset/email delivery. Task tests сосредоточены на charge tasks. | Добавлять тесты по мере изменения соответствующих путей; для Celery отдельно покрыть beat schedule, email и ops failure/retry scenarios. |
 
 ## Устаревший исторический долг
 
 `backend/ARCHITECTURE.md` и `backend/TODO.md` полезны как review history, но
 часть пунктов уже исправлена (HttpOnly cookie, полный CI, online image). Для
-новой приоритизации использовать эту таблицу и сверять каждый пункт с кодом.
+новой приоритизации использовать разделы выше и сверять каждый пункт с кодом.
 
 ## Приоритет действий
 
-1. До публичного запуска: TLS, secrets, закрытие direct API/DB/Redis ports,
-   restore drill.
-2. Зафиксировать Python dependencies и подтвердить build reproducibility.
-3. Закрыть readiness Session leak и формализовать Celery retry/idempotency.
-4. Расширить cross-tenant/RBAC tests и concurrency analysis денежных use cases.
-5. Подключить metrics/alerts/log retention; определить SLO/RPO/RTO.
+1. До публичного запуска: проверить TLS/topology/secrets и провести restore drill.
+2. Сузить Redis command permissions и усилить cross-tenant проверки, включая оценку DB-level isolation.
+3. В staging проверить outbox dispatch и Celery retry/backoff на безопасных сценариях.
+4. Подтвердить воспроизводимую backend image build из lock в CI; выполнять нагрузочную проверку pool/process модели до масштабирования.
+5. Подключить metrics/alerts/log retention и определить SLO/RPO/RTO и владельцев.

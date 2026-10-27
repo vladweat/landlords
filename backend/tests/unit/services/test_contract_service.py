@@ -27,8 +27,12 @@ def contract_service(mock_contract_repo):
     property_repo.get_by_id.return_value = object()
     tenant_repo = Mock()
     tenant_repo.get_by_id.return_value = object()
+    task_outbox_service = Mock()
     return ContractService(
-        mock_contract_repo, property_repo=property_repo, tenant_repo=tenant_repo
+        mock_contract_repo,
+        task_outbox_service=task_outbox_service,
+        property_repo=property_repo,
+        tenant_repo=tenant_repo,
     )
 
 
@@ -148,8 +152,9 @@ class TestUpdateContract:
         # Мокаем charge_repo
         contract_service.charge_repo = Mock()
 
-        with patch("app.celery_app.celery_app.send_task") as mock_task:
-            dto = ContractUpdateDTO(status="active")
-            result = contract_service.update_contract(contract_id, account_id, dto)
-            assert result.status == "active"
-            mock_task.assert_called_once()
+        dto = ContractUpdateDTO(status="active")
+        result = contract_service.update_contract(contract_id, account_id, dto)
+        assert result.status == "active"
+        contract_service.task_outbox_service.enqueue_charge_generation.assert_called_once_with(
+            account_id, contract_id
+        )

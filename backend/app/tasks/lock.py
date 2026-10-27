@@ -19,7 +19,7 @@ class RedisLock:
     """
 
     def __init__(self, name: str, ttl: int = 600) -> None:
-        self.name = f"locks:{name}"
+        self.name = f"{settings.REDIS_KEY_PREFIX}locks:{name}"
         self.ttl = ttl
         self._client: Optional[redis.Redis] = None
         self._lock: Optional[redis.lock.Lock] = None

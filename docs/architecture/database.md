@@ -57,7 +57,7 @@ erDiagram
 | Rental | `properties`, `tenants`, `contracts`, `contract_templates` | Объекты, арендаторы и договоры; portal token хранится с двухчасовым сроком действия |
 | Money | `rent_charges`, `payments`, `property_expenses`, `invoices`, `payment_claims` | Начисления, касса, расходы, публичные квитанции/claims |
 | Documents | `documents` | Метаданные файлов; содержимое хранится на диске |
-| Operations | `reminders`, `email_dispatch_log`, `notification_dismissals` | Дедупликация и пользовательские состояния |
+| Operations | `reminders`, `email_dispatch_log`, `notification_dismissals`, `task_outbox` | Дедупликация, пользовательские состояния и durable background commands |
 | Audit | `contract_events`, `audit_logs`, `feedback` | История и обратная связь |
 
 `account_memberships` имеет unique `(account_id, user_id)` и unique `user_id`,
@@ -93,6 +93,9 @@ production cardinality в репозитории не зафиксированы
 
 - HTTP: `get_db_session` commit/rollback на весь request.
 - Celery: task создаёт `SessionLocal` и явно commit/rollback.
+- Charge-generation outbox row записывается с request mutation; relay делает
+  bounded leased claims, но публикует в Redis после commit claim. Начисления и
+  outbox completion marker фиксируются одной task transaction.
 - Bulk scheduled tasks используют Redis locks с TTL 600 секунд.
 - Генерация начислений защищена unique constraint
   `(account_id, contract_id, period_start, period_end)` и PostgreSQL

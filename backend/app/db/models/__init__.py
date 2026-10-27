@@ -12,6 +12,7 @@ from app.db.models.feedback_model import FeedbackModel
 from app.db.models.invoice_model import InvoiceModel
 from app.db.models.membership_model import MembershipModel
 from app.db.models.notification_dismissal_model import NotificationDismissalModel
+from app.db.models.outbox_message_model import OutboxMessageModel
 from app.db.models.payment_claim_model import PaymentClaimModel
 from app.db.models.payment_model import PaymentModel
 from app.db.models.property_expense_model import PropertyExpenseModel
@@ -43,5 +44,6 @@ __all__ = [
     "EmailDispatchLogModel",
     "InvoiceModel",
     "NotificationDismissalModel",
+    "OutboxMessageModel",
     "ContractTemplateModel",
 ]

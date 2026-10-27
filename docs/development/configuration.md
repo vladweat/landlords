@@ -50,18 +50,53 @@ placeholder. Значения из `.env.example` являются только 
 | `REDIS_HOST` | `localhost` | Redis hostname |
 | `REDIS_PORT` | `6379` | port |
 | `REDIS_DB` | `0` | logical DB |
-| `REDIS_PASSWORD` | unset | secret; передаётся приложению и Redis, добавляется в URL |
+| `REDIS_USERNAME` | unset | именованная Redis ACL identity; Compose задаёт отдельно для каждого service |
+| `REDIS_PASSWORD_FILE` | unset | path к read-only secret file; содержимое не читается в logs |
+| `REDIS_KEY_PREFIX` | `landlords:` | namespace для Celery, locks и ops keys |
 | `CELERY_TASK_DEFAULT_QUEUE` | `default` | queue |
 | `CELERY_TASK_SOFT_TIME_LIMIT` | `300` | seconds |
 | `CELERY_TASK_TIME_LIMIT` | `600` | seconds |
 | `CELERY_WORKER_MAX_TASKS_PER_CHILD` | `1000` | recycle threshold |
 
+Transactional outbox управляется отдельным `outbox-relay` process. Terminal
+failure rows сохраняются для операторской проверки.
+
+| Переменная | Default | Назначение |
+|---|---:|---|
+| `OUTBOX_RELAY_POLL_SECONDS` | `2` | Интервал опроса PostgreSQL |
+| `OUTBOX_RELAY_BATCH_SIZE` | `50` | Верхняя граница одной claim-пачки |
+| `OUTBOX_RELAY_LEASE_SECONDS` | `300` | Срок claim до повтора dispatch |
+| `OUTBOX_RELAY_MAX_ATTEMPTS` | `12` | Предел брокерных dispatch attempts |
+| `OUTBOX_RELAY_BASE_BACKOFF_SECONDS` | `2` | Базовая экспоненциальная задержка с jitter |
+| `OUTBOX_RELAY_MAX_BACKOFF_SECONDS` | `300` | Верхняя граница backoff |
+| `OUTBOX_TASK_MAX_FAILURES` | `5` | Число task failures до terminal failure |
+
 `REDIS_URL`, broker и result backend вычисляются; отдельные
 `CELERY_BROKER_URL`/`CELERY_RESULT_BACKEND` не используются.
 
-Compose включает Redis `requirepass`, если задан `REDIS_PASSWORD`, и передаёт
-это значение API, worker, beat и Redis. В production приложение отказывается
-запускаться без пароля. Локально переменную можно оставить пустой.
+Compose использует Redis 7 ACL file и отдельные host-only password files для
+API, worker/beat и Flower. Файл ACL хранит только SHA-256
+password hashes; raw passwords доступны приложению через read-only Docker
+secrets. Переменные `REDIS_ACL_FILE`, `REDIS_API_PASSWORD_FILE`,
+`REDIS_WORKER_PASSWORD_FILE` и `REDIS_FLOWER_PASSWORD_FILE` задают host paths
+в корневом `.env`.
+
+Создайте файлы с правами `0600`, сгенерируйте независимые случайные пароли и
+поместите их SHA-256 hashes в ACL file. Не копируйте их в репозиторий и не
+синхронизируйте между Windows и Ubuntu. ACL users: `landlords_api` имеет доступ
+к `landlords:ops:*`; worker/beat и Flower ограничены ключами `landlords:*` и
+каналами `landlords:/0.celery.pidbox` и `landlords:celery-task-meta-*`; worker
+дополнительно использует pattern `landlords:/0.celeryev/worker.*`, Flower —
+`landlords:/0.celeryev/*`. Kombu применяет
+`global_keyprefix=landlords:` и к ключам, и к аргументам Pub/Sub-команд; с
+Redis ACL pattern для `PSUBSCRIBE` должен совпадать с переданным channel pattern.
+При изменении `REDIS_KEY_PREFIX` передайте то же значение provision-скрипту через
+`--key-prefix` или переменную окружения;
+`landlords_health`
+имеет пустой пароль, key/channel access закрыт, разрешён только `PING`;
+`default` выключен. Production требует username и читаемый password file. Для локальной
+изолированной конфигурации вне production можно оставить credentials пустыми,
+если локальный Redis запущен без ACL.
 
 ## Email
 

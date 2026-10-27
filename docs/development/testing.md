@@ -2,7 +2,9 @@
 
 ## Backend
 
-CI использует Python 3.12 и устанавливает `backend/requirements.txt`.
+CI использует Python 3.12 и устанавливает `backend/requirements.lock`.
+`backend/requirements.txt` задаёт прямые зависимости; lock фиксирует их
+транзитивное Linux/Python 3.12 окружение.
 
 ```bash
 cd backend
@@ -26,6 +28,18 @@ services. Task tests проверяют Celery use cases/lock. Integration fixtu
 `ALLOW_PUBLIC_REGISTRATION` должен быть `true`: скопированный `.env.example`
 задаёт `false` и без override ломает setup тестов. Не направляйте suite на
 shared/production DB.
+
+После включения Redis ACL отдельную gated-проверку запускайте внутри Compose-сети
+под identity проверяемого сервиса:
+
+```bash
+RUN_REDIS_ACL_TESTS=true pytest -q tests/integration/test_redis_acl.py
+```
+
+Проверка подтверждает отказ для default/неверных credentials, доступ к
+разрешённым ключам и Pub/Sub channels, отказ за пределами ACL scope и чтение
+ответов `PSUBSCRIBE`. Запустите её отдельно для API и worker identity; Flower
+дополнительно проверяйте по capture worker events после старта.
 
 Запуск с Compose services:
 
@@ -70,6 +84,11 @@ dependency audit, migration downgrade, smoke Compose и deployment.
 `.pre-commit-config.yaml` локально запускает Ruff `--fix` и Black для backend;
 его правила шире CI и могут изменять файлы.
 
+Для обновления lock создай чистое Linux-окружение Python 3.12, установи в него
+`requirements.txt`, проверь `python -m pip check` и сохрани `pip freeze` в
+`requirements.lock`. После этого запусти unit/tasks и integration tests;
+изменения lock проходят через обычный CI до merge.
+
 ## Что проверять по типу изменения
 
 | Изменение | Минимум |
@@ -78,6 +97,7 @@ dependency audit, migration downgrade, smoke Compose и deployment.
 | Route/schema/auth | unit + integration endpoint |
 | Repository/model/migration | integration на Alembic head |
 | Celery task | `tests/tasks` + idempotency/retry scenario |
+| Transactional outbox | `tests/unit/services/test_outbox_relay.py`, `tests/integration/test_outbox_api.py`, `tests/integration/test_outbox_relay.py` |
 | Frontend API/type/component | Vitest + build |
 | Документация | relative links, paths, команды и config keys |
 

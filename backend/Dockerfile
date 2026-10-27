@@ -1,5 +1,5 @@
 # INSTALL_MODE=offline — COPY готового .venv (сборка без PyPI)
-# INSTALL_MODE=online  — pip install -r requirements.txt (CI / чистая машина)
+# INSTALL_MODE=online  — pip install -r requirements.lock (CI / чистая машина)
 # Без "# syntax=docker/dockerfile:1" — иначе build тянет frontend с Docker Hub.
 ARG INSTALL_MODE=offline
 
@@ -13,10 +13,10 @@ RUN useradd -m -u 1000 appuser
 FROM base AS deps-offline
 COPY .venv/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages/
 
-# --- online: установка из requirements.txt ---
+# --- online: установка из requirements.lock ---
 FROM base AS deps-online
-COPY backend/requirements.txt /tmp/requirements.txt
-RUN pip install --no-cache-dir -r /tmp/requirements.txt
+COPY backend/requirements.lock /tmp/requirements.lock
+RUN pip install --no-cache-dir -r /tmp/requirements.lock
 
 # Выбор режима: --build-arg INSTALL_MODE=offline|online
 FROM deps-${INSTALL_MODE} AS deps

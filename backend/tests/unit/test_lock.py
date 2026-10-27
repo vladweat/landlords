@@ -18,6 +18,7 @@ class FakeLock:
 
 class FakeRedis:
     def lock(self, name, timeout=None):
+        assert name.startswith("landlords:locks:")
         return FakeLock(name, timeout=timeout)
 
 

@@ -35,6 +35,8 @@ celery_app = Celery("app")
 celery_app.conf.update(
     broker_url=settings.REDIS_URL,
     result_backend=settings.REDIS_URL,
+    broker_transport_options={"global_keyprefix": settings.REDIS_KEY_PREFIX},
+    result_backend_transport_options={"global_keyprefix": settings.REDIS_KEY_PREFIX},
     task_default_queue=settings.CELERY_TASK_DEFAULT_QUEUE,
     task_soft_time_limit=settings.CELERY_TASK_SOFT_TIME_LIMIT,
     task_time_limit=settings.CELERY_TASK_TIME_LIMIT,

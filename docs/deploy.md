@@ -5,9 +5,10 @@
 
 ## Подготовка
 
-1. Скопируй [`.env.example`](../.env.example) в `backend/.env` и корневой `.env` (Compose читает из корневого файла `${DB_*}` и `REDIS_PASSWORD`).
-2. В `backend/.env` задай уникальный `SECRET_KEY`, `APP_ENV=production`, `DEBUG=false`, `ALLOW_PUBLIC_REGISTRATION=false`, email provider (`SMTP_HOST` или `RESEND_API_KEY`) и `SMTP_TLS_MODE=starttls` либо `ssl`. В корневом `.env` задай непустой `REDIS_PASSWORD`; Compose передаст его приложению и настроит Redis `requirepass`.
-3. Пароли Postgres/Redis — только из env; в prod-профиле порты БД на хост не публикуются (см. `docker-compose.yml` без override).
+1. Скопируй [`.env.example`](../.env.example) в `backend/.env` и корневой `.env`; Compose читает из корневого файла `${DB_*}` и пути к host-only Redis secrets.
+2. В `backend/.env` задай уникальный `SECRET_KEY`, `APP_ENV=production`, `DEBUG=false`, `ALLOW_PUBLIC_REGISTRATION=false`, email provider (`SMTP_HOST` или `RESEND_API_KEY`) и `SMTP_TLS_MODE=starttls` либо `ssl`.
+3. Создай отдельные Redis password files и ACL file согласно [configuration guide](development/configuration.md). Redis ACL file хранит hashes; passwords не передаются через env, Git, logs или синхронизацию.
+4. Пароли Postgres задаются env, Redis — secret files; в prod-профиле порты БД/Redis на host не публикуются (см. `docker-compose.yml` без override).
 
 Online-сборка образа API (CI / машина с PyPI):
 
@@ -48,6 +49,16 @@ curl -sf http://localhost/api/v1/  # или открыть SPA на http://local
 ```
 
 Миграции Alembic накатывает entrypoint сервиса `api` (`RUN_MIGRATIONS=1`). Worker и beat ждут healthy API.
+
+## Модель API процессов
+
+Каждый API container запускает один Uvicorn process. Масштабирование выполняй
+числом контейнеров за ingress/load balancer; не добавляй Gunicorn worker pool в
+образ. При этой модели Prometheus собирает обычные process-local `/metrics` с
+каждой replica, multiprocess mode не нужен. Перед запуском нескольких replicas
+настрой обнаружение всех контейнеров в ingress и рассчитай PostgreSQL pool на
+число экземпляров: текущие `DB_POOL_SIZE=20` и `DB_MAX_OVERFLOW=40` дают до 60
+соединений на process при `max_connections=100`.
 
 Showcase-демо (портфолио / самопроверка; на публичном VPS смени пароль):
 

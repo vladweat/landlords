@@ -32,8 +32,11 @@ services:
     environment:
       DB_HOST: postgres
       REDIS_HOST: redis
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      REDIS_USERNAME: landlords_api
+      REDIS_PASSWORD_FILE: /run/secrets/redis_api_password
       RUN_MIGRATIONS: "1"
+    secrets:
+      - redis_api_password
     depends_on:
       postgres:
         condition: service_healthy
@@ -64,7 +67,10 @@ services:
     environment:
       DB_HOST: postgres
       REDIS_HOST: redis
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      REDIS_USERNAME: landlords_worker
+      REDIS_PASSWORD_FILE: /run/secrets/redis_worker_password
+    secrets:
+      - redis_worker_password
     depends_on:
       api:
         condition: service_healthy
@@ -93,9 +99,41 @@ services:
     environment:
       DB_HOST: postgres
       REDIS_HOST: redis
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      REDIS_USERNAME: landlords_worker
+      REDIS_PASSWORD_FILE: /run/secrets/redis_worker_password
+    secrets:
+      - redis_worker_password
     depends_on:
       api:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - app-network
+    healthcheck:
+      disable: true
+
+  outbox-relay:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      args:
+        INSTALL_MODE: ${INSTALL_MODE:-offline}
+    command: python -m app.outbox_relay
+    env_file:
+      - backend/.env
+    environment:
+      DB_HOST: postgres
+      REDIS_HOST: redis
+      REDIS_USERNAME: landlords_worker
+      REDIS_PASSWORD_FILE: /run/secrets/redis_worker_password
+    secrets:
+      - redis_worker_password
+    depends_on:
+      api:
+        condition: service_healthy
+      postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -117,7 +155,10 @@ services:
     environment:
       DB_HOST: postgres
       REDIS_HOST: redis
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      REDIS_USERNAME: landlords_flower
+      REDIS_PASSWORD_FILE: /run/secrets/redis_flower_password
+    secrets:
+      - redis_flower_password
     depends_on:
       redis:
         condition: service_healthy
@@ -148,28 +189,16 @@ services:
 
   redis:
     image: redis:7
-    command:
-      - sh
-      - -c
-      - |
-        if [ -n "$$REDIS_PASSWORD" ]; then
-          exec redis-server --requirepass "$$REDIS_PASSWORD"
-        else
-          exec redis-server
-        fi
-    environment:
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+    command: ["redis-server", "--aclfile", "/run/secrets/redis_users_acl", "--appendonly", "yes"]
+    secrets:
+      - source: redis_acl_file
+        target: redis_users_acl
     volumes:
       - redis_data:/data
     healthcheck:
       test:
         - CMD-SHELL
-        - >-
-          if [ -n "$$REDIS_PASSWORD" ]; then
-            REDISCLI_AUTH="$$REDIS_PASSWORD" redis-cli --no-auth-warning ping;
-          else
-            redis-cli ping;
-          fi
+        - redis-cli --user landlords_health --no-auth-warning -a '' ping | grep -qx PONG
       interval: 5s
       timeout: 3s
       retries: 5
@@ -184,3 +213,13 @@ volumes:
 networks:
   app-network:
     driver: bridge
+
+secrets:
+  redis_acl_file:
+    file: ${REDIS_ACL_FILE:-./secrets/redis/users.acl}
+  redis_api_password:
+    file: ${REDIS_API_PASSWORD_FILE:-./secrets/redis/api.password}
+  redis_worker_password:
+    file: ${REDIS_WORKER_PASSWORD_FILE:-./secrets/redis/worker.password}
+  redis_flower_password:
+    file: ${REDIS_FLOWER_PASSWORD_FILE:-./secrets/redis/flower.password}

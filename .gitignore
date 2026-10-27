@@ -12,6 +12,7 @@ htmlcov/
 # Environment & secrets
 .env
 backend/.env
+secrets/
 *.pem
 *credentials*
 

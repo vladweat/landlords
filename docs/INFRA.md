@@ -15,7 +15,7 @@
 | Режим | Когда | Как |
 |-------|-------|-----|
 | `offline` (default) | нет PyPI на машине сборки | копирует `.venv` (Python 3.12) |
-| `online` | CI / чистая машина | `pip install -r requirements.txt` |
+| `online` | CI / чистая машина | `pip install -r requirements.lock` |
 
 Entrypoint API при `RUN_MIGRATIONS=1` гоняет `alembic upgrade head`. Healthcheck смотрит на `/ready`.
 

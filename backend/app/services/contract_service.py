@@ -24,6 +24,7 @@ from app.domain.rules import (
     validate_status_transition,
 )
 from app.services.audit_log_service import AuditService
+from app.services.task_outbox_service import TaskOutboxService
 from app.services.contract_event_labels import (
     format_date_ru,
     format_money,
@@ -60,6 +61,7 @@ class ContractService:
         audit_service: AuditService | None = None,
         pdf_service=None,
         *,
+        task_outbox_service: TaskOutboxService | None = None,
         property_repo: IPropertyRepository,
         tenant_repo: ITenantRepository,
     ) -> None:
@@ -71,6 +73,7 @@ class ContractService:
         self.event_repo = event_repo
         self.audit_service = audit_service
         self.pdf_service = pdf_service
+        self.task_outbox_service = task_outbox_service
 
     def list_contracts(
         self, account_id: UUID, page: int = 1, per_page: int = 20,
@@ -184,11 +187,9 @@ class ContractService:
             and entity.auto_generate_charges
             and self.charge_repo
         ):
-            from app.celery_app import celery_app
-            celery_app.send_task(
-                "app.tasks.charge_tasks.generate_charges_for_contract",
-                args=[str(account_id), str(contract_id)],
-            )
+            if self.task_outbox_service is None:
+                raise RuntimeError("TaskOutboxService is required for charge generation")
+            self.task_outbox_service.enqueue_charge_generation(account_id, contract_id)
 
         return ContractDTO.model_validate(updated)
 

@@ -26,6 +26,7 @@ backend/
 ├── alembic/ + alembic.ini       # миграции БД
 ├── Dockerfile
 ├── requirements.txt
+├── requirements.lock
 └── app/
     ├── main.py                  # FastAPI factory, exception handlers, router wiring
     ├── celery_app.py            # Celery app (broker, beat schedule)
@@ -185,7 +186,7 @@ mypy на backend нет, в пагинации `items: list[Any]`. Имеет �
 
 Полный разбор: [docs/INFRA.md](../docs/INFRA.md).
 
-- `Dockerfile` поддерживает offline и online (`pip install -r requirements.txt`) режимы.
+- `Dockerfile` поддерживает offline и online (`pip install -r requirements.lock`) режимы.
 - CI выполняет integration + frontend test/build + online image.
 - `.env.example` документирует application/DB/Redis/email/billing/ops.
 - Runbook бэкапа/восстановления: [`docs/deploy.md`](../docs/deploy.md).

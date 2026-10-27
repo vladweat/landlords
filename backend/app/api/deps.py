@@ -27,6 +27,7 @@ from app.db.repositories.membership_repo import MembershipRepository
 from app.db.repositories.notification_dismissal_repo import (
     NotificationDismissalRepository,
 )
+from app.db.repositories.outbox_message_repo import OutboxMessageRepository
 from app.db.repositories.payment_claim_repo import PaymentClaimRepository
 from app.db.repositories.payment_repo import PaymentRepository
 from app.db.repositories.property_expense_repo import PropertyExpenseRepository
@@ -55,6 +56,7 @@ from app.services.document_service import DocumentService
 from app.services.email_service import EmailService
 from app.services.feedback_service import FeedbackService
 from app.services.status_service import StatusService
+from app.services.task_outbox_service import TaskOutboxService
 from app.services.yookassa_client import YooKassaClient
 from app.services.forecast_service import ForecastService
 from app.services.invite_service import InviteService
@@ -105,6 +107,18 @@ def get_tenant_repo(session: Session = Depends(get_db_session, scope="function")
 
 def get_contract_repo(session: Session = Depends(get_db_session, scope="function")) -> ContractRepository:
     return ContractRepository(session)
+
+
+def get_outbox_message_repo(
+    session: Session = Depends(get_db_session, scope="function"),
+) -> OutboxMessageRepository:
+    return OutboxMessageRepository(session)
+
+
+def get_task_outbox_service(
+    repository: OutboxMessageRepository = Depends(get_outbox_message_repo),
+) -> TaskOutboxService:
+    return TaskOutboxService(repository)
 
 def get_contract_template_repo(
     session: Session = Depends(get_db_session, scope="function"),
@@ -311,6 +325,7 @@ def get_document_service(
 
 def get_contract_service(
     repo: ContractRepository = Depends(get_contract_repo),
+    task_outbox_service: TaskOutboxService = Depends(get_task_outbox_service),
     charge_repo: RentChargeRepository = Depends(get_rent_charge_repo),
     payment_repo: PaymentRepository = Depends(get_payment_repo),
     event_repo: ContractEventRepository = Depends(get_contract_event_repo),
@@ -321,6 +336,7 @@ def get_contract_service(
 ) -> ContractService:
     return ContractService(
         repo, charge_repo, payment_repo, event_repo, audit_service, pdf_service,
+        task_outbox_service=task_outbox_service,
         property_repo=property_repo, tenant_repo=tenant_repo,
     )
 

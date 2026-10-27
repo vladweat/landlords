@@ -337,3 +337,25 @@ class PaymentClaimEntity:
     resolved_by: UUID | None = None
     created_at: datetime = field(default_factory=_utc_now)
     updated_at: datetime = field(default_factory=_utc_now)
+
+
+@dataclass
+class OutboxMessageEntity:
+    """Allow-listed команда фонового выполнения в PostgreSQL outbox."""
+
+    id: UUID
+    account_id: UUID
+    contract_id: UUID
+    task_name: str
+    payload_version: int = 1
+    status: str = "pending"
+    attempts: int = 0
+    task_failures: int = 0
+    created_at: datetime = field(default_factory=_utc_now)
+    available_at: datetime = field(default_factory=_utc_now)
+    lease_until: datetime | None = None
+    lease_token: UUID | None = None
+    published_at: datetime | None = None
+    completed_at: datetime | None = None
+    failed_at: datetime | None = None
+    last_error: str | None = None

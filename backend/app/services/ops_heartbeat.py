@@ -9,8 +9,8 @@ from loguru import logger
 
 from app.core.config import settings
 
-BEAT_LAST_OK_KEY = "ops:beat:last_ok"
-ALERT_DEDUP_PREFIX = "ops:alert:dedup:"
+BEAT_LAST_OK_KEY = f"{settings.REDIS_KEY_PREFIX}ops:beat:last_ok"
+ALERT_DEDUP_PREFIX = f"{settings.REDIS_KEY_PREFIX}ops:alert:dedup:"
 
 
 def _client() -> redis.Redis:
