@@ -75,12 +75,6 @@ Owner имеет все права, manager — write-доступ к объек
 | Celery billing/charge/reminder/email tasks | Trusted scheduler/worker, no end-user JWT | Task-specific service policy | Jobs enumerate work then pass account IDs into account-scoped repositories; global maintenance operations are intentionally cross-account | Account financial state, reminders, provider identifiers |
 | `/health`, `/ready`, `/metrics`, `/v1/public/status` | Public | — | Operational, not tenant data | Service health/metrics |
 
-Матрица описывает контракты маршрутов и scoped-service patterns, а не утверждает,
-что каждый endpoint прошёл отдельный live PostgreSQL negative test в этом аудите.
-Существующие integration tests проверяют два аккаунта для основных entity,
-вложенных договорных ресурсов, документов, платежей, exports и RBAC; фактически
-запущенные проверки перечислены в отчёте аудита.
-
 ## HTTP perimeter
 
 nginx добавляет `X-Content-Type-Options`, `X-Frame-Options` и
@@ -146,18 +140,6 @@ python -m app.scripts.reconcile_document_storage --delete-orphans
 Public invoice PDF GET только читает готовый документ. Если metadata или файл
 отсутствует, запрос возвращает 404 без новых записей; владелец может восстановить
 квитанцию через `POST /v1/charges/{charge_id}/invoice`.
-
-## Подтверждённые ограничения
-
-| Severity | Ограничение | Последствие |
-|---|---|---|
-| High | Live TLS topology не подтверждена | Production overlay содержит Caddy, но DNS, firewall, certificate и прямой доступ к origin на VPS не проверены |
-| Medium | Tenant isolation только application-level | Ошибка repository filter создаёт cross-tenant риск |
-| Medium | Нет refresh tokens или интерфейса управления устройствами | Пользователь не может посмотреть/отозвать другие сессии отдельно |
-| Medium | Ограниченный nginx rate limit, direct API bypass | Brute-force protection зависит от topology |
-| Medium | CSRF защита зависит от FRONTEND_URL и cookie topology | Origin allowlist нужно обновлять при смене public origin; Bearer clients остаются отдельным транспортом |
-Production Compose overlay содержит Caddy для HTTPS и HSTS. Фактические DNS,
-сетевые правила VPS и состояние сертификата зависят от настройки окружения.
 
 ## Checklist изменений
 

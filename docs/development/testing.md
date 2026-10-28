@@ -48,11 +48,6 @@ docker compose run --rm --no-deps \
   --entrypoint pytest celery-worker -q tests/integration/test_redis_acl.py
 ```
 
-Проверка подтверждает отказ для default/неверных credentials, доступ к
-разрешённым ключам и Pub/Sub channels, отказ за пределами ACL scope и чтение
-ответов `PSUBSCRIBE`. Для Flower дополнительно проверяйте capture worker events
-после старта Flower с его отдельной identity.
-
 Локальный integration suite запускайте только на отдельном тестовом стеке.
 `docker-compose.test.yml` создаёт PostgreSQL с временным `tmpfs` и Redis без
 ACL на локальных портах `5433` и `6380`:
@@ -91,34 +86,3 @@ npm run lint
 
 `build` выполняет `tsc && vite build`. Vitest tests находятся рядом с source и
 имеют suffix `.test.ts[x]`.
-
-## Полная CI-цепочка
-
-`.github/workflows/ci.yml` запускает:
-
-1. backend critical lint и unit/tasks;
-2. integration с PostgreSQL 15 и Redis 7;
-3. frontend test/build;
-4. online Docker build backend image.
-
-Workflow не выполняет полный Ruff ruleset, Black check, frontend lint,
-dependency audit, migration downgrade, smoke Compose и deployment.
-`.pre-commit-config.yaml` локально запускает Ruff `--fix` и Black для backend;
-его правила шире CI и могут изменять файлы.
-
-Для обновления lock создай чистое Linux-окружение Python 3.12, установи в него
-`requirements.txt`, проверь `python -m pip check` и сохрани `pip freeze` в
-`requirements.lock`. После этого запусти unit/tasks и integration tests;
-изменения lock проходят через обычный CI до merge.
-
-## Что проверять по типу изменения
-
-| Изменение | Минимум |
-|---|---|
-| Domain rule/service | релевантный unit test + backend critical lint |
-| Route/schema/auth | unit + integration endpoint |
-| Repository/model/migration | integration на Alembic head |
-| Celery task | `tests/tasks` + idempotency/retry scenario |
-| Transactional outbox | `tests/unit/services/test_outbox_relay.py`, `tests/integration/test_outbox_api.py`, `tests/integration/test_outbox_relay.py` |
-| Frontend API/type/component | Vitest + build |
-| Документация | relative links, paths, команды и config keys |
