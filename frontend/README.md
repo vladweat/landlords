@@ -1,14 +1,30 @@
 # Frontend Landlords
 
-Landlords frontend is a React 19 and TypeScript single-page application built
-with Vite. It uses TanStack Query for server state, Zustand for authentication
-state, and Tailwind CSS for styling. The production image serves the built SPA
-from nginx; `/api` requests are proxied to FastAPI.
+Frontend Landlords — одностраничное приложение для управления арендой. Оно
+построено на React 19 и TypeScript, собирается через Vite и обращается к API на
+FastAPI. В production собранное приложение обслуживает nginx, а запросы к
+`/api` направляются в backend.
 
-## Local development
+## Устройство приложения
 
-Use Node.js 20.19+ or 22.12+ and npm. Start the project services from the
-repository root, then run Vite:
+Код в `src/` разделён по назначению:
+
+- `app/` — корневой компонент, провайдеры и маршрутизация;
+- `pages/` — страницы и сборка экранов из функций;
+- `features/` — пользовательские сценарии, их компоненты, API-адаптеры и
+  связанные запросы;
+- `entities/` — типы предметной области;
+- `shared/` — HTTP-клиент, общие компоненты, хуки и утилиты.
+
+Добавляя пользовательский сценарий, размещайте его логику в подходящем модуле
+`features/`, а страницу — в `pages/`. Общие компоненты и утилиты храните в
+`shared/`, если они действительно используются в разных частях приложения.
+Псевдоним `@/` указывает на `src/`.
+
+## Запуск приложения
+
+Нужны Node.js 20.19+ или 22.12+ и npm. Сначала запустите сервисы проекта из
+корня репозитория, затем в отдельном терминале:
 
 ```bash
 docker compose up -d
@@ -17,34 +33,49 @@ npm ci
 npm run dev
 ```
 
-Vite serves the application at `http://localhost:3000` and proxies `/api` to
-nginx at `http://localhost`. The dev Compose override publishes PostgreSQL and
-Redis ports for local development; do not use that override on a public host.
-
-For the full environment setup, see
+Vite откроет приложение на `http://localhost:3000`. Запросы `/api` и
+`/documents` проксируются в nginx на `http://localhost`. Полная настройка
+окружения описана в
 [`docs/development/getting-started.md`](../docs/development/getting-started.md).
 
-## Checks
+## Маршрутизация и сессия
+
+Маршруты объявлены в `src/app/router.tsx`. Защищённые страницы проходят через
+`ProtectedRoute`; страницы входа и регистрации доступны только без активной
+сессии. Страницы публичного счёта, кабинета арендатора и состояния приложения
+работают без входа. Страницы загружаются лениво, пока они не открыты.
+
+При запуске приложение восстанавливает сессию запросом текущего пользователя.
+Серверная сессия хранится в HttpOnly cookie. Zustand хранит состояние
+авторизации, пользователя, аккаунта и роли; при выходе очищается кеш запросов.
+Клиент может однократно передать старый токен из `localStorage`, чтобы перенести
+существующую сессию в cookie, после чего удаляет этот токен.
+
+## API и состояние данных
+
+Общий клиент Axios находится в `src/shared/api/client.ts`. Он отправляет запросы
+с cookie на `/api/v1`, а при `401` на защищённом запросе завершает локальную
+сессию. Для
+загрузки файлов с текущими учётными данными предусмотрена функция
+`authorizedFetch`.
+
+TanStack Query используется для серверных данных и их кеширования; общие
+настройки заданы в `src/app/providers.tsx`. Состояние форм и временные состояния
+интерфейса хранятся рядом с соответствующим компонентом. Формы используют
+React Hook Form и Zod. Денежные значения остаются десятичными строками при
+обмене между API и frontend, чтобы сохранить точность.
+
+## Проверки и сборка
+
+Запускайте команды из `frontend/`:
 
 ```bash
-npm test
-npm run lint
-npm run build
+npm test        # тесты Vitest
+npm run lint    # проверка ESLint
+npm run build   # проверка TypeScript и production-сборка Vite
+npm run preview # локальный просмотр production-сборки
 ```
 
-`npm run build` runs TypeScript checking followed by the Vite production build.
-CI runs tests and build; frontend lint is available locally but is not a CI job.
-See [`docs/development/testing.md`](../docs/development/testing.md) for the
-complete verification matrix.
-
-## Source layout
-
-- `src/app/` — router, providers and application shell;
-- `src/pages/` — route-level composition;
-- `src/features/` — user workflows, API adapters and feature components;
-- `src/entities/` — domain types and entity UI;
-- `src/shared/` — HTTP client, reusable UI and utilities.
-
-Browser authentication uses an HttpOnly cookie. The API client reads a legacy
-localStorage token only to migrate an existing session, then removes it. Money
-values remain decimal strings across the API and frontend.
+Тесты Vitest располагаются рядом с исходным кодом и используют суффикс
+`.test.ts` или `.test.tsx`. Подробные команды и порядок проверок описаны в
+[`docs/development/testing.md`](../docs/development/testing.md).

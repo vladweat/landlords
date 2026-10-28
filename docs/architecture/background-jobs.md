@@ -2,136 +2,150 @@
 
 ## Конфигурация
 
-`backend/app/celery_app.py` создаёт Celery app. Redis (`REDIS_URL`) одновременно
-является broker и result backend. Entry point worker/beat/Flower:
-`python -m celery -A worker.celery_app ...`; `backend/worker.py` re-export-ит
-app.
+`backend/app/celery_app.py` создаёт приложение Celery. Redis (`REDIS_URL`)
+одновременно используется как брокер сообщений и хранилище результатов.
+Команды запуска исполнителя задач (worker), планировщика (beat) и Flower:
+`python -m celery -A worker.celery_app ...`; модуль `backend/worker.py`
+повторно экспортирует приложение.
 
-Глобальные параметры:
+Основные параметры:
 
-- очередь: `CELERY_TASK_DEFAULT_QUEUE` (default `default`), отдельной routing
-  table нет;
-- JSON serializer, UTC;
-- soft/hard limits по умолчанию 300/600 секунд;
+- очередь по умолчанию задаётся через `CELERY_TASK_DEFAULT_QUEUE` (значение по
+  умолчанию — `default`); отдельная таблица маршрутизации не настроена;
+- сериализатор — JSON, часовой пояс — UTC;
+- мягкий и жёсткий лимиты времени задачи по умолчанию — 300 и 600 секунд;
 - `task_acks_late=True`, `task_reject_on_worker_lost=True`;
 - `task_track_started=True`;
-- worker recycle после `CELERY_WORKER_MAX_TASKS_PER_CHILD` (default 1000).
+- исполнитель перезапускает дочерний процесс после количества задач,
+  указанного в `CELERY_WORKER_MAX_TASKS_PER_CHILD` (по умолчанию 1000).
 
-Late ack означает возможное повторное выполнение после потери worker. Это
-доставка at-least-once, не exactly-once.
+Подтверждение задачи после её выполнения означает, что при потере процесса
+исполнителя задача может выполниться повторно. Это доставка «как минимум один
+раз» (at-least-once), а не доставка «ровно один раз» (exactly-once).
 
 ## Расписание
 
-| UTC | Task | Назначение |
+| UTC | Задача | Назначение |
 |---|---|---|
-| ежедневно 03:00 | `update_overdue_charges` | Статусы начислений и договоров |
-| ежедневно 04:00 | `process_subscription_renewals` | Renew/downgrade Pro |
-| ежедневно 07:00 | `send_daily_reminder_emails` | Письма owner |
-| каждый час на `:15` | `check_ops_health` | Диск, gauges, beat heartbeat |
+| ежедневно 03:00 | `update_overdue_charges` | Обновление статусов начислений и договоров |
+| ежедневно 04:00 | `process_subscription_renewals` | Продление подписки или переход Pro на другой план |
+| ежедневно 07:00 | `send_daily_reminder_emails` | Отправка писем владельцам |
+| каждый час в `:15` | `check_ops_health` | Проверка диска, метрик и heartbeat beat |
 
-Beat schedule находится только в коде; persistent scheduler database не
-настроена.
+Расписание beat хранится в коде; отдельная база планировщика не используется.
 
-## Tasks и гарантии
+## Задачи и гарантии
 
 ### `generate_charges_for_contract(account_id, contract_id, outbox_id)`
 
-Создаёт repositories/session, вызывает `RentChargeService.create_charges_batch`,
-и обновляет `task_outbox.completed_at` в одной транзакции. Завершённый outbox ID
-делает повтор no-op; уникальность периода
-`(account_id, contract_id, period_start, period_end)` дополнительно защищает
-финансовые записи. Старые Redis messages без `outbox_id` временно обрабатываются
-как legacy deliveries до drain очереди.
+Задача создаёт репозитории и сессию, вызывает
+`RentChargeService.create_charges_batch` и обновляет `task_outbox.completed_at`
+в одной транзакции. При повторной обработке `outbox_id` задача ничего не делает.
+Уникальность периода `(account_id, contract_id, period_start, period_end)`
+дополнительно защищает финансовые записи. Старые сообщения Redis без
+`outbox_id` временно обрабатываются как устаревшие доставки, пока очередь не
+будет опустошена.
 
-### Transactional outbox
+### Транзакционный outbox
 
-Bulk/single charge-generation endpoints и активация договора записывают
-allow-listed `generate_charges_for_contract` command в `task_outbox` внутри
-request transaction. HTTP возвращает UUID outbox как стабильный Celery `task_id`.
-Отдельный Compose process `outbox-relay` использует bounded
-`FOR UPDATE SKIP LOCKED` claims и expiring leases, затем публикует вне DB
-transaction. Broker failure получает ограниченный exponential backoff с
-jitter; после лимита запись сохраняется как terminal failure.
+Маршруты одиночной и пакетной генерации начислений, а также активация договора
+записывают разрешённую команду `generate_charges_for_contract` в `task_outbox`
+внутри транзакции запроса. HTTP-ответ возвращает UUID outbox как стабильный
+Celery `task_id`.
 
-Публикация at-least-once, не exactly-once: падение relay после publish может
-создать duplicate delivery. Worker сверяет account/contract scope, а бизнес
-эффект и completion marker коммитит атомарно. Если Redis теряет queued message,
-не завершённая строка становится доступна после lease и будет опубликована
-снова. Relay пишет в лог pending count, возраст старейшей команды и число
-terminal failures; payload и credentials в лог не попадают.
+Отдельный процесс Compose `outbox-relay` выбирает ограниченную пачку записей с
+`FOR UPDATE SKIP LOCKED` и временной арендой (lease), затем публикует команды
+после завершения транзакции базы данных. При ошибке брокера запись получает
+ограниченные повторы с экспоненциальной задержкой (backoff) и случайным
+интервалом (jitter). После исчерпания попыток запись получает конечный статус
+ошибки.
 
-### Bulk tasks
+Публикация выполняется по модели «как минимум один раз» (at-least-once), а не
+«ровно один раз» (exactly-once): если relay завершится после публикации, но до
+фиксации результата, возможна повторная доставка. Исполнитель проверяет
+соответствие `account_id` и `contract_id`, а затем
+атомарно сохраняет бизнес-изменения вместе с отметкой завершения. Если Redis
+теряет сообщение из очереди, незавершённая запись снова становится доступна
+после окончания lease и публикуется повторно. Relay записывает в лог количество
+ожидающих команд, возраст самой старой команды и число конечных ошибок; данные
+команд и учётные данные в лог не попадают.
+
+### Пакетные задачи
 
 `update_overdue_charges`, `send_daily_reminder_emails` и
 `process_subscription_renewals` используют `RedisLock("locks:<name>")` с TTL
-900 секунд и non-blocking acquire. Если lock занят, task возвращает
-`status=skipped`. Lock уменьшает параллельный запуск, но истечение TTL во время
-долгой операции допускает overlap.
+900 секунд и неблокирующим захватом. Если блокировка занята, задача возвращает
+`status=skipped`. Блокировка предотвращает параллельный запуск, однако при
+истечении TTL во время долгой операции возможно одновременное выполнение двух
+экземпляров.
 
 `update_overdue_charges` повторяется только при SQLAlchemy `OperationalError`
-(максимум 3 раза). `send_daily_reminder_emails` повторяется при
+(не более 3 попыток). `send_daily_reminder_emails` повторяется при
 `OperationalError`, `SMTPServerDisconnected`, `socket.timeout`,
-`ConnectionError` и агрегированной `TransientEmailDeliveryError` (максимум 2
-раза). `process_subscription_renewals` повторяется только при
-`OperationalError` (максимум 2 раза). Остальные исключения не повторяются
-автоматически.
+`ConnectionError` и агрегированной `TransientEmailDeliveryError` (не более 2
+попыток). `process_subscription_renewals` повторяется только при
+`OperationalError` (не более 2 попыток). Остальные исключения автоматически не
+повторяются.
 
-Email dedup дополнительно хранится в `email_dispatch_log`. Billing renewal
-использует `accounts.subscription_period_end` как identity оплачиваемого
-периода, время первой попытки, детерминированный idempotence key, статус и
-YooKassa payment ID. Попытка коммитится до HTTP вызова. Перед новым запросом и
-восстановлением клиент ищет совпадение по metadata периода во всех страницах
-списка платежей; найденный ID сверяется через `Payment.find_one`. Если поиск
-не сработал, период остаётся `unknown`, повторное списание не создаётся.
-Webhook/confirm читают состояние у YooKassa и блокируют account row при
-применении entitlement. Повторные запуски ограничены декораторами задач:
-произвольные исключения и бизнес-ошибки не ретраятся, а временные ошибки
-перечислены отдельно для каждой задачи выше.
+Дедупликация писем хранится в `email_dispatch_log`. Для продления подписки
+используются `accounts.subscription_period_end` как идентификатор расчётного
+периода, время первой попытки, детерминированный ключ идемпотентности, статус и
+ID платежа YooKassa. Попытка сохраняется до HTTP-вызова. Перед новым запросом и
+восстановлением состояния клиент ищет совпадение по метаданным периода во всех
+страницах списка платежей; найденный ID проверяется через `Payment.find_one`.
+Если поиск не дал результата, период остаётся в статусе `unknown`, новое
+списание не создаётся. Webhook и confirm получают состояние платежа из YooKassa
+и блокируют строку учётной записи при применении прав тарифа. Повторные запуски
+задаются декораторами задач: произвольные исключения и бизнес-ошибки не
+повторяются, а временные ошибки перечислены отдельно для каждой задачи выше.
 
-### Ops heartbeat
+### Отметки активности фоновых задач
 
-Tasks записывают `ops:beat:last_ok` в Redis. Alert dedup использует ключи
-`ops:alert:dedup:<alert_key>` с TTL. Это cache/operational state, а не durable
-business data; очистка Redis теряет heartbeat, locks, dedup и Celery results.
+Задачи записывают отметку активности `ops:beat:last_ok` в Redis. Для
+дедупликации оповещений используются ключи `ops:alert:dedup:<alert_key>` с TTL.
+Это временное состояние
+работы системы, а не долговременные бизнес-данные: очистка Redis удалит
+отметки активности, блокировки, отметки дедупликации и результаты Celery.
 
 ## Жизненный цикл
 
 ```mermaid
 sequenceDiagram
   participant API
-  participant DB as PostgreSQL outbox
+  participant DB as Очередь outbox в PostgreSQL
   participant Relay
   participant Redis
-  participant Worker
-  participant DB
-  API->>DB: insert command in request transaction
-  DB->>Relay: claim rows with lease
-  Relay->>Redis: publish outside DB transaction
-  Redis->>Worker: deliver
-  Worker->>DB: open Session, read/write
-  alt success
-    Worker->>DB: commit
-    Worker-->>Redis: result + late ack
-  else exception
-    Worker->>DB: rollback
-    Worker-->>Redis: failure / redelivery by policy
+  participant Executor as Исполнитель задач
+  API->>DB: Запись команды в транзакции запроса
+  DB->>Relay: Выбор записей с арендой
+  Relay->>Redis: Публикация после транзакции БД
+  Redis->>Executor: Доставка задачи
+  Executor->>DB: Открыть сессию, прочитать и записать данные
+  alt Успех
+    Executor->>DB: Зафиксировать транзакцию
+    Executor-->>Redis: Результат и позднее подтверждение
+  else Ошибка
+    Executor->>DB: Откатить транзакцию
+    Executor-->>Redis: Ошибка или повторная доставка по политике
   end
 ```
 
-Команда начислений сначала фиксируется в `task_outbox` вместе с HTTP-изменением.
-Relay забирает запись lease-ом и публикует её в Redis после завершения короткой
-транзакции PostgreSQL. Поэтому сбой после commit не теряет команду: relay
-повторит публикацию после lease/backoff. Сбой после успешной публикации, но до
-фиксации её состояния может дать повторную доставку; worker обрабатывает её
+Команда начислений сначала записывается в `task_outbox` вместе с изменением,
+выполненным через HTTP. Relay забирает запись во временную аренду и публикует её
+в Redis после завершения короткой транзакции PostgreSQL. Поэтому сбой после
+фиксации транзакции не теряет команду: после окончания аренды или задержки
+повтора relay опубликует её снова. Сбой после публикации, но до сохранения
+результата может привести к повторной доставке; исполнитель обрабатывает её
 идемпотентно по `outbox_id`. Outbox обеспечивает надёжную передачу команды, но
-не exactly-once delivery. Этот механизм применяется к генерации начислений;
-другие Celery flows имеют собственные гарантии.
+не гарантирует доставку «ровно один раз» (exactly-once). Этот механизм
+применяется к генерации начислений; остальные фоновые процессы используют
+собственные гарантии.
 
-Endpoints генерации возвращают Celery `task_id`, но отдельного API для чтения
-состояния result backend нет. Клиент проверяет результат повторным чтением
-business resource, а не polling task state.
+Маршруты генерации возвращают Celery `task_id`, но отдельного API для чтения
+результатов хранилища нет. Клиент проверяет результат повторным чтением
+бизнес-данных, а не опрашивает состояние задачи.
 
-## Эксплуатация
+## Эксплуатационные команды
 
 ```bash
 docker compose ps
@@ -143,14 +157,15 @@ docker compose exec celery-worker \
   python -m celery -A worker.celery_app inspect scheduled
 ```
 
-Flower включён только profile `development` и не публикует порт в базовом
-Compose. Worker healthcheck проверяет соединение с broker, но не выполнение
-task; у beat/Flower healthcheck отключён. Для stale beat используются
-`OPS_BEAT_STALE_HOURS` и `/ready`, при этом stale heartbeat намеренно не делает
-readiness unhealthy.
+Flower включён только в профиль `development` и не публикует порт в базовой
+конфигурации Compose. Проверка состояния worker подтверждает соединение
+исполнителя с брокером, но не выполнение задачи; для beat и Flower проверка
+состояния отключена. Просроченная отметка beat отслеживается настройкой
+`OPS_BEAT_STALE_HOURS` и endpoint `/ready`; сам по себе он не переводит readiness
+в нездоровое состояние.
 
-## Изменение task
+## Изменение задачи
 
-Проверяйте transaction boundary, повторное выполнение, account isolation,
-retryable exception types, limits, lock TTL и логи без чувствительных данных.
-Тесты tasks находятся в `backend/tests/tasks/`.
+Проверяйте границы транзакций, повторное выполнение, изоляцию данных аккаунта,
+типы исключений для повторов, лимиты, TTL блокировок и отсутствие чувствительных
+данных в логах. Тесты задач находятся в `backend/tests/tasks/`.

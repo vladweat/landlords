@@ -2,13 +2,13 @@
 
 ## Адреса и спецификация
 
-FastAPI routes имеют prefix `/v1`; через nginx внешний prefix — `/api/v1`.
-Например, frontend вызывает `/api/v1/contracts`, FastAPI получает
-`/v1/contracts`. System endpoints `/health`, `/ready`, `/metrics` не
-версионированы.
+Маршруты FastAPI имеют префикс `/v1`; через nginx внешний префикс — `/api/v1`.
+Например, клиентское приложение обращается к `/api/v1/contracts`, а FastAPI получает
+`/v1/contracts`. Системные маршруты `/health`, `/ready`, `/metrics` не имеют
+версии.
 
-OpenAPI является источником детальных request/response schemas. В development
-при `DEBUG=true` доступны:
+OpenAPI — источник подробных схем запросов и ответов. В development при
+`DEBUG=true` доступны:
 
 - `http://localhost:8000/docs`;
 - `http://localhost:8000/redoc`;
@@ -19,87 +19,118 @@ OpenAPI является источником детальных request/respons
 Все успешные JSON-ответы используют оболочку
 `{"status":"success","data":...}`; ошибки приложения —
 `{"status":"error","message":"..."}`. Структура `data` зависит от
-операции. Ответы `204 No Content`, файловые downloads и системные endpoints
+операции. Ответы `204 No Content`, загрузка файлов и системные маршруты
 `/health`, `/ready`, `/metrics` не используют обычную оболочку успешного API.
 
 ## Аутентификация
 
-Login/register/accept invite устанавливают cookie `access_token`: HttpOnly,
-`SameSite=Lax`, `Secure` в production, срок 24 часа, `Cache-Control: no-store`.
-По умолчанию JWT не возвращается в JSON. Совместимые API-клиенты, которым нужен
-Bearer token, должны явно передавать `X-Return-Bearer-Token: true`; ответ тогда
-содержит `token`. Браузерный frontend передаёт `false` и использует cookie.
-Для запросов остаётся `Authorization: Bearer <token>`; Bearer имеет приоритет.
-Payload access JWT содержит `sub`, `account_id`, `jti`, `exp`. После применения
-миграции пользователи с ранее сохранёнными локальными токенами без серверной
-сессии должны войти заново; Bearer-клиенты продолжают работать с JWT, выданным
-новым login/register/invite flow.
+### Cookie и Bearer-токен
 
-`GET /v1/auth/registration-status` — публичный endpoint без персональных данных;
-он возвращает `data.enabled` из `ALLOW_PUBLIC_REGISTRATION`. Auth methods
-используют общий `status/data` response envelope; Bearer token при явном запросе
-находится в `data.token`, user — в `data.user`. Login page показывает
-ссылку на регистрацию только при `true`; прямой `/register` объясняет, если она
-выключена.
+Вход, регистрация и принятие приглашения устанавливают cookie `access_token`:
 
-На каждом protected request `get_current_membership` проверяет подпись JWT,
-активную серверную сессию, user и membership в БД. Role в JWT не хранится.
-Logout отзывает сессию; скопированный cookie или Bearer JWT после logout
-получает `401`. Смена и сброс пароля отзывают все активные сессии пользователя;
-после смены пароля frontend возвращает пользователя на login. Reset token —
-отдельный JWT с `type=reset`, действует один час и принимается один раз; новый
-запрос сброса инвалидирует предыдущую ссылку. Reset/invite capability помещается
-в URL fragment, frontend читает его и удаляет из адресной строки; старые
-query-ссылки принимаются для обратной совместимости. Browser session revocation
-опирается на `auth_sessions` в PostgreSQL: logout отзывает одну сессию, смена/reset
-пароля — все сессии пользователя. Account switching не предоставляется: в v1
-пользователь получает одну активную membership при login.
+- `HttpOnly` и `SameSite=Lax`;
+- `Secure` в production;
+- срок действия — 24 часа;
+- для ответа задан `Cache-Control: no-store`.
 
-Для unsafe HTTP methods с cookie-аутентификацией backend требует `Origin`,
-совпадающий с origin `FRONTEND_URL`; Bearer API-клиенты не зависят от Origin.
-`GET /v1/contracts/{id}/document` больше не генерирует данные; генерация PDF
-выполняется через `POST`.
+По умолчанию JWT не возвращается в JSON. API-клиент может запросить Bearer-токен
+заголовком `X-Return-Bearer-Token: true`; тогда ответ содержит поле `token`.
+Браузерное приложение передаёт `false` и использует cookie. Для запросов также
+поддерживается `Authorization: Bearer <token>`; при наличии заголовка Bearer он
+имеет приоритет. Полезная нагрузка access JWT содержит `sub`, `account_id`,
+`jti`, `exp`.
 
-Публичны auth entrypoints, invite preview/accept, invoice/portal по bearer-like
-URL token, status и YooKassa webhook. Остальные routes требуют membership.
-Invoice-ссылка действует 90 дней. `POST /v1/charges/{charge_id}/invoice/rotate-link`
-выпускает новый token и сразу инвалидирует предыдущий; маршрут требует
-`WRITE_CHARGES`. Публичные invoice data/PDF/claim routes отклоняют expired token.
-Публичный PDF GET только читает сохранённый файл; если документ недоступен,
-владелец восстанавливает его через `POST /v1/charges/{charge_id}/invoice`.
-Ссылка tenant portal действует 2 часа; после истечения владелец может создать
-новую ссылку через `POST /v1/contracts/{contract_id}/portal`. Старый токен
-отклоняется на публичных data и claim routes. После миграции старые portal
-ссылки нужно перевыпустить из договора. Расторжение немедленно отзывает token;
-договор со статусом ended/terminated или прошедшей датой окончания не
-обслуживается публичным порталом.
+После применения миграции пользователям с ранее сохранёнными локальными
+токенами без серверной сессии нужно войти заново. Bearer-клиенты продолжают
+работать с JWT, выданным новым входом, регистрацией или принятием приглашения.
 
-## RBAC и tenant isolation
+### Регистрация
 
-`owner`, `manager`, `accountant` и permissions определены в
-`backend/app/domain/permissions.py`. Mutating routes используют
-`require_permissions`; subscription write-block применяется к business write
-permissions. Repository queries должны фильтровать по `account_id`.
+`GET /v1/auth/registration-status` — публичный маршрут без персональных данных.
+Он возвращает `data.enabled` из `ALLOW_PUBLIC_REGISTRATION`. Маршруты
+аутентификации используют общую оболочку `status/data`; при явном запросе
+Bearer-токен находится в `data.token`, а пользователь — в `data.user`.
 
-Frontend скрывает запрещённые действия, но не является security boundary.
-Матрица: [multi-user-roles.md](../multi-user-roles.md).
+Страница входа показывает ссылку на регистрацию только при `true`. Если
+регистрация выключена, прямой переход на `/register` сообщает об этом.
 
-## Группы endpoints
+### Сессии и выход
 
-Фактические routers подключены в `backend/app/main.py`:
+При каждом защищённом запросе `get_current_membership` проверяет подпись JWT,
+активную серверную сессию, пользователя и членство в аккаунте в БД. Роль в JWT не
+хранится.
 
-| Prefix | Назначение |
+Сессии хранятся в `auth_sessions` в PostgreSQL. Выход отзывает текущую сессию;
+смена или сброс пароля отзывает все сессии пользователя. После выхода
+скопированный cookie или Bearer JWT получает `401`. После смены пароля
+браузерное приложение возвращает пользователя на страницу входа.
+
+### Сброс пароля и приглашения
+
+Токен сброса пароля — отдельный JWT с `type=reset`; он действует один час и
+принимается один раз. Новый запрос сброса пароля аннулирует предыдущую ссылку.
+
+Токены сброса пароля и приглашений помещаются во фрагмент URL. Браузерное
+приложение считывает токен и удаляет его из адресной строки. Старые ссылки с
+query-параметрами принимаются для обратной совместимости.
+
+### Проверка Origin и документы
+
+Для небезопасных HTTP-методов с cookie-аутентификацией сервер требует заголовок
+`Origin`, совпадающий с источником запросов `FRONTEND_URL`; Bearer API-клиенты от
+`Origin` не зависят.
+
+`GET /v1/contracts/{id}/document` не создаёт документ. Генерация PDF выполняется
+через `POST`.
+
+### Публичные маршруты и ссылки
+
+Без членства в аккаунте доступны маршруты входа, просмотра и принятия
+приглашения, получения счёта или портала по URL с Bearer-токеном, проверки
+статуса и webhook YooKassa. Остальные маршруты требуют членства в аккаунте.
+
+Ссылка на счёт действует 90 дней. Маршрут
+`POST /v1/charges/{charge_id}/invoice/rotate-link` выпускает новый токен и сразу
+аннулирует предыдущий; он требует `WRITE_CHARGES`. Публичные маршруты счёта, PDF
+и заявок отклоняют истёкший токен. Публичный GET PDF только читает сохранённый
+файл; если документ недоступен, владелец восстанавливает его через
+`POST /v1/charges/{charge_id}/invoice`.
+
+Ссылка на портал арендатора действует 2 часа. После истечения владелец может
+создать новую через `POST /v1/contracts/{contract_id}/portal`. Старый токен
+отклоняется на публичных маршрутах просмотра данных и создания заявки. После
+миграции старые ссылки на портал нужно выпустить заново из договора.
+Расторжение немедленно отзывает токен. Публичный портал не обслуживает договор
+со статусом `ended` или `terminated`, а также договор с прошедшей датой
+окончания.
+
+## RBAC и изоляция данных аккаунтов
+
+Роли `owner`, `manager`, `accountant` и права доступа определены в
+`backend/app/domain/permissions.py`. Маршруты, изменяющие данные, используют
+`require_permissions`; ограничение на запись при истёкшей подписке применяется
+к разрешениям на изменение бизнес-данных. Запросы репозиториев должны
+фильтровать данные по `account_id`.
+
+Интерфейс скрывает недоступные действия, но не служит границей безопасности.
+Матрица прав: [multi-user-roles.md](../multi-user-roles.md).
+
+## Группы маршрутов
+
+Фактические маршруты подключены в `backend/app/main.py`:
+
+| Префикс | Назначение |
 |---|---|
-| `/v1/auth`, `/v1/account`, `/v1/billing` | Session, профиль, команда, plan/subscription |
+| `/v1/auth`, `/v1/account`, `/v1/billing` | Сессия, профиль, команда, тариф и подписка |
 | `/v1/properties`, `/v1/tenants` | Объекты и арендаторы |
-| `/v1/contracts`, `/v1/contract-templates` | Договоры, lifecycle, ledger, документы, events, portal |
+| `/v1/contracts`, `/v1/contract-templates` | Договоры, жизненный цикл, ledger, документы, события, портал |
 | `/v1/charges`, `/v1/payments`, `/v1/claims`, `/v1/expenses` | Денежные операции |
 | `/v1/calendar`, `/v1/dashboard`, `/v1/notifications`, `/v1/reminders` | Представления и уведомления |
-| `/v1/reports`, `/v1/documents`, `/v1/feedback` | Export, файлы, обратная связь |
-| `/v1/public/invoices`, `/v1/public/portal`, `/v1/public/invites`, `/v1/public/status` | Token/public flows |
+| `/v1/reports`, `/v1/documents`, `/v1/feedback` | Отчёты, файлы, обратная связь |
+| `/v1/public/invoices`, `/v1/public/portal`, `/v1/public/invites`, `/v1/public/status` | Публичные маршруты с токенами и статусом |
 
-Перечень path/method должен генерироваться из OpenAPI, а не поддерживаться
-вручную. Статическая таблица здесь намеренно описывает только группы.
+Полный список путей и методов следует получать из OpenAPI, а не вести вручную.
+Эта таблица намеренно содержит только группы маршрутов.
 
 ## Форматы, валидация и пагинация
 
@@ -113,11 +144,11 @@ Frontend скрывает запрещённые действия, но не я�
 {"status": "success", "data": {}}
 ```
 
-Auth entrypoints возвращают пользователя в `data.user`, а при заголовке
+Маршруты аутентификации возвращают пользователя в `data.user`, а при заголовке
 `X-Return-Bearer-Token: true` — также `data.token`. Операции с текстовым
-результатом, например сброс и смена пароля, возвращают `data.message`. Остальные
-операции могут возвращать объект, список или поля пагинации внутри `data`;
-точная структура задана схемой конкретного endpoint.
+результатом, например сброс и смена пароля, возвращают `data.message`. Другие
+операции могут возвращать объект, список или поля пагинации внутри `data`; точная
+структура задана схемой конкретного маршрута.
 
 Ошибки приложения и ошибки валидации:
 
@@ -125,45 +156,37 @@ Auth entrypoints возвращают пользователя в `data.user`, �
 {"status": "error", "message": "Описание"}
 ```
 
-Pydantic validation error возвращает HTTP 422 с полями `message` и `details`;
-необработанная ошибка — HTTP 500 с общим `message`. Ответ nginx rate limit может
-иметь собственное тело и не обязан следовать этому формату.
+Ошибка валидации Pydantic возвращает HTTP 422 с полями `message` и `details`;
+необработанная ошибка — HTTP 500 с общим `message`. Ответ ограничения частоты
+запросов nginx может иметь собственное тело и не обязан следовать этому формату.
 
-`PaginationParams`: `page >= 1`, `1 <= per_page <= 100`, defaults 1/20.
-Paginated data содержит `items`, `total`, `page`, `per_page`, `pages`; не все
-list endpoints обязаны использовать пагинацию. Конкретные filters/sorting
-смотрите в query parameters OpenAPI и route-файлах.
+`PaginationParams`: `page >= 1`, `1 <= per_page <= 100`, значения по умолчанию —
+1 и 20. Пагинированные данные содержат `items`, `total`, `page`, `per_page`,
+`pages`; не все маршруты со списками обязаны использовать пагинацию. Конкретные
+фильтры и сортировку смотри в параметрах запроса OpenAPI и файлах маршрутов.
 
-Деньги передаются строками. Uploaded body ограничен nginx до 20 MiB; service
-может иметь дополнительные file constraints.
+Денежные значения передаются строками. nginx ограничивает тело загружаемого
+запроса до 20 MiB; сервис может задавать дополнительные ограничения на файлы.
 
-## Idempotency и асинхронность
+## Идемпотентность и асинхронность
 
-Общего `Idempotency-Key` middleware нет. POST/PATCH следует считать
-неидемпотентными, если service явно не гарантирует иное. Billing использует IDs
-провайдера, charge generation пытается избегать дублей, но это
-endpoint-specific поведение.
+Общего middleware для `Idempotency-Key` нет. Запросы POST/PATCH следует считать
+неидемпотентными, если сервис явно не гарантирует обратное. Модуль
+тарификации использует идентификаторы платежей провайдера, генерация начислений старается исключать
+дубли; гарантии зависят от конкретного маршрута.
 
-Генерация начислений может выполняться Celery асинхронно; успешный enqueue не
-означает завершение. Клиент должен перечитать charges/status.
+Генерация начислений может выполняться Celery асинхронно; успешная постановка
+задачи в очередь не означает её завершения. Клиенту следует повторно запросить
+начисления или статус.
 
-## Rate limiting и transport
+## Ограничение частоты запросов и транспорт
 
 nginx ограничивает точные URL `POST /api/v1/auth/login`,
 `POST /api/v1/auth/forgot-password`, `POST /api/v1/auth/reset-password` и
-`/api/v1/reminders` общей зоной `10r/m`; burst задан отдельно для auth и
-reminders в `nginx/nginx.conf`. В FastAPI rate limiter нет; прямое обращение к
-порту API обходит nginx. Base nginx работает по HTTP; production Compose overlay
-добавляет Caddy для HTTPS и привязывает nginx origin к `127.0.0.1:8080`. См.
-[runbook деплоя](../deploy.md). Состояние DNS, доступности портов и сертификата
-на VPS не проверялось.
-
-## Синхронизация документации
-
-После изменения routes/schemas:
-
-1. запустить приложение с test/dev config;
-2. сохранить или сравнить `GET /openapi.json` в CI/artifact при необходимости;
-3. проверить frontend API adapters;
-4. обновить только группы/особые ограничения в этом документе — не копировать
-   все Pydantic schemas вручную.
+`/api/v1/reminders` общей зоной `10r/m`; отдельные значения burst заданы для
+аутентификации и напоминаний в `nginx/nginx.conf`. В FastAPI собственного
+ограничителя частоты запросов нет; прямое обращение к порту API обходит nginx.
+Базовый nginx работает по HTTP; production Compose overlay добавляет Caddy для
+HTTPS и привязывает локальный адрес nginx к `127.0.0.1:8080`. Подробности — в
+[руководстве по развёртыванию](../deploy.md). Настройка DNS, доступность портов
+и сертификат на VPS здесь не проверяются.

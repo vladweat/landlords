@@ -14,7 +14,7 @@ Landlords — CRM для арендодателей. В одном аккаун�
 - Календарь платежей и напоминания.
 - Роли owner, manager и accountant; приглашения участников в аккаунт.
 - Портал арендатора для просмотра баланса, начислений и квитанций.
-- Подписка Pro и интеграция платежей с ЮKassa.
+- Тарифные планы и тарификация подписки.
 
 ## Основной процесс
 
@@ -34,9 +34,8 @@ flowchart LR
 nginx. PostgreSQL хранит данные приложения, Redis используется для фоновых
 задач Celery, а документы хранятся в файловом хранилище.
 
-Backend: Python 3.12, FastAPI, SQLAlchemy 2, Alembic, PostgreSQL 15, Redis 7 и
-Celery. Frontend: React 19, TypeScript, Vite, TanStack Query, Zustand и
-Tailwind CSS 4.
+- Backend: Python 3.12, FastAPI, SQLAlchemy 2, Alembic, PostgreSQL 15, Redis 7 и Celery.
+- Frontend: React 19, TypeScript, Vite, TanStack Query, Zustand и Tailwind CSS 4.
 
 ## Документация
 
