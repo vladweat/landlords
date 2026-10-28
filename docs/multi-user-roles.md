@@ -2,9 +2,6 @@
 
 Роли и приглашения участников аккаунта.
 
-Реализация: [`permissions.py`](../backend/app/domain/permissions.py),
-`backend/app/services/invite_service.py` и account routes.
-
 ---
 
 ## Модель доступа
