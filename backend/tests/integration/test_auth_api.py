@@ -200,6 +200,21 @@ class TestAuthLogin:
 
         assert response.status_code == 401
 
+    def test_signed_token_with_another_account_claim_is_rejected(
+        self, client: TestClient, auth_headers
+    ):
+        token = auth_headers["Authorization"].split(" ", 1)[1]
+        claims = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        claims["account_id"] = "00000000-0000-0000-0000-000000000099"
+        forged_token = jwt.encode(claims, SECRET_KEY, algorithm=ALGORITHM)
+
+        response = client.get(
+            "/v1/auth/me",
+            headers={"Authorization": f"Bearer {forged_token}"},
+        )
+
+        assert response.status_code == 401
+
     def test_login_wrong_password(self, client: TestClient, auth_headers):
         """Неверный пароль."""
         resp = client.post(

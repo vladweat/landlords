@@ -2,6 +2,9 @@
 
 from uuid import UUID, uuid4
 
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
 from app.core.config import settings
 from app.core.exceptions import (
     ConflictError,
@@ -22,6 +25,7 @@ from app.services.dto.account_dto import AccountDTO
 from app.services.dto.user_dto import UserCreateDTO, UserDTO
 from app.services.auth_session_service import AuthSessionService
 from app.services.email_service import EmailService
+from app.db.tenant_context import set_tenant_context
 from loguru import logger
 
 _DUMMY_PASSWORD_HASH = hash_password("landlords-invalid-user-password")
@@ -37,12 +41,14 @@ class UserService:
         membership_repo: IMembershipRepository,
         auth_session_service: AuthSessionService,
         email_service: EmailService | None = None,
+        session: Session | None = None,
     ) -> None:
         self.user_repo = user_repo
         self.account_repo = account_repo
         self.membership_repo = membership_repo
         self.auth_session_service = auth_session_service
         self.email_service = email_service or EmailService()
+        self.session = session
 
     def register(self, dto: UserCreateDTO) -> tuple[UserDTO, AccountDTO, str]:
         """Зарегистрировать пользователя и создать аккаунт."""
@@ -59,9 +65,11 @@ class UserService:
             )
         )
 
+        account_id = uuid4()
+        self._set_context(account_id)
         created_account = self.account_repo.create(
             AccountEntity(
-                id=uuid4(),
+                id=account_id,
                 name=f"{dto.full_name}'s Account",
                 owner_id=created_user.id,
                 plan="free",
@@ -100,6 +108,7 @@ class UserService:
         if not user or not user.is_active or not password_valid:
             raise UnauthorizedError("Invalid email or password")
 
+        self._set_context_for_user(user.id)
         membership = self.membership_repo.get_by_user_id(user.id)
         if not membership or not membership.is_active:
             raise UnauthorizedError("Invalid email or password")
@@ -170,6 +179,7 @@ class UserService:
         user = self.user_repo.get_by_id(user_id)
         if not user:
             raise NotFoundError("Пользователь не найден")
+        self._set_context_for_user(user_id)
         if len(new_password) < 6:
             raise ValidationError("Пароль должен быть не менее 6 символов")
         if not self.user_repo.consume_password_reset_token(user_id, token_id):
@@ -178,6 +188,21 @@ class UserService:
         user.password_reset_token_id = None
         self.user_repo.update(user)
         self.auth_session_service.revoke_all_for_user(user_id)
+
+    def _set_context(self, account_id: UUID) -> None:
+        if self.session is not None:
+            set_tenant_context(self.session, account_id)
+
+    def _set_context_for_user(self, user_id: UUID) -> None:
+        if self.session is None:
+            return
+        account_id = self.session.execute(
+            text("SELECT app_account_id_for_user(:user_id)"),
+            {"user_id": str(user_id)},
+        ).scalar_one_or_none()
+        if account_id is None:
+            raise UnauthorizedError("Invalid email or password")
+        set_tenant_context(self.session, UUID(str(account_id)))
 
     def update_profile(
         self,
