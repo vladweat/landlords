@@ -1,4 +1,4 @@
-"""Idempotently provision the least-privilege application database role."""
+"""Повторяемая настройка runtime роли с минимальными правами."""
 
 from app.core.config import settings
 from psycopg2 import connect, sql

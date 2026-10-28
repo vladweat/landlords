@@ -3,11 +3,11 @@
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import DateTime, String, Text, func
-from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID
-from sqlalchemy.orm import Mapped, mapped_column
-
 from app.db.models.base import Base, TimestampMixin
+from sqlalchemy import DateTime, ForeignKey, String, Text, func
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy.orm import Mapped, mapped_column
 
 
 class AuditLogModel(TimestampMixin, Base):
@@ -16,6 +16,10 @@ class AuditLogModel(TimestampMixin, Base):
     __tablename__ = "audit_logs"
 
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
+    account_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("accounts.id", ondelete="CASCADE"),
+        nullable=False, index=True
+    )
     user_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False, index=True)
     action: Mapped[str] = mapped_column(String(50), nullable=False)  # created, updated, deleted
     entity_type: Mapped[str] = mapped_column(String(50), nullable=False)  # contract, payment, etc

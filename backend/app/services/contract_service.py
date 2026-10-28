@@ -24,14 +24,12 @@ from app.domain.rules import (
     validate_status_transition,
 )
 from app.services.audit_log_service import AuditService
-from app.services.task_outbox_service import TaskOutboxService
 from app.services.contract_event_labels import (
     format_date_ru,
     format_money,
     status_label,
 )
 from app.services.contract_status import check_and_update_contract_status
-from app.services.payment_allocation import allocate_unlinked_payments
 from app.services.dto.contract_dto import (
     ContractCreateDTO,
     ContractDTO,
@@ -41,6 +39,8 @@ from app.services.dto.contract_dto import (
     ContractUpdateDTO,
 )
 from app.services.dto.dashboard_dto import LedgerDTO
+from app.services.payment_allocation import allocate_unlinked_payments
+from app.services.task_outbox_service import TaskOutboxService
 
 
 def _run_rule(rule, *args, **kwargs) -> None:
@@ -174,6 +174,7 @@ class ContractService:
         if dto.status and dto.status != old_status and self.audit_service and user_id:
             self.audit_service.log(
                 user_id=user_id,
+                account_id=account_id,
                 action="status_change",
                 entity_type="contract",
                 entity_id=contract_id,
@@ -265,6 +266,7 @@ class ContractService:
         if self.audit_service and user_id:
             self.audit_service.log(
                 user_id=user_id,
+                account_id=account_id,
                 action="terminate",
                 entity_type="contract",
                 entity_id=contract_id,
@@ -372,6 +374,7 @@ class ContractService:
         if self.audit_service and user_id:
             self.audit_service.log(
                 user_id=user_id,
+                account_id=account_id,
                 action="renew",
                 entity_type="contract",
                 entity_id=contract_id,
