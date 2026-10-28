@@ -6,17 +6,17 @@ backlog. Текущее поведение см. в [справке по про�
 
 Ядро CRM уже есть: договоры, ledger, роли, PDF, Celery, дашборд. До «настоящего продукта» не хватает не фич, а того, без чего им нельзя пользоваться каждый день и за что нельзя брать деньги.
 
-Операционный порядок работ — [PRIORITIES.md](./PRIORITIES.md).  
-Инфра и деплой: [INFRA.md](./INFRA.md).  
-Код без переписывания архитектуры: [backend/ARCHITECTURE.md](../backend/ARCHITECTURE.md).
+Операционный порядок работ — [priorities.md](./priorities.md).
+Инфра и деплой: [infra.md](./infra.md).
+Код без переписывания архитектуры: [backend/architecture.md](../backend/architecture.md).
 
 ---
 
 ## Что уже можно считать продуктом
 
-Объекты, арендаторы, договоры (draft → active, продление и расторжение), начисления, платежи, ledger, расходы и ROI, календарь, напоминания, документы, шаблоны, экспорт, RBAC, инвойс по ссылке. Денежная логика в [MONEY_FLOW.md](./MONEY_FLOW.md) в основном закрыта.
+Объекты, арендаторы, договоры (draft → active, продление и расторжение), начисления, платежи, ledger, расходы и ROI, календарь, напоминания, документы, шаблоны, экспорт, RBAC, инвойс по ссылке. Денежная логика в [money-flow.md](./money-flow.md) в основном закрыта.
 
-Инфра этапа 1 закрыта (online/offline Docker, CI, nginx, README) — [PRIORITIES.md](./PRIORITIES.md), [INFRA.md](./INFRA.md). Точечный код-долг — [ARCHITECTURE.md](../backend/ARCHITECTURE.md); слои переписывать не нужно.
+Инфра этапа 1 закрыта (online/offline Docker, CI, nginx, README) — [priorities.md](./priorities.md), [infra.md](./infra.md). Точечный код-долг — [architecture.md](../backend/architecture.md); слои переписывать не нужно.
 
 | # | Фича |
 |---|------|
@@ -43,13 +43,13 @@ backlog. Текущее поведение см. в [справке по про�
 | ~~Участников создаёт owner с паролем, без invite~~ | Закрыто: invite по ссылке |
 | Напоминания без канала доставки | Письма owner о просрочке/конце договора есть; Telegram — позже |
 
-Инфра-детали: [INFRA.md](./INFRA.md), runbook: [deploy.md](./deploy.md).
+Инфра-детали: [infra.md](./infra.md), runbook: [deploy.md](./deploy.md).
 
 ---
 
 ## Порядок работ
 
-Чеклист = [PRIORITIES.md](./PRIORITIES.md). Отмечай `- [ ]` → `- [x]`.
+Чеклист = [priorities.md](./priorities.md). Отмечай `- [ ]` → `- [x]`.
 
 ### 1. Чтобы это можно было задеплоить
 
@@ -118,9 +118,9 @@ backlog. Текущее поведение см. в [справке по про�
 
 ## Связанные спеки
 
-- Деньги: [MONEY_FLOW.md](./MONEY_FLOW.md), [use-cases-contracts-payments.md](./use-cases-contracts-payments.md)
-- SaaS-оплата: [BILLING.md](./BILLING.md)
+- Деньги: [money-flow.md](./money-flow.md), [use-cases-contracts-payments.md](./use-cases-contracts-payments.md)
+- SaaS-оплата: [billing.md](./billing.md)
 - Роли: [multi-user-roles.md](./multi-user-roles.md)
-- Что делать дальше: [PRIORITIES.md](./PRIORITIES.md)
-- Инфра: [INFRA.md](./INFRA.md)
-- Архитектура и код-долг: [ARCHITECTURE.md](../backend/ARCHITECTURE.md)
+- Что делать дальше: [priorities.md](./priorities.md)
+- Инфра: [infra.md](./infra.md)
+- Архитектура и код-долг: [architecture.md](../backend/architecture.md)

@@ -6,7 +6,7 @@ alwaysApply: false
 
 # Backend — слоистая архитектура
 
-> Справочник: `backend/ARCHITECTURE.md` · чеклист: `backend/TODO.md` · деньги: `docs/MONEY_FLOW.md`
+> Справочник: `backend/architecture.md` · чеклист: `backend/todo.md` · деньги: `docs/money-flow.md`
 
 ```
 routes → services → repositories → models

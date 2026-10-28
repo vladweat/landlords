@@ -2,7 +2,7 @@
 
 Документ фиксирует структуру и паттерны backend на сентябрь 2026.
 
-**Трекер исправлений:** [TODO.md](./TODO.md) · продукт: [docs/ROADMAP.md](../docs/ROADMAP.md)
+**Трекер исправлений:** [todo.md](./todo.md) · продукт: [docs/roadmap.md](../docs/roadmap.md)
 
 > **Статус:** документ сохраняет контекст code review сентября 2026. Часть
 > backlog ниже уже закрыта. Актуальное устройство системы:
@@ -138,7 +138,7 @@ entity → interface → repo → service → schema → route → deps → те
 
 (`autoretry_for` уже сужен до transient — не откатывать это.)
 
-### 6. Фронт (исторические пункты; см. [frontend/TODO.md](../frontend/TODO.md))
+### 6. Фронт (исторические пункты; см. [frontend/todo.md](../frontend/todo.md))
 
 - Переход на HttpOnly-cookie выполнен; `localStorage` читается только для
   миграции legacy sessions.
@@ -177,7 +177,7 @@ mypy на backend нет, в пагинации `items: list[Any]`. Имеет �
 
 ## Инфраструктура (открыто)
 
-Полный разбор: [docs/INFRA.md](../docs/INFRA.md).
+Полный разбор: [docs/infra.md](../docs/infra.md).
 
 - `Dockerfile` поддерживает offline и online (`pip install -r requirements.lock`) режимы.
 - CI выполняет integration + frontend test/build + online image.
@@ -207,7 +207,7 @@ integration tests не запускается.
 
 > Август 2026: feedback/events/refresh-status через сервисы; `PaginatedResult` в `domain/pagination.py`; Celery в `app/celery_app.py`; DI для `ContractEventRepository`/`AuditService`; `Session` убран из сервисов; дубль `list_by_account` → `list_all_by_account`.
 
-Критические и логические баги из первого review (ValidationError imports, document download, status events, audit `user_id`, payment recalculation, login `UnauthorizedError`) — закрыты; детали в [TODO.md](./TODO.md).
+Критические и логические баги из первого review (ValidationError imports, document download, status events, audit `user_id`, payment recalculation, login `UnauthorizedError`) — закрыты; детали в [todo.md](./todo.md).
 
 ---
 

@@ -1,7 +1,7 @@
 # Деплой Landlords
 
 Операционный runbook: поднять стек, проверить готовность, бэкап и восстановление.
-Стратегия — [ROADMAP.md](./ROADMAP.md), инфра — [INFRA.md](./INFRA.md).
+Стратегия — [roadmap.md](./roadmap.md), инфра — [infra.md](./infra.md).
 
 ## Подготовка
 

@@ -42,10 +42,10 @@ Tailwind CSS 4.
 
 - [Описание проекта и технических разделов](docs/index.md)
 - [Архитектура приложения](docs/architecture/overview.md)
-- [Денежный поток и правила ledger](docs/MONEY_FLOW.md)
+- [Денежный поток и правила ledger](docs/money-flow.md)
 - [Договоры и платежи](docs/use-cases-contracts-payments.md)
 - [Роли и доступ](docs/multi-user-roles.md)
-- [Оплата Pro](docs/BILLING.md)
+- [Оплата Pro](docs/billing.md)
 
 ## Разработка
 

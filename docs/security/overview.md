@@ -107,7 +107,7 @@ CSRF review.
 
 Rate limiting существует только в nginx и обходится прямым доступом к port
 8000. YooKassa webhook не имеет body signature; service повторно читает
-состояние через provider API, что описано в `docs/BILLING.md`.
+состояние через provider API, что описано в `docs/billing.md`.
 
 ## Secrets и sensitive data
 

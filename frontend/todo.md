@@ -8,7 +8,7 @@ backlog. Текущее устройство приложения описано
 Стек: React 19, Vite, TanStack Query, Zustand (auth), Tailwind 4, FSD-подобная структура.
 
 **Сборка:** `npx tsc --noEmit` и `npm run build` зелёные.  
-Продукт: [ROADMAP.md](../docs/ROADMAP.md) · приоритеты: [PRIORITIES.md](../docs/PRIORITIES.md).
+Продукт: [roadmap.md](../docs/roadmap.md) · приоритеты: [priorities.md](../docs/priorities.md).
 
 ### Перед prod (с backend)
 

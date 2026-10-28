@@ -2,7 +2,7 @@
 
 Локальный и VPS-стек на Docker Compose. Операционные процедуры описаны в [deploy.md](./deploy.md).
 
-Продуктовый порядок: [ROADMAP.md](./ROADMAP.md) · чеклист: [PRIORITIES.md](./PRIORITIES.md).
+Продуктовый порядок: [roadmap.md](./roadmap.md) · чеклист: [priorities.md](./priorities.md).
 
 ---
 

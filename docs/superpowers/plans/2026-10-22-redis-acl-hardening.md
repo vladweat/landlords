@@ -50,7 +50,7 @@
 - Modify: `docker-compose.yml`
 - Modify: `backend/app/core/config.py`
 - Modify: `.env.example`
-- Modify: `docs/development/configuration.md`, `docs/deploy.md`, `docs/INFRA.md`
+- Modify: `docs/development/configuration.md`, `docs/deploy.md`, `docs/infra.md`
 - Test: `backend/tests/unit/test_redis_configuration.py`
 
 - [ ] Add ACL identities for API, worker/beat, and optional Flower; disable the `default` user and limit command categories/key prefixes based on the Redis command/key inventory.
