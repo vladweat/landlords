@@ -8,12 +8,15 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 from loguru import logger
-from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+from prometheus_client import CONTENT_TYPE_LATEST, REGISTRY, generate_latest
 
 from app.core.config import settings
 from app.core.cookies import ACCESS_TOKEN_COOKIE
 from app.core.exceptions import AppException
 from app.core.logging_middleware import LoggingMiddleware, _safe_request_path
+from app.services.ops_task_metrics import OpsTaskMetricsCollector
+
+REGISTRY.register(OpsTaskMetricsCollector())
 
 
 def _origin(value: str | None) -> str | None:

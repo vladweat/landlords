@@ -2,8 +2,10 @@
 
 from celery import Celery
 from celery.schedules import crontab
+from celery.signals import task_failure, task_postrun, task_prerun
 
 from app.core.config import settings
+from app.services.ops_task_metrics import record_task_event
 
 
 def _init_sentry() -> None:
@@ -76,30 +78,27 @@ celery_app.conf.update(
     },
 )
 
-# Prometheus metrics for Celery tasks (optional)
-try:
-    from prometheus_client import Counter
-    from celery.signals import task_postrun, task_failure
+def _task_name(task, sender) -> str:
+    """Return only the registered task name; never inspect task arguments."""
+    return getattr(task, "name", None) or getattr(sender, "name", str(sender))
 
-    CELERY_TASKS_COUNTER = Counter(
-        "celery_tasks_total", "Total number of Celery tasks executed", ["task_name", "status"]
-    )
 
-    @task_postrun.connect
-    def _on_task_postrun(sender, task_id, task, args, kwargs, retval, state, **_):
-        try:
-            name = getattr(task, "name", sender.name if hasattr(sender, "name") else str(sender))
-            CELERY_TASKS_COUNTER.labels(task_name=name, status="success").inc()
-        except Exception:
-            pass
+@task_prerun.connect
+def _on_task_prerun(sender=None, task=None, **_):
+    """Record task start without capturing its ID or input payload."""
+    record_task_event(_task_name(task, sender), "started")
 
-    @task_failure.connect
-    def _on_task_failure(sender, task_id, exception, args, kwargs, einfo, **_):
-        try:
-            name = getattr(sender, "name", str(sender))
-            CELERY_TASKS_COUNTER.labels(task_name=name, status="failure").inc()
-        except Exception:
-            pass
-except Exception:
-    # prometheus_client or celery.signals may be missing in dev env; ignore
-    pass
+
+@task_postrun.connect
+def _on_task_postrun(sender=None, task=None, retval=None, state=None, **_):
+    """Record successful or explicitly skipped task outcomes once."""
+    if state != "SUCCESS":
+        return
+    status = "skipped" if isinstance(retval, dict) and retval.get("status") == "skipped" else "success"
+    record_task_event(_task_name(task, sender), status)
+
+
+@task_failure.connect
+def _on_task_failure(sender=None, **_):
+    """Record terminal task failure; task_postrun ignores the FAILURE state."""
+    record_task_event(_task_name(sender, sender), "failure")

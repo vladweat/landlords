@@ -82,7 +82,7 @@ class TestGenerateCharges:
         first_repository = Mock()
         first_repository.get_for_update.return_value = message
         failure_repository = Mock()
-        failure_repository.record_task_failure.return_value = False
+        failure_repository.record_task_failure.return_value = True
         with patch(
             "app.tasks.charge_tasks.SessionLocal",
             side_effect=[task_session, failure_session],
@@ -97,7 +97,9 @@ class TestGenerateCharges:
             "app.tasks.charge_tasks.ContractRepository"
         ), patch(
             "app.tasks.charge_tasks.RentChargeService"
-        ) as service:
+        ) as service, patch(
+            "app.tasks.charge_tasks.record_outbox_terminal_failure"
+        ) as record_terminal_failure:
             service.return_value.create_charges_batch.side_effect = ValueError(
                 "redis password=must-not-be-stored"
             )
@@ -112,6 +114,7 @@ class TestGenerateCharges:
         task_session.rollback.assert_called_once()
         failure_repository.record_task_failure.assert_called_once()
         assert failure_repository.record_task_failure.call_args.args[2] == "ValueError"
+        record_terminal_failure.assert_called_once_with()
 
 
 class TestUpdateOverdueCharges:

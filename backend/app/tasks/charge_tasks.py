@@ -18,6 +18,7 @@ from app.db.repositories.tenant_context_repo import TenantContextRepository
 from app.db.session import SessionLocal
 from app.db.tenant_context import set_tenant_context
 from app.services.rent_charge_service import RentChargeService
+from app.services.ops_task_metrics import record_outbox_terminal_failure
 
 logger = get_task_logger(__name__)
 
@@ -93,9 +94,10 @@ def generate_charges_for_contract(
         session.rollback()
         if message_id:
             failure_session = SessionLocal()
+            terminal_failure = False
             try:
                 set_tenant_context(failure_session, tenant_id)
-                OutboxMessageRepository(failure_session).record_task_failure(
+                terminal_failure = OutboxMessageRepository(failure_session).record_task_failure(
                     message_id,
                     tenant_id,
                     type(exc).__name__,
@@ -103,6 +105,8 @@ def generate_charges_for_contract(
                     datetime.now(timezone.utc) + timedelta(seconds=180),
                 )
                 failure_session.commit()
+                if terminal_failure:
+                    record_outbox_terminal_failure()
             except Exception:
                 failure_session.rollback()
                 logger.error(
