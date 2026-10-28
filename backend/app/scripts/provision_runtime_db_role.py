@@ -26,6 +26,26 @@ def provision_runtime_role(database_name: str | None = None) -> None:
     owner_url = make_url(settings.MIGRATION_DATABASE_URL).set(database=database_name)
     with connect(_psycopg2_dsn(owner_url.render_as_string(hide_password=False))) as connection:
         with connection.cursor() as cursor:
+            cursor.execute("SELECT rolsuper FROM pg_roles WHERE rolname = current_user")
+            if not cursor.fetchone()[0]:
+                raise RuntimeError(
+                    "Migration database role must be a superuser to provision the "
+                    "dedicated PostgreSQL RLS resolver role."
+                )
+
+            cursor.execute(
+                "SELECT 1 FROM pg_roles WHERE rolname = %s", ("landlords_rls_resolver",)
+            )
+            resolver_exists = cursor.fetchone() is not None
+            resolver_statement = sql.SQL(
+                "ALTER ROLE {} NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE "
+                "NOINHERIT NOREPLICATION BYPASSRLS"
+                if resolver_exists
+                else "CREATE ROLE {} NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE "
+                "NOINHERIT NOREPLICATION BYPASSRLS"
+            ).format(sql.Identifier("landlords_rls_resolver"))
+            cursor.execute(resolver_statement)
+
             cursor.execute("SELECT 1 FROM pg_roles WHERE rolname = %s", (runtime,))
             role_exists = cursor.fetchone() is not None
             role_statement = sql.SQL(
@@ -36,6 +56,11 @@ def provision_runtime_role(database_name: str | None = None) -> None:
                 "NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS"
             ).format(sql.Identifier(runtime), sql.Literal(settings.DB_PASSWORD))
             cursor.execute(role_statement)
+            cursor.execute(
+                sql.SQL("REVOKE {} FROM {}").format(
+                    sql.Identifier("landlords_rls_resolver"), sql.Identifier(runtime)
+                )
+            )
             cursor.execute(
                 sql.SQL("GRANT CONNECT ON DATABASE {} TO {}").format(
                     sql.Identifier(database_name), sql.Identifier(runtime)

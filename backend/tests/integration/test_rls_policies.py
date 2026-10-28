@@ -89,6 +89,73 @@ def test_runtime_role_is_not_superuser_or_table_owner(test_engine) -> None:
     assert role == (False, False, False, False)
 
 
+def test_rls_resolver_role_is_narrow_and_owns_resolver_functions(test_engine) -> None:
+    expected_columns = {
+        ("account_memberships", "user_id"),
+        ("account_memberships", "account_id"),
+        ("account_invites", "token"),
+        ("account_invites", "account_id"),
+        ("invoices", "public_token"),
+        ("invoices", "public_token_expires_at"),
+        ("invoices", "account_id"),
+        ("contracts", "portal_token"),
+        ("contracts", "portal_token_expires_at"),
+        ("contracts", "account_id"),
+        ("accounts", "id"),
+        ("task_outbox", "account_id"),
+        ("task_outbox", "status"),
+        ("task_outbox", "available_at"),
+        ("task_outbox", "lease_until"),
+    }
+    with test_engine.connect() as connection:
+        role = connection.execute(
+            text(
+                """
+                SELECT rolsuper, rolbypassrls, rolcreaterole, rolcanlogin,
+                       pg_has_role(current_user, 'landlords_rls_resolver', 'MEMBER')
+                FROM pg_roles WHERE rolname = 'landlords_rls_resolver'
+                """
+            )
+        ).one()
+        grants = set(
+            connection.execute(
+                text(
+                    """
+                    SELECT relation.relname, attribute.attname
+                    FROM pg_class AS relation
+                    JOIN pg_namespace AS schema ON schema.oid = relation.relnamespace
+                    JOIN pg_attribute AS attribute ON attribute.attrelid = relation.oid
+                    CROSS JOIN LATERAL aclexplode(attribute.attacl) AS privilege
+                    JOIN pg_roles AS grantee ON grantee.oid = privilege.grantee
+                    WHERE grantee.rolname = 'landlords_rls_resolver'
+                      AND schema.nspname = 'public'
+                      AND privilege.privilege_type = 'SELECT'
+                      AND attribute.attnum > 0
+                      AND NOT attribute.attisdropped
+                    """
+                )
+            ).all()
+        )
+        function_owners = set(
+            connection.execute(
+                text(
+                    """
+                    SELECT owner.rolname
+                    FROM pg_proc AS function
+                    JOIN pg_namespace AS schema ON schema.oid = function.pronamespace
+                    JOIN pg_roles AS owner ON owner.oid = function.proowner
+                    WHERE schema.nspname = 'public'
+                      AND left(function.proname, 4) = 'app_'
+                    """
+                )
+            ).scalars()
+        )
+
+    assert role == (False, True, False, False, False)
+    assert grants == expected_columns
+    assert function_owners == {"landlords_rls_resolver"}
+
+
 def test_tenant_rows_are_visible_only_in_matching_context(test_engine) -> None:
     account_a = uuid4()
     account_b = uuid4()
