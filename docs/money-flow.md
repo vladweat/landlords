@@ -48,9 +48,3 @@
   денежная операция.
 - Портал арендатора показывает баланс и квитанции. Заявка «Я оплатил» сама не
   создаёт ledger-платёж: его создаёт подтверждение владельца.
-
-Детальные переходы договора, сценарии оплаты и ограничения описаны в
-[use cases](use-cases-contracts-payments.md). Реализацию проверяй по
-`backend/app/services/payment_service.py`,
-`backend/app/services/rent_charge_service.py` и
-`backend/app/services/ledger_service.py`.
