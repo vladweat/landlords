@@ -16,6 +16,7 @@ from app.db.repositories.outbox_message_repo import OutboxMessageRepository
 from app.db.repositories.tenant_context_repo import TenantContextRepository
 from app.db.tenant_context import set_tenant_context
 from app.domain.entities import OutboxMessageEntity
+from app.services.ops_task_metrics import mark_outbox_relay_heartbeat
 
 
 @dataclass(frozen=True)
@@ -173,6 +174,8 @@ class OutboxRelay:
                 self.dispatch_once()
             except Exception:
                 logger.exception("outbox_relay_iteration_failed")
+            finally:
+                mark_outbox_relay_heartbeat()
             stop_event.wait(self.poll_seconds)
 
     def _retry_delay(self, attempts: int) -> float:

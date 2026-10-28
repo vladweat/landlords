@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 import redis
 
 from app.main import create_app
+from app.services import ops_task_metrics
 
 
 class DummyRedis:
@@ -45,3 +46,25 @@ def test_readiness_closes_session_when_database_probe_fails(monkeypatch):
     assert response.status_code == 503
     assert response.json()["message"] == "db_unavailable"
     assert session.closed
+
+
+def test_metrics_endpoint_exposes_celery_metrics_when_redis_is_available(monkeypatch):
+    class MetricsRedis:
+        def get(self, _key):
+            return None
+
+        def hget(self, _key, _field):
+            return None
+
+        def hgetall(self, _key):
+            return {}
+
+    monkeypatch.setattr(redis, "from_url", lambda _url: MetricsRedis())
+    monkeypatch.setattr(redis.Redis, "from_url", lambda *_args, **_kwargs: MetricsRedis())
+    ops_task_metrics._client.cache_clear()
+
+    response = TestClient(create_app()).get("/metrics")
+
+    assert response.status_code == 200
+    assert "landlords_celery_task_events_total" in response.text
+    assert "landlords_outbox_relay_last_poll_timestamp_seconds" in response.text

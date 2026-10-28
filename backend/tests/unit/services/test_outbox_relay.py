@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from dataclasses import replace
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 from uuid import UUID, uuid4
 
 from app.domain.entities import OutboxMessageEntity
@@ -170,3 +170,24 @@ def test_dispatch_claims_messages_under_each_account_context():
     assert claim_scopes == [account_a, account_b]
     assert summary.claimed == 2
     assert summary.published == 2
+
+
+def test_relay_writes_heartbeat_after_each_poll_attempt():
+    class StopAfterOnePoll:
+        calls = 0
+
+        def is_set(self):
+            return self.calls > 0
+
+        def wait(self, _seconds):
+            self.calls += 1
+
+    relay = OutboxRelay(session_factory=Mock(), publisher=Mock())
+    relay.dispatch_once = Mock(side_effect=RuntimeError("database temporarily unavailable"))
+    stop_event = StopAfterOnePoll()
+
+    with patch("app.services.outbox_relay.mark_outbox_relay_heartbeat") as heartbeat:
+        relay.run(stop_event)
+
+    relay.dispatch_once.assert_called_once_with()
+    heartbeat.assert_called_once_with()
