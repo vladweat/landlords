@@ -5,10 +5,10 @@ Landlords помогает вести арендные объекты, дого�
 
 ## О продукте
 
-- [Денежный поток и ledger](MONEY_FLOW.md)
+- [Денежный поток и ledger](money-flow.md)
 - [Сценарии работы с договорами и платежами](use-cases-contracts-payments.md)
 - [Роли участников аккаунта](multi-user-roles.md)
-- [Оплата тарифа Pro](BILLING.md)
+- [Оплата тарифа Pro](billing.md)
 
 ## Устройство приложения
 

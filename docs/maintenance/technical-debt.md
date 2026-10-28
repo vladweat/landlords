@@ -42,7 +42,7 @@
 
 ## Исторические документы
 
-`backend/ARCHITECTURE.md` и `backend/TODO.md` полезны как review history, но
+`backend/architecture.md` и `backend/todo.md` полезны как review history, но
 часть пунктов уже исправлена (HttpOnly cookie, полный CI, online image). Для
 новой приоритизации использовать разделы выше и сверять каждый пункт с кодом.
 

@@ -7,7 +7,7 @@ Checkboxes ниже фиксируют состояние на момент пр
 
 Чеклист по результатам code review. Отмечай выполненное: `- [ ]` → `- [x]`.
 
-Справочник по архитектуре: [ARCHITECTURE.md](./ARCHITECTURE.md)
+Справочник по архитектуре: [architecture.md](./architecture.md)
 
 **Статус:** исторический подсчёт на дату прежнего code review. Не использовать
 как текущую оценку.
@@ -26,7 +26,7 @@ Checkboxes ниже фиксируют состояние на момент пр
 - [X] Ужесточить CORS и security headers в prod — `nginx/nginx.conf`, `app/main.py`.
 
 ### Инфраструктура и CI
-> Детали и порядок: [docs/INFRA.md](../docs/INFRA.md). Offline-`.venv` **не удалять** — нужен для офлайн-сборки.
+> Детали и порядок: [docs/infra.md](../docs/infra.md). Offline-`.venv` **не удалять** — нужен для офлайн-сборки.
 
 - [x] Docker: online-режим (`pip install -r requirements.txt`) рядом с offline (`COPY .venv`) — build-arg / target — `Dockerfile`, CI.
 - [x] Добавить volume `storage/documents` для API и Celery worker — `docker-compose.yml`.
@@ -37,7 +37,7 @@ Checkboxes ниже фиксируют состояние на момент пр
 - [x] Prod: Postgres/Redis без `ports` на хост; TLS; CORS не localhost.
 - [x] Бэкап/restore: Postgres + `storage/documents` → записать в [docs/deploy.md](../docs/deploy.md).
 
-### Код (без смены поведения) — порядок в ARCHITECTURE.md
+### Код (без смены поведения) — порядок в architecture.md
 - [x] Убрать `float()` для денежных значений из `forecast_service.py` / `roi_service.py` — суммы в JSON отдаются строками; проценты ROI остаются числами.
 - [x] N+1: batch-запросы charges/properties/contracts/payments/expenses для forecast, dashboard и ROI; account-scoped методы в repositories.
 - [ ] Разрезать `contract_service` (lifecycle), `pdf_service` (layout vs data), `routes/contracts.py` (документы/ledger/заметки).
@@ -59,7 +59,7 @@ Checkboxes ниже фиксируют состояние на момент пр
 - [x] Подключить Sentry и структурированные логи; экспорт базовых метрик (Prometheus) — `app/main.py`, `app/core/config.py`.
 - [x] Настроить rate‑limit для чувствительных endpoint'ов (login, forgot-password, reminders).
 - [x] Health/readiness endpoints (`/health`, `/ready`) в API.
-- [x] Deploy runbook и backup/restore — процедуры в репозитории нет → [docs/deploy.md](../docs/deploy.md), [INFRA.md](../docs/INFRA.md).
+- [x] Deploy runbook и backup/restore — процедуры в репозитории нет → [docs/deploy.md](../docs/deploy.md), [infra.md](../docs/infra.md).
 
 ### Мелкие задачи
 - [x] Удалить неиспользуемые настройки и зависимости (`CACHE_DEFAULT_TTL`, `APP_TIMEZONE`, `testcontainers` в requirements).
@@ -125,7 +125,7 @@ Checkboxes ниже фиксируют состояние на момент пр
 ## P4 — инфраструктура и тесты
 
 - [x] Дополнить `requirements.txt`: `python-jose`, `passlib[bcrypt]`, `reportlab`, `python-dateutil`
-- [ ] Docker online-режим из requirements (+ сохранить offline `.venv`) — см. INFRA.md
+- [ ] Docker online-режим из requirements (+ сохранить offline `.venv`) — см. infra.md
 - [x] Volume `storage/documents` для celery-worker — `docker-compose.yml`
 - [x] Переименовать `tests/confest.py` → `conftest.py`
 - [x] Integration tests: URL `/v1/...` вместо `/auth/`, `/properties/` …
@@ -151,6 +151,6 @@ Checkboxes ниже фиксируют состояние на момент пр
 ## Как обновлять
 
 1. После исправления — `- [x]` и при желании ссылка на commit/PR.
-2. Обновить счётчик в шапке (можно вручную или `grep -c '\- \[x\]' TODO.md`).
-3. Крупные изменения архитектуры — кратко дописать в [ARCHITECTURE.md](./ARCHITECTURE.md) (раздел «Исправлено»).
+2. Обновить счётчик в шапке (можно вручную или `grep -c '\- \[x\]' todo.md`).
+3. Крупные изменения архитектуры — кратко дописать в [architecture.md](./architecture.md) (раздел «Исправлено»).
 

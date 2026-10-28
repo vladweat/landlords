@@ -72,7 +72,7 @@ ORM/domain используют `Decimal`; API должен сериализов
 строками. `rent_charges` создают обязательство, `payments` уменьшают его.
 `payments.rent_charge_id` nullable: отсутствие ссылки означает аванс; сервис
 распределяет его FIFO. Депозит — поле договора и не входит в ledger. Полные
-инварианты: [MONEY_FLOW.md](../MONEY_FLOW.md).
+инварианты: [money-flow.md](../money-flow.md).
 
 ## Индексы
 

@@ -7,7 +7,7 @@ alwaysApply: true
 
 SaaS: объекты, арендаторы, договоры (draft→active, renew/terminate), начисления/платежи/ledger, расходы, календарь, напоминания, документы, дашборд (ROI/forecast), роли в аккаунте.
 
-Спеки: `docs/ROADMAP.md`, `docs/PRIORITIES.md`, `docs/MONEY_FLOW.md`, `docs/multi-user-roles.md`, `docs/use-cases-contracts-payments.md`.
+Спеки: `docs/roadmap.md`, `docs/priorities.md`, `docs/money-flow.md`, `docs/multi-user-roles.md`, `docs/use-cases-contracts-payments.md`.
 
 ## Стек
 

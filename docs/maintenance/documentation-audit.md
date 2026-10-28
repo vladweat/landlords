@@ -21,7 +21,7 @@ systemd units, shell scripts и существующими tests. Live VPS и в
   возможной установки на VPS.
 - Money flow, roles, use cases и billing отделяют текущее поведение от старого
   backlog и проектных решений.
-- `ROADMAP.md`, `PRIORITIES.md`, `backend/TODO.md` и `frontend/TODO.md` явно
+- `roadmap.md`, `priorities.md`, `backend/todo.md` и `frontend/todo.md` явно
   помечены как исторические документы. Единственный актуальный реестр рисков —
   [technical-debt.md](technical-debt.md).
 - В README используются существующие SVG заглушки только с явным пояснением;

@@ -4,9 +4,9 @@
 актуальный backlog: продуктовые планы требуют отдельного пересмотра перед
 планированием.
 
-Короткий чеклист поверх стратегии в [ROADMAP.md](./ROADMAP.md).  
-Инфра: [INFRA.md](./INFRA.md).  
-Код (без rewrite): [backend/ARCHITECTURE.md](../backend/ARCHITECTURE.md).
+Короткий чеклист поверх стратегии в [roadmap.md](./roadmap.md).
+Инфра: [infra.md](./infra.md).
+Код (без rewrite): [backend/architecture.md](../backend/architecture.md).
 
 ```mermaid
 flowchart LR
@@ -26,17 +26,17 @@ flowchart LR
 
 | Задача | Где | Зачем |
 |--------|-----|-------|
-| Docker: online (`pip install`) **и** offline (`COPY .venv`) | `backend/Dockerfile`, [INFRA.md](./INFRA.md) | CI/чужая машина + твоя офлайн-сборка |
+| Docker: online (`pip install`) **и** offline (`COPY .venv`) | `backend/Dockerfile`, [infra.md](./infra.md) | CI/чужая машина + твоя офлайн-сборка |
 | Один вход: nginx → API + статика; без конфликта порта 80 | `docker-compose.yml`, `nginx/` | Прод-профиль взлетает |
 | Секреты только из env; заполнить `.env.example` | `.env`, compose | Не дефолтные пароли |
 | Полный CI: ruff → unit → integration → `tsc`/build → online image | `.github/workflows/ci.yml` | `git push` не пропускает красное |
-| Зелёный frontend `tsc` | `frontend/TODO.md` | Честный UI-билд |
+| Зелёный frontend `tsc` | `frontend/todo.md` | Честный UI-билд |
 | Бэкап Postgres + `storage/documents`, runbook | [deploy.md](./deploy.md) | Можно откатить |
 | Root README + демо-аккаунт | `README.md` | Вход через месяц |
 
 Volume `storage/documents` для api и celery — **готово**.
 
-После этого — VPS и пользование самому. Критерии «готово» — в [ROADMAP.md](./ROADMAP.md).
+После этого — VPS и пользование самому. Критерии «готово» — в [roadmap.md](./roadmap.md).
 
 ---
 
@@ -75,7 +75,7 @@ Volume `storage/documents` для api и celery — **готово**.
 
 ## Связанные спеки
 
-- Стратегия и критерии: [ROADMAP.md](./ROADMAP.md)
-- Инфра: [INFRA.md](./INFRA.md)
-- Деньги: [MONEY_FLOW.md](./MONEY_FLOW.md), [use-cases-contracts-payments.md](./use-cases-contracts-payments.md)
+- Стратегия и критерии: [roadmap.md](./roadmap.md)
+- Инфра: [infra.md](./infra.md)
+- Деньги: [money-flow.md](./money-flow.md), [use-cases-contracts-payments.md](./use-cases-contracts-payments.md)
 - Роли: [multi-user-roles.md](./multi-user-roles.md)
