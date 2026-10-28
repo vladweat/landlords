@@ -6,6 +6,8 @@ from datetime import date, timedelta
 from decimal import Decimal
 from uuid import UUID
 
+from sqlalchemy import text
+
 from app.core.exceptions import ConflictError
 from app.db.repositories.account_repo import AccountRepository
 from app.db.repositories.auth_session_repo import AuthSessionRepository
@@ -20,6 +22,7 @@ from app.db.repositories.rent_charge_repo import RentChargeRepository
 from app.db.repositories.tenant_repo import TenantRepository
 from app.db.repositories.user_repo import UserRepository
 from app.db.session import SessionLocal
+from app.db.tenant_context import set_tenant_context
 from app.domain.rules import compute_charge_status
 from app.services.contract_event_service import ContractEventService
 from app.services.contract_service import ContractService
@@ -65,6 +68,13 @@ def _ensure_user(
     membership_repo = MembershipRepository(session)
     user = user_repo.get_by_email(email)
     if user:
+        resolved_account_id = session.execute(
+            text("SELECT app_account_id_for_user(:user_id)"),
+            {"user_id": str(user.id)},
+        ).scalar_one_or_none()
+        if resolved_account_id is None:
+            raise RuntimeError("no active membership")
+        set_tenant_context(session, UUID(str(resolved_account_id)))
         membership = membership_repo.get_by_user_id(user.id)
         if not membership or not membership.is_active:
             raise RuntimeError("no active membership")
@@ -75,6 +85,7 @@ def _ensure_user(
         AccountRepository(session),
         membership_repo,
         AuthSessionService(AuthSessionRepository(session)),
+        session=session,
     )
     try:
         user_dto, account_dto, _token = user_service.register(
