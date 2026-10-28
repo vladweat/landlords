@@ -5,7 +5,7 @@
 Используются PostgreSQL 15, SQLAlchemy 2 в синхронном режиме, psycopg2 и
 Alembic. Движок SQLAlchemy и `SessionLocal` создаются в
 `backend/app/db/session.py`.
-`DATABASE_URL` собирается из `DB_*` в `app/core/config.py`.
+`DATABASE_URL` собирается из рабочих `DB_*`; `MIGRATION_DATABASE_URL` — из `MIGRATION_DB_*` в `app/core/config.py`. Рабочая роль не владеет таблицами и не имеет `BYPASSRLS`; миграции и выдача grants выполняются одноразовыми сервисами с отдельными credentials.
 
 Схему определяют миграции `backend/alembic/versions/`; ORM-модели не заменяют
 миграции. Применение:
@@ -16,8 +16,7 @@ alembic current
 alembic upgrade head
 ```
 
-В Compose миграции выполняет `backend/docker-entrypoint.sh` только для `api`
-при `RUN_MIGRATIONS=1`. Автоматического отката схемы нет: downgrade следует
+В Compose одноразовый сервис `db-migrate` запускает `backend/docker-entrypoint.sh` с `RUN_MIGRATIONS=1` после `db-role-bootstrap`; API и Celery получают только credentials рабочей роли. Автоматического отката схемы нет: downgrade следует
 проверять отдельно, а восстановление данных выполнять по
 [deploy.md](../deploy.md).
 
@@ -26,8 +25,21 @@ alembic upgrade head
 `accounts` задаёт границу между аккаунтами. Большинство бизнес-таблиц содержит
 `account_id`; запросы репозиториев на чтение, изменение и удаление должны
 учитывать это поле. JWT содержит `account_id`, а зависимость дополнительно
-проверяет активное членство в `account_memberships`. Изоляция выполняется на
-уровне приложения; Row Level Security (RLS) в PostgreSQL не настроен.
+проверяет активное членство в `account_memberships`. PostgreSQL RLS включён и
+принудительно применяется к tenant-таблицам, включая `accounts` (по `id`) и
+`audit_logs` (с отдельным `account_id`). Таблица `users` остаётся глобальной для
+поиска identity и входа.
+
+Каждая транзакция с данными аккаунта должна установить UUID через
+`set_tenant_context(session, account_id)`. Вспомогательная функция задаёт transaction-local
+`set_config('app.account_id', ..., true)`: после commit/rollback контекст не
+переходит на следующую транзакцию из пула. Политики запрещают доступ при пустом или
+неустановленном значении. Репозитории сохраняют `account_id` фильтры как второй
+уровень защиты; RLS не отменяет прикладную авторизацию или проверку membership.
+
+Публичные ссылки с токеном и глобальные Celery-задачи требуют отдельно
+определить аккаунт до запросов его данным; см. [background-jobs.md](background-jobs.md).
+Не обходить RLS рабочей ролью, владельцем таблиц или `BYPASSRLS`.
 
 ```mermaid
 erDiagram
@@ -59,7 +71,7 @@ erDiagram
 | Финансы | `rent_charges`, `payments`, `property_expenses`, `invoices`, `payment_claims` | Начисления, платежи, расходы, публичные квитанции и заявки на оплату |
 | Документы | `documents` | Метаданные файлов; содержимое хранится на диске |
 | Операции | `reminders`, `email_dispatch_log`, `notification_dismissals`, `task_outbox` | Дедупликация, пользовательские состояния и долговременные команды фоновых задач |
-| Аудит | `contract_events`, `audit_logs`, `feedback` | История событий и обратная связь |
+| Аудит | `contract_events`, `audit_logs` (с `account_id`), `feedback` | История событий и обратная связь |
 
 Для `account_memberships` заданы ограничения уникальности `(account_id, user_id)`
 и `user_id`, поэтому схема допускает только один аккаунт на пользователя.
@@ -92,8 +104,8 @@ ORM и доменный слой используют `Decimal`; API долже�
 
 ## Транзакции и конкурентность
 
-- HTTP: `get_db_session` фиксирует или откатывает транзакцию всего запроса.
-- Celery: задача создаёт `SessionLocal` и явно фиксирует или откатывает транзакцию.
+- HTTP: `get_db_session` фиксирует или откатывает транзакцию всего запроса; до tenant-запросов устанавливается transaction-local RLS context.
+- Celery: задача создаёт `SessionLocal`, устанавливает tenant context и явно фиксирует или откатывает транзакцию.
 - Запись outbox для генерации начислений создаётся вместе с изменением из
   запроса; relay выбирает ограниченную пачку записей с временной арендой, но
   публикует их в Redis после фиксации выбора. Начисления и отметка завершения

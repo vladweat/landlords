@@ -18,13 +18,14 @@ ruff check app tests --select E9,F63,F7,F82
 Unit/services/domain tests в основном используют mocks и не требуют runtime
 services. Task tests проверяют Celery use cases/lock. Integration fixtures:
 
-1. подключаются к PostgreSQL из `DB_*`;
-2. удаляют и создают `landlords_test`;
-3. применяют Alembic `head`;
-4. подменяют FastAPI `get_db_session`;
+1. подключаются к изолированному PostgreSQL через `MIGRATION_DB_*`;
+2. удаляют и создают `landlords_test` и подготавливают runtime role с DML grants;
+3. применяют Alembic `head` роль миграций;
+4. подменяют FastAPI `get_db_session` на engine рабочую роль;
 5. после suite удаляют test database.
 
-Следствие: integration suite требует PostgreSQL и права create/drop database.
+Следствие: integration suite требует migration role с правами create/drop database
+и create role; рабочая роль не должна владеть базой или таблицами.
 Она также ожидает Redis для тестируемых путей, хотя не каждый test обращается к
 нему. Fixtures регистрируют test user через `/v1/auth/register`, поэтому
 `ALLOW_PUBLIC_REGISTRATION` должен быть `true`: скопированный `.env.example`
@@ -55,8 +56,9 @@ ACL на локальных портах `5433` и `6380`:
 ```bash
 docker compose -f docker-compose.test.yml up -d --wait
 cd backend
-DB_HOST=127.0.0.1 DB_PORT=5433 DB_USER=postgres \
-DB_PASSWORD=landlords-test-only DB_NAME=landlords_db \
+DB_HOST=127.0.0.1 DB_PORT=5433 DB_USER=landlords_runtime \
+DB_PASSWORD=runtime-test-secret MIGRATION_DB_USER=postgres \
+MIGRATION_DB_PASSWORD=landlords-test-only DB_NAME=landlords_db \
 REDIS_HOST=127.0.0.1 REDIS_PORT=6380 ALLOW_PUBLIC_REGISTRATION=true \
   pytest -q tests/integration
 cd ..
@@ -65,7 +67,7 @@ docker compose -f docker-compose.test.yml down
 
 Не подменяйте тестовым suite production/shared database: fixture удаляет и
 создаёт базу `landlords_test`. Пароль тестового PostgreSQL можно переопределить
-через `TEST_DB_PASSWORD` в Compose и `DB_PASSWORD` для pytest.
+через `TEST_DB_PASSWORD` и `MIGRATION_DB_PASSWORD`; `DB_PASSWORD` задаёт отдельного пользователя приложения.
 
 ## Frontend
 
