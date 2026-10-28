@@ -46,6 +46,10 @@ docker compose exec api python -m app.cli seed-demo
 
 Команда создаёт showcase account. Другие доступные команды проверяйте через:
 
+Для интервью-стенда с самостоятельной регистрацией задайте в `backend/.env`
+`ALLOW_PUBLIC_REGISTRATION=true`. Ссылка на `/register` появляется только когда
+backend сообщает, что регистрация включена.
+
 ```bash
 docker compose exec api python -m app.cli --help
 ```

@@ -21,7 +21,7 @@ export function ForecastTab() {
     );
   }
 
-  if (!data || (data.total_to_year_end === 0 && data.monthly_breakdown.length === 0)) {
+  if (!data || (Number(data.total_to_year_end) === 0 && data.monthly_breakdown.length === 0)) {
     return (
       <div className="rounded-lg border border-dashed border-gray-200 px-3 py-6 text-center">
         <p className="text-sm text-gray-500 mb-2">Нет данных для прогноза</p>
@@ -36,7 +36,7 @@ export function ForecastTab() {
     <div>
       <div className="mb-4">
         <span className="text-2xl font-semibold text-gray-900 tabular-nums">
-          {data.total_to_year_end.toLocaleString('ru-RU')} ₽
+          {Number(data.total_to_year_end).toLocaleString('ru-RU')} ₽
         </span>
         <p className="text-xs text-gray-500 mt-0.5">Прогноз на основе активных контрактов</p>
       </div>

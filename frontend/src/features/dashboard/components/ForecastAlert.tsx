@@ -35,7 +35,7 @@ export function ForecastAlert({ alert }: ForecastAlertProps) {
           {' — '}
           {left > 0 ? `закончится через ${formatDays(left)}` : 'закончился'}
           {', '}
-          <span className="font-medium">-{alert.monthly_income.toLocaleString('ru-RU')} ₽/мес</span>
+          <span className="font-medium">-{Number(alert.monthly_income).toLocaleString('ru-RU')} ₽/мес</span>
         </span>
       </div>
       <Link to={`/contracts/${alert.contract_id}`} className="flex-shrink-0 ml-2 text-xs font-medium text-blue-600 hover:text-blue-800">

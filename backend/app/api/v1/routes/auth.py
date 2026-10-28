@@ -34,6 +34,15 @@ from app.services.user_service import UserService
 router = APIRouter(prefix="/v1/auth", tags=["Auth"])
 
 
+@router.get("/registration-status")
+def get_registration_status() -> dict:
+    """Публично сообщить UI, включена ли самостоятельная регистрация."""
+    return {
+        "status": "success",
+        "data": {"enabled": settings.ALLOW_PUBLIC_REGISTRATION},
+    }
+
+
 @router.post("/register", response_model=AuthResponse, response_model_exclude_none=True)
 def register(
     body: RegisterRequest,

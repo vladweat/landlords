@@ -18,7 +18,7 @@ export function ForecastChart({ months }: ForecastChartProps) {
 
   const data = months.map((m) => ({
     month: monthNames[m.month.slice(5, 7)] || m.month,
-    income: m.expected_income,
+    income: Number(m.expected_income),
     isEnding: m.contracts_ending > 0,
     isPast: m.month < currentMonth,
     isCurrent: m.month === currentMonth,

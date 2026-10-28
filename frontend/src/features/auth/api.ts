@@ -27,6 +27,13 @@ export interface MeResponse {
 }
 
 export const authApi = {
+  getRegistrationStatus: async (): Promise<{ enabled: boolean }> => {
+    const response = await apiClient.get<{ status: string; data: { enabled: boolean } }>(
+      '/auth/registration-status',
+    );
+    return response.data.data;
+  },
+
   login: async (data: LoginFormData): Promise<AuthResponse> => {
     const response = await apiClient.post<AuthResponse>('/auth/login', {
       email: data.email,

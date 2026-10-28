@@ -74,9 +74,9 @@ class RoiService:
         annual_profit = annual_income - annual_expenses
         if not purchase_price or purchase_price == 0:
             return {
-                "annual_income": annual_income,
-                "annual_expenses": annual_expenses,
-                "annual_profit": annual_profit,
+                "annual_income": format(annual_income, "f"),
+                "annual_expenses": format(annual_expenses, "f"),
+                "annual_profit": format(annual_profit, "f"),
                 "roi": None,
                 "payback_years": None,
                 "income_is_forecast": income_is_forecast,
@@ -89,9 +89,9 @@ class RoiService:
             else None
         )
         return {
-            "annual_income": annual_income,
-            "annual_expenses": annual_expenses,
-            "annual_profit": annual_profit,
+            "annual_income": format(annual_income, "f"),
+            "annual_expenses": format(annual_expenses, "f"),
+            "annual_profit": format(annual_profit, "f"),
             "roi": roi,
             "payback_years": payback,
             "income_is_forecast": income_is_forecast,
@@ -102,9 +102,9 @@ class RoiService:
         prop = self.property_repo.get_by_id(property_id, account_id)
         if not prop:
             return {
-                "annual_income": Decimal("0"),
-                "annual_expenses": Decimal("0"),
-                "annual_profit": Decimal("0"),
+                "annual_income": "0",
+                "annual_expenses": "0",
+                "annual_profit": "0",
                 "roi": None,
                 "payback_years": None,
                 "income_is_forecast": False,

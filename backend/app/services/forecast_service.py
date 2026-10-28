@@ -54,7 +54,7 @@ class ForecastService:
                     "contract_id": str(contract.id),
                     "property_address": address,
                     "end_date": contract.end_date.isoformat(),
-                    "monthly_income": float(contract.rent_amount),
+                    "monthly_income": format(contract.rent_amount, "f"),
                     "days_until_end": days_left,
                 })
 
@@ -62,7 +62,7 @@ class ForecastService:
         monthly_breakdown = [
             {
                 "month": month,
-                "expected_income": float(amount),
+                "expected_income": format(amount, "f"),
                 "contracts_ending": len([
                     c for c in active_contracts
                     if c.end_date.strftime("%Y-%m") == month
@@ -71,10 +71,10 @@ class ForecastService:
             for month, amount in sorted_months
         ]
 
-        total = sum(float(a) for _, a in sorted_months)
+        total = sum((amount for _, amount in sorted_months), Decimal("0"))
 
         return {
-            "total_to_year_end": total,
+            "total_to_year_end": format(total, "f"),
             "monthly_breakdown": monthly_breakdown,
             "alerts": ending_alerts,
         }

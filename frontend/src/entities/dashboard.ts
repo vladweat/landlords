@@ -1,6 +1,6 @@
 export interface ForecastMonth {
   month: string;
-  expected_income: number;
+  expected_income: string;
   contracts_ending: number;
 }
 
@@ -9,12 +9,12 @@ export interface ForecastAlertItem {
   contract_id: string;
   property_address: string;
   end_date: string;
-  monthly_income: number;
+  monthly_income: string;
   days_until_end: number;
 }
 
 export interface ForecastResponse {
-  total_to_year_end: number;
+  total_to_year_end: string;
   monthly_breakdown: ForecastMonth[];
   alerts: ForecastAlertItem[];
 }

@@ -33,7 +33,7 @@
 - [x] Бэкап/restore: Postgres + `storage/documents` → записать в [docs/deploy.md](../docs/deploy.md).
 
 ### Код (без смены поведения) — порядок в ARCHITECTURE.md
-- [ ] Убрать `float()` из `forecast_service.py` / `roi_service.py` — отдавать строки.
+- [x] Убрать `float()` для денежных значений из `forecast_service.py` / `roi_service.py` — суммы в JSON отдаются строками; проценты ROI остаются числами.
 - [ ] N+1: батч-выборки charges/properties в forecast, ROI, обзоре объектов.
 - [ ] Разрезать `contract_service` (lifecycle), `pdf_service` (layout vs data), `routes/contracts.py` (документы/ledger/заметки).
 - [ ] Слить `get_active_by_property` → один метод с `get_active_for_property`.
@@ -136,7 +136,7 @@
 
 - [x] Убрать дублированный import — `auth.py:65-66`
 - [x] Заменить `datetime.utcnow()` на timezone-aware — `entities.py`, `pdf_service.py`
-- [ ] Убрать `float()` для денег в forecast/ROI (оставить Decimal/str) — снова открыто: `forecast_service.py`, `roi_service.py`
+- [x] Убрать `float()` для денег в forecast/ROI (суммы отдавать строками; проценты остаются числами) — `forecast_service.py`, `roi_service.py`
 - [x] Вернуть rate-limit напоминаний — `reminder_service.py`
 - [x] Удалить комментарий-артеfact «В app/api/v1/routes/contracts.py добавить»
 - [x] Почистить неиспользуемые настройки: `CACHE_DEFAULT_TTL`, `APP_TIMEZONE`, `CELERY_BROKER_URL`

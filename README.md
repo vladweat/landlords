@@ -2,12 +2,59 @@
 
 SaaS CRM для арендодателей. Реализованы объекты и арендаторы, жизненный цикл
 договоров, начисления и платежи с ledger, расходы и ROI, документы и квитанции,
-календарь, напоминания, роли аккаунта, портал арендатора и тариф Pro.
+календарь, напоминания, роли аккаунта, портал арендатора, тариф Pro и публичная
+регистрация, управляемая настройкой backend.
 
 Backend — Python 3.12, FastAPI, SQLAlchemy 2, Alembic, PostgreSQL 15, Redis 7 и
 Celery. Frontend — React 19, TypeScript, Vite, TanStack Query, Zustand и
 Tailwind CSS 4. Стек запускается через Docker Compose; nginx обслуживает SPA и
 проксирует `/api` в FastAPI.
+
+## Как показать проект
+
+Landlords — модульный монолит: React SPA общается с FastAPI через nginx; PostgreSQL
+хранит бизнес-данные, Redis передаёт фоновые задачи Celery. Worker отправляет
+письма и выполняет отложенные операции.
+
+```mermaid
+flowchart LR
+  Browser[Браузер · React SPA] -->|HTTP / cookie| Nginx[nginx]
+  Nginx -->|/api/v1| API[FastAPI]
+  API --> PG[(PostgreSQL)]
+  API --> Redis[(Redis)]
+  API --> Files[(Документы)]
+  API --> SMTP[SMTP / Resend]
+  API --> YooKassa[YooKassa]
+  API -. задачи .-> Redis
+  Beat[Celery beat] --> Redis
+  Redis --> Worker[Celery worker]
+  Worker --> PG
+  Worker --> Files
+  Worker --> SMTP
+  Worker --> YooKassa
+```
+
+### Интерфейс
+
+| Дашборд | Договоры и ledger | Доходность объекта |
+|---|---|---|
+| ![Заглушка скриншота дашборда](docs/assets/dashboard-placeholder.svg) | ![Заглушка скриншота договоров и ledger](docs/assets/contracts-placeholder.svg) | ![Заглушка скриншота ROI](docs/assets/roi-placeholder.svg) |
+
+Для короткой демонстрации:
+
+1. Войдите под `demo@example.com` (команда `seed-demo` создаёт пароль
+   `ChangeMeDemo1!` и showcase-данные: четыре объекта, арендаторов, договоры,
+   оплаты, просрочку и расходы).
+2. На дашборде покажите прогноз дохода, просрочку и доходность портфеля.
+3. Откройте объект и разберите годовой доход, расходы и ROI.
+4. В договоре покажите ledger, историю событий и публичный портал арендатора.
+5. В отдельном браузере или после выхода из демо-аккаунта пройдите регистрацию
+   нового владельца.
+
+Не используйте демонстрационный пароль на публичном стенде. Для показа публичной
+регистрации установите `ALLOW_PUBLIC_REGISTRATION=true` в `backend/.env` и
+пересоздайте API-контейнер. При выключенной настройке ссылка регистрации
+скрывается, а прямой переход на `/register` объясняет, что регистрация закрыта.
 
 ## Требования и быстрый старт
 
@@ -35,8 +82,8 @@ Compose автоматически применяет `docker-compose.override.y
 `http://localhost:8000`, nginx — на `http://localhost`, PostgreSQL и Redis также
 публикуют dev-порты. Не используйте override на публичном сервере.
 
-Публичная регистрация в примере выключена. Демо-аккаунт создаётся идемпотентной
-командой:
+Шаблон оставляет публичную регистрацию выключенной. Для самостоятельного входа
+включите её в `backend/.env`; для демо-аккаунта используйте идемпотентную команду:
 
 ```bash
 docker compose exec api python -m app.cli seed-demo

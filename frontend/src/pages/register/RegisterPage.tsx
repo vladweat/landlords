@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, useNavigate } from 'react-router-dom';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { UserPlus } from 'lucide-react';
 import { showError, showSuccess } from '@/shared/lib/toast';
@@ -17,6 +17,11 @@ export default function RegisterPage() {
   const navigate = useNavigate();
   const setAuth = useAuthStore((state) => state.setAuth);
   const [error, setError] = useState('');
+  const registrationStatus = useQuery({
+    queryKey: ['registration-status'],
+    queryFn: authApi.getRegistrationStatus,
+    staleTime: 60_000,
+  });
 
   const { register, handleSubmit, formState: { errors } } = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
@@ -58,21 +63,35 @@ export default function RegisterPage() {
           <p className="mt-2 text-gray-600">Создайте аккаунт для управления арендой</p>
         </div>
         <Card>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            {error && <div className="rounded-lg bg-red-50 p-3 text-sm text-red-600">{error}</div>}
-            <Input label="Имя" placeholder="Иван Иванов" error={errors.full_name?.message} {...register('full_name')} />
-            <Input label="Email" type="email" placeholder="you@example.com" error={errors.email?.message} {...register('email')} />
-            <Input label="Пароль" type="password" placeholder="Не менее 6 символов" error={errors.password?.message} {...register('password')} />
-            <Input label="Повторите пароль" type="password" error={errors.confirm?.message} {...register('confirm')} />
-            <Button
-              type="submit"
-              className="w-full"
-              isLoading={registerMutation.isPending}
-              leftIcon={<UserPlus className="h-4 w-4" />}
-            >
-              Создать аккаунт
-            </Button>
-          </form>
+          {registrationStatus.isPending ? (
+            <p className="text-center text-sm text-gray-600">Проверяем доступность регистрации…</p>
+          ) : registrationStatus.isError ? (
+            <div className="space-y-3 text-center">
+              <p className="text-sm text-gray-600">Не удалось проверить доступность регистрации.</p>
+              <Link to="/login" className="text-sm text-blue-600 hover:underline">Перейти ко входу</Link>
+            </div>
+          ) : registrationStatus.data?.enabled === false ? (
+            <div className="space-y-3 text-center">
+              <p className="text-sm text-gray-600">Самостоятельная регистрация сейчас закрыта.</p>
+              <Link to="/login" className="text-sm text-blue-600 hover:underline">Перейти ко входу</Link>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+              {error && <div className="rounded-lg bg-red-50 p-3 text-sm text-red-600">{error}</div>}
+              <Input label="Имя" placeholder="Иван Иванов" error={errors.full_name?.message} {...register('full_name')} />
+              <Input label="Email" type="email" placeholder="you@example.com" error={errors.email?.message} {...register('email')} />
+              <Input label="Пароль" type="password" placeholder="Не менее 6 символов" error={errors.password?.message} {...register('password')} />
+              <Input label="Повторите пароль" type="password" error={errors.confirm?.message} {...register('confirm')} />
+              <Button
+                type="submit"
+                className="w-full"
+                isLoading={registerMutation.isPending}
+                leftIcon={<UserPlus className="h-4 w-4" />}
+              >
+                Создать аккаунт
+              </Button>
+            </form>
+          )}
           <p className="mt-4 text-center text-sm text-gray-600">
             Уже есть аккаунт?{' '}
             <Link to="/login" className="text-blue-600 hover:underline">Войти</Link>
