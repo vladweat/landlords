@@ -4,7 +4,7 @@
 
 ## Подготовка
 
-1. Скопируй [`.env.example`](../.env.example) в `backend/.env` и корневой `.env`; Compose читает из корневого файла `${DB_*}` и пути к host-only Redis secrets.
+1. Скопируй [`.env.example`](../.env.example) в `backend/.env` и корневой `.env`; Compose читает из корневого файла `${DB_*}` и пути к host-only secrets.
 2. В `backend/.env` задай уникальный `SECRET_KEY`, `APP_ENV=production`, `DEBUG=false`, `ALLOW_PUBLIC_REGISTRATION=false`, email provider (`SMTP_HOST` или `RESEND_API_KEY`) и `SMTP_TLS_MODE=starttls` либо `ssl`.
 3. Создай отдельные Redis password files и ACL file согласно [configuration guide](development/configuration.md). Redis ACL file хранит hashes; passwords не передаются через env, Git, logs или синхронизацию.
 4. Настрой отдельные `DB_USER`/`DB_PASSWORD` для runtime-роли и `MIGRATION_DB_USER`/`MIGRATION_DB_PASSWORD` для роли миграций. Секрет миграционной роли хранится в корневом `.env`; Compose передаёт его только one-shot сервисам подготовки роли и миграции. Redis использует secret files; порты БД/Redis не публикуются на host.
@@ -132,6 +132,43 @@ deploy/test-rate-limits.sh
 test не проходит, верни предыдущие `deploy/Caddyfile`, `nginx/nginx.conf` и
 Compose overlay одним релизом; не оставляй nginx доверять адресу, которого
 Caddy больше не использует, и не расширяй `set_real_ip_from` для обхода ошибки.
+
+## Мониторинг
+
+Создай дополнительные host-only password files до запуска Compose. Каталог
+`secrets/` не добавляй в Git:
+
+```bash
+install -d -m 0700 secrets secrets/postgres secrets/monitoring
+umask 077
+openssl rand -hex 32 > secrets/postgres/exporter.password
+openssl rand -hex 32 > secrets/monitoring/grafana_admin.password
+chmod 0644 secrets/postgres/exporter.password secrets/monitoring/grafana_admin.password
+```
+
+Redis ACL provision-скрипт генерирует отдельный пароль `landlords_exporter`
+и JSON password map для redis_exporter.
+PostgreSQL роль создаёт `db-role-bootstrap`; она имеет `CONNECT` к прикладной
+базе и членство `pg_monitor`, но не получает grants на таблицы приложения.
+Grafana получает admin пароль из secret file. Не передавай пароли через
+environment variables или аргументы команд. Каталоги с secret files должны
+оставаться `0700`: Compose монтирует file-backed secrets как bind mounts и
+сохраняет права исходных файлов, поэтому mode `0644` безопасен только внутри
+недоступного другим host users каталога.
+
+Prometheus, Alertmanager и exporter endpoints остаются только во внутренней
+Compose-сети. Grafana публикуется на `127.0.0.1:3000`; доступ с рабочей машины
+открой SSH-туннелем:
+
+```bash
+ssh -L 3001:127.0.0.1:3000 user@server
+```
+
+Затем открой `http://127.0.0.1:3001`. Prometheus хранит метрики максимум 15 дней
+и ограничивает TSDB 4 GB; именованные volumes Prometheus, Grafana и Alertmanager
+сохраняются при обычном rollback или `docker compose down` без `-v`. Текущий
+Alertmanager группирует полученные alerts локально; внешний email/webhook receiver
+нужно настроить отдельно, прежде чем полагаться на доставку уведомлений.
 
 ## Резервные копии
 
