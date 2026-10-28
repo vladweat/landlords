@@ -87,51 +87,82 @@ Caddy, managed load balancer или reverse proxy с certbot), который:
 внутренней схемы HTTP между ingress и Compose. Локальный override сохраняет
 HTTP-порты для разработки; не запускай его на публичном сервере.
 
-## Бэкап
+## Резервные копии
 
-Ежедневно (cron на хосте), каталог например `/var/backups/landlords`:
+На настроенной VPS `landlords-backup.timer` ежедневно в 02:30 UTC запускает
+`deploy/backup-landlords.sh`. Комплект в `/var/backups/landlords/` содержит
+custom dump PostgreSQL, архив `storage/documents`, SHA-256 manifest и маркер
+завершения. Запись идёт атомарно во временный каталог; хранятся последние 14
+дней завершённых комплектов. Файлы доступны только root (каталог `0700`, файлы
+`0600`). В комплект не включаются `.env` или Redis secrets.
+
+Каждое воскресенье в 04:00 UTC `landlords-restore-check.timer` восстанавливает
+последнюю копию в отдельный временный PostgreSQL 15 container без сети и
+опубликованных портов, проверяет таблицы и архив документов, затем удаляет
+только созданные им контейнер и volume. Проверка не останавливает production
+сервисы и не подтверждает восстановление всего приложения.
+
+Проверить расписание и последний запуск:
 
 ```bash
+systemctl list-timers 'landlords-*'
+systemctl status landlords-backup.timer landlords-restore-check.timer
+systemctl status landlords-backup.service landlords-restore-check.service
+journalctl -u landlords-backup.service -n 100 --no-pager
+journalctl -u landlords-restore-check.service -n 100 --no-pager
+ls -l /var/backups/landlords
+```
+
+Первоначальная настройка на VPS:
+
+```bash
+cat > /etc/landlords-backup.conf <<'EOF'
+PROJECT_DIR=/root/projects/landlords
 BACKUP_DIR=/var/backups/landlords
-STAMP=$(date +%Y%m%d_%H%M%S)
-mkdir -p "$BACKUP_DIR"
-
-# Postgres
-docker compose exec -T postgres \
-  pg_dump -U "${DB_USER:-postgres}" -d "${DB_NAME:-landlords_db}" -Fc \
-  > "$BACKUP_DIR/db_$STAMP.dump"
-
-# Документы (PDF и вложения)
-tar -czf "$BACKUP_DIR/documents_$STAMP.tar.gz" -C . storage/documents
-
-# ротация: хранить последние 14 дней
-find "$BACKUP_DIR" -type f -mtime +14 -delete
+RETENTION_DAYS=14
+MIN_FREE_MB=256
+EOF
+chown root:root /etc/landlords-backup.conf
+chmod 0600 /etc/landlords-backup.conf
+install -o root -g root -m 0644 deploy/landlords-backup.service deploy/landlords-backup.timer \
+  deploy/landlords-restore-check.service deploy/landlords-restore-check.timer /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable --now landlords-backup.timer landlords-restore-check.timer
+systemctl start landlords-backup.service
+systemctl start landlords-restore-check.service
 ```
 
-## Восстановление
+Эти копии находятся на той же VPS и не спасут при потере её диска или инстанса.
+Off-site S3-compatible storage пока не подключено. PostgreSQL dump и файловый
+архив снимаются последовательно при работающем приложении; изменения документов
+во время backup могут попасть в разные моменты времени. Для строгой согласованной
+копии понадобится короткое окно остановки записывающих сервисов или storage,
+поддерживающий snapshot.
 
-На пустую машину с тем же `docker-compose.yml` и `.env`:
+## Восстановление на чистую машину
+
+Этот сценарий предназначен для новой VPS с восстановленными `.env`, Redis
+secrets и production Compose-файлами. Существующие рабочие volumes он не очищает.
+Сначала подними только PostgreSQL, дождись готовности, затем восстанови архив в
+созданную Postgres пустую базу `POSTGRES_DB`:
 
 ```bash
-docker compose -f docker-compose.yml up -d postgres redis
-# дождаться healthy postgres
-
-# остановить API/воркеры, чтобы не писали в БД
-docker compose -f docker-compose.yml stop api celery-worker celery-beat nginx
-
-# восстановить БД (custom format от pg_dump -Fc)
-docker compose exec -T postgres \
-  pg_restore -U "${DB_USER:-postgres}" -d "${DB_NAME:-landlords_db}" --clean --if-exists \
-  < /path/to/db_YYYYMMDD_HHMMSS.dump
-
-# восстановить документы
-tar -xzf /path/to/documents_YYYYMMDD_HHMMSS.tar.gz -C .
-
-docker compose -f docker-compose.yml up -d
-curl -sf http://localhost/ready
+BACKUP_SET=/var/backups/landlords/landlords-YYYYMMDDTHHMMSSZ
+docker compose -f docker-compose.yml -f docker-compose.production.yml up -d postgres
+DB_USER=$(docker compose -f docker-compose.yml -f docker-compose.production.yml exec -T postgres printenv POSTGRES_USER)
+DB_NAME=$(docker compose -f docker-compose.yml -f docker-compose.production.yml exec -T postgres printenv POSTGRES_DB)
+until docker compose -f docker-compose.yml -f docker-compose.production.yml \
+  exec -T postgres pg_isready -U "$DB_USER" -d "$DB_NAME"; do sleep 2; done
+docker compose -f docker-compose.yml -f docker-compose.production.yml exec -T postgres \
+  pg_restore -U "$DB_USER" -d "$DB_NAME" --no-owner --no-acl < "$BACKUP_SET/database.dump"
+mkdir -p storage
+tar -xzf "$BACKUP_SET/documents.tar.gz" -C storage
 ```
 
-После старта API снова прогонит `alembic upgrade head` (идемпотентно, если схема уже на head).
+На новой машине сначала убедись, что целевая база пуста. Не используй `--clean`
+или `--if-exists` для восстановления в существующую рабочую базу. После
+восстановления запусти весь Compose-стек; API выполнит `alembic upgrade head`.
+Затем проверь `/ready` и вход в приложение.
 
 ## Наблюдаемость и поддержка
 

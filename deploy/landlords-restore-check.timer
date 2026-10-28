@@ -1,0 +1,12 @@
+[Unit]
+Description=Run an isolated Landlords restore check weekly
+
+[Timer]
+OnCalendar=Sun *-*-* 04:00:00 UTC
+RandomizedDelaySec=5min
+Persistent=true
+AccuracySec=1min
+Unit=landlords-restore-check.service
+
+[Install]
+WantedBy=timers.target

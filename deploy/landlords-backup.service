@@ -1,0 +1,15 @@
+[Unit]
+Description=Create a local Landlords database and documents backup
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+User=root
+UMask=0077
+EnvironmentFile=/etc/landlords-backup.conf
+ExecStart=/bin/bash ${PROJECT_DIR}/deploy/backup-landlords.sh
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+TimeoutStartSec=30min

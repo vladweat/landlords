@@ -1,0 +1,12 @@
+[Unit]
+Description=Run the Landlords backup daily
+
+[Timer]
+OnCalendar=*-*-* 02:30:00 UTC
+RandomizedDelaySec=5min
+Persistent=true
+AccuracySec=1min
+Unit=landlords-backup.service
+
+[Install]
+WantedBy=timers.target
