@@ -96,6 +96,10 @@ class BackupScriptTests(unittest.TestCase):
         expired.mkdir(parents=True)
         (expired / "COMPLETE").write_text("complete\n")
         os.utime(expired, (1, 1))
+        malformed = self.backup_dir / "landlords-malformed"
+        malformed.mkdir()
+        (malformed / "COMPLETE").write_text("not-a-backup\n")
+        os.utime(malformed, (1, 1))
         unrelated = self.backup_dir / "keep-me.txt"
         unrelated.write_text("keep")
 
@@ -103,7 +107,16 @@ class BackupScriptTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertFalse(expired.exists())
+        self.assertTrue(malformed.exists())
         self.assertTrue(unrelated.exists())
+        self.assertEqual(len(list(self.backup_dir.glob("landlords-*/COMPLETE"))), 2)
+
+    def test_backup_does_not_require_untracked_production_compose_overlay(self):
+        (self.project / "docker-compose.production.yml").unlink()
+
+        result = self._run_backup()
+
+        self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(len(list(self.backup_dir.glob("landlords-*/COMPLETE"))), 1)
 
     def test_restore_check_rejects_tampered_set_before_starting_docker(self):

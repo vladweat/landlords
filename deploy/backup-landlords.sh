@@ -14,16 +14,18 @@ fi
 : "${PROJECT_DIR:?PROJECT_DIR must be set in $CONFIG_FILE}"
 : "${BACKUP_DIR:?BACKUP_DIR must be set in $CONFIG_FILE}"
 
+log() { printf '[landlords-backup] %s\n' "$*"; }
+fail() { log "ERROR: $*" >&2; exit 1; }
+
 RETENTION_DAYS=${RETENTION_DAYS:-14}
 MIN_FREE_MB=${MIN_FREE_MB:-256}
 COMPOSE_PROJECT=${COMPOSE_PROJECT:-landlords}
-COMPOSE_FILES=(
-  "$PROJECT_DIR/docker-compose.yml"
-  "$PROJECT_DIR/docker-compose.production.yml"
-)
-
-log() { printf '[landlords-backup] %s\n' "$*"; }
-fail() { log "ERROR: $*" >&2; exit 1; }
+COMPOSE_FILES=("$PROJECT_DIR/docker-compose.yml")
+if [[ -e "$PROJECT_DIR/docker-compose.production.yml" ]]; then
+  [[ -r "$PROJECT_DIR/docker-compose.production.yml" ]] \
+    || fail "production Compose file is not readable"
+  COMPOSE_FILES+=("$PROJECT_DIR/docker-compose.production.yml")
+fi
 
 for command_name in docker tar sha256sum flock df awk find grep; do
   command -v "$command_name" >/dev/null 2>&1 || fail "required command is missing: $command_name"
@@ -45,9 +47,12 @@ free_kb=$(df -Pk -- "$BACKUP_DIR" | awk 'NR == 2 { print $4 }')
 (( free_kb >= MIN_FREE_MB * 1024 )) || fail "less than ${MIN_FREE_MB} MiB free in $BACKUP_DIR"
 
 compose() {
-  docker compose --project-directory "$PROJECT_DIR" \
-    -p "$COMPOSE_PROJECT" \
-    -f "${COMPOSE_FILES[0]}" -f "${COMPOSE_FILES[1]}" "$@"
+  local -a compose_args=(compose --project-directory "$PROJECT_DIR" -p "$COMPOSE_PROJECT")
+  local compose_file
+  for compose_file in "${COMPOSE_FILES[@]}"; do
+    compose_args+=(-f "$compose_file")
+  done
+  docker "${compose_args[@]}" "$@"
 }
 
 compose config --quiet || fail "Compose configuration is invalid"
@@ -95,7 +100,8 @@ log "Published backup set: $final_dir"
 
 cutoff=$((RETENTION_DAYS))
 while IFS= read -r -d '' old_dir; do
-  if [[ -f "$old_dir/COMPLETE" ]]; then
+  if [[ -f "$old_dir/COMPLETE" && ! -L "$old_dir/COMPLETE" ]] \
+    && [[ "$(<"$old_dir/COMPLETE")" == "complete" ]]; then
     log "Removing expired completed set: $old_dir"
     rm -rf -- "$old_dir"
   fi

@@ -95,6 +95,8 @@ custom dump PostgreSQL, архив `storage/documents`, SHA-256 manifest и ма
 завершения. Запись идёт атомарно во временный каталог; хранятся последние 14
 дней завершённых комплектов. Файлы доступны только root (каталог `0700`, файлы
 `0600`). В комплект не включаются `.env` или Redis secrets.
+Для Docker-команд используется production overlay, если он есть; без него
+скрипт работает с базовым `docker-compose.yml` и тем же Compose project name.
 
 Каждое воскресенье в 04:00 UTC `landlords-restore-check.timer` восстанавливает
 последнюю копию в отдельный временный PostgreSQL 15 container без сети и
