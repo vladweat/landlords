@@ -119,7 +119,6 @@ backlog. Текущее поведение см. в [справке по про�
 ## Связанные спеки
 
 - Деньги: [money-flow.md](./money-flow.md), [use-cases-contracts-payments.md](./use-cases-contracts-payments.md)
-- SaaS-оплата: [billing.md](./billing.md)
 - Роли: [multi-user-roles.md](./multi-user-roles.md)
 - Что делать дальше: [priorities.md](./priorities.md)
 - Инфра: [infra.md](./infra.md)
