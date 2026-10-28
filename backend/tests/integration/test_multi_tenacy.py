@@ -31,14 +31,14 @@ class TestMultiTenancyIsolation:
             "/v1/auth/register",
             json={"email": "a@test.com", "password": "secret", "full_name": "A"},
         )
-        token_a = a.json()["token"]
+        token_a = a.json()["data"]["token"]
         headers_a = {"Authorization": f"Bearer {token_a}"}
 
         b = client.post(
             "/v1/auth/register",
             json={"email": "b@test.com", "password": "secret", "full_name": "B"},
         )
-        token_b = b.json()["token"]
+        token_b = b.json()["data"]["token"]
         headers_b = {"Authorization": f"Bearer {token_b}"}
 
         client.post(
@@ -71,8 +71,8 @@ class TestMultiTenancyIsolation:
         b = client.post("/v1/auth/register", json={
             "email": "contract-b@test.com", "password": "secret123", "full_name": "B"
         }).json()
-        headers_a = {"Authorization": f"Bearer {a['token']}"}
-        headers_b = {"Authorization": f"Bearer {b['token']}"}
+        headers_a = {"Authorization": f"Bearer {a['data']['token']}"}
+        headers_b = {"Authorization": f"Bearer {b['data']['token']}"}
         property_a = client.post("/v1/properties", headers=headers_a,
             json=property_payload(street="A")).json()["data"]["id"]
         tenant_a = client.post("/v1/tenants", headers=headers_a,
@@ -116,8 +116,8 @@ class TestMultiTenancyIsolation:
         b = client.post("/v1/auth/register", json={
             "email": "expense-b@test.com", "password": "secret123", "full_name": "B"
         }).json()
-        headers_a = {"Authorization": f"Bearer {a['token']}"}
-        headers_b = {"Authorization": f"Bearer {b['token']}"}
+        headers_a = {"Authorization": f"Bearer {a['data']['token']}"}
+        headers_b = {"Authorization": f"Bearer {b['data']['token']}"}
         prop_b = client.post("/v1/properties", headers=headers_b,
             json=property_payload(street="Private B")).json()["data"]["id"]
         created = client.post("/v1/expenses", headers=headers_b, json={
@@ -143,8 +143,8 @@ class TestMultiTenancyIsolation:
         b = client.post("/v1/auth/register", json={
             "email": "contract-read-b@test.com", "password": "secret123", "full_name": "B"
         }).json()
-        headers_a = {"Authorization": f"Bearer {a['token']}"}
-        headers_b = {"Authorization": f"Bearer {b['token']}"}
+        headers_a = {"Authorization": f"Bearer {a['data']['token']}"}
+        headers_b = {"Authorization": f"Bearer {b['data']['token']}"}
         prop_b = client.post("/v1/properties", headers=headers_b,
             json=property_payload(street="Contract B")).json()["data"]["id"]
         tenant_b = client.post("/v1/tenants", headers=headers_b,
@@ -195,10 +195,10 @@ class TestMultiTenancyIsolation:
         other = client.post("/v1/auth/register", json={
             "email": "document-other@test.com", "password": "secret123", "full_name": "Other"
         }).json()
-        owner_headers = {"Authorization": f"Bearer {owner['token']}"}
+        owner_headers = {"Authorization": f"Bearer {owner['data']['token']}"}
         invite = client.post(
             "/v1/account/invites",
-            headers={"Authorization": f"Bearer {other['token']}"},
+            headers={"Authorization": f"Bearer {other['data']['token']}"},
             json={
                 "email": "document-manager@test.com",
                 "full_name": "Manager",
@@ -211,8 +211,8 @@ class TestMultiTenancyIsolation:
             json={"password": "secret123", "full_name": "Manager"},
         )
         assert accepted.status_code == 200
-        owner_headers = {"Authorization": f"Bearer {owner['token']}"}
-        other_headers = {"Authorization": f"Bearer {accepted.json()['token']}"}
+        owner_headers = {"Authorization": f"Bearer {owner['data']['token']}"}
+        other_headers = {"Authorization": f"Bearer {accepted.json()['data']['token']}"}
         prop = client.post("/v1/properties", headers=owner_headers,
             json=property_payload(street="Document owner")).json()["data"]["id"]
         upload = client.post(f"/v1/properties/{prop}/documents", headers=owner_headers,
@@ -237,8 +237,8 @@ class TestMultiTenancyIsolation:
         owner_b = client.post("/v1/auth/register", json={
             "email": "ledger-b@test.com", "password": "secret123", "full_name": "B"
         }).json()
-        headers_a = {"Authorization": f"Bearer {owner_a['token']}"}
-        headers_b = {"Authorization": f"Bearer {owner_b['token']}"}
+        headers_a = {"Authorization": f"Bearer {owner_a['data']['token']}"}
+        headers_b = {"Authorization": f"Bearer {owner_b['data']['token']}"}
         account_b = UUID(_account_id(client, headers_b))
         property_b = client.post(
             "/v1/properties", headers=headers_b, json=property_payload(street="Ledger B")

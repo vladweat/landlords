@@ -232,8 +232,8 @@ export default function SettingsPage() {
     onSuccess: (data) => {
       if (user) setAuth({
         ...user,
-        full_name: data.data.full_name,
-        phone: data.data.phone ?? null,
+        full_name: data.full_name,
+        phone: data.phone ?? null,
       });
       showSuccess('Профиль обновлён');
     },

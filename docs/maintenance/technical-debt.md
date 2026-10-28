@@ -11,6 +11,7 @@
 
 | Уровень | Компонент | Что закрыто | Подтверждение |
 |---|---|---|---|
+| Medium | Аналитические N+1 | Forecast, dashboard и portfolio ROI используют пакетные account-scoped выборки. | `ForecastService`, `DashboardService`, `RoiService`; regression tests фиксируют batch-вызовы; backend integration suite прошёл (`130 passed`, `2 skipped`). Новые overview paths должны сохранять пакетный паттерн. |
 | Medium | Readiness: утечка DB session | Сессия закрывается и при ошибке DB probe. | `backend/app/main.py:readiness` использует `with SessionLocal()`; `tests/unit/test_readiness.py::test_readiness_closes_session_when_database_probe_fails` проверяет закрытие при ошибке. Целевой прогон прошёл. Нагрузочная проверка production readiness не выполнялась. |
 | Medium | Redis ACL: аутентификация и key/channel scope | Ролевые ACL развернуты и проверены для API, worker и Flower. | Gated integration tests прошли для каждой identity (2 теста); Celery ping — `pong`, API `/ready` — `200`, Flower EventReceiver capture прошёл; свежих ACL ошибок в логах нет. Установленный Kombu добавляет `landlords:` к Pub/Sub patterns. Сужение команд Redis вынесено в открытый риск ниже. |
 | Low | OpenAPI exposure | OpenAPI, Swagger и ReDoc выключены при `DEBUG=false`. | `backend/app/main.py` задаёт `openapi_url=None` для production-like режима; `tests/unit/test_openapi_exposure.py` проверяет production-like и debug режимы. |

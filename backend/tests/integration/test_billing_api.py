@@ -87,7 +87,7 @@ def test_confirm_rejects_payment_owned_by_another_account(client, auth_headers, 
     other = client.post("/v1/auth/register", json={
         "email": "billing-other@test.com", "password": "secret123", "full_name": "Other"
     }).json()
-    other_headers = {"Authorization": f"Bearer {other['token']}"}
+    other_headers = {"Authorization": f"Bearer {other['data']['token']}"}
     current_id = client.get("/v1/auth/me", headers=auth_headers).json()["data"]["account"]["id"]
     other_id = client.get("/v1/auth/me", headers=other_headers).json()["data"]["account"]["id"]
     payment = YooKassaPaymentResult(

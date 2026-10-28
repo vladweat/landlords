@@ -22,7 +22,7 @@ class ForecastService:
         self.property_repo = property_repo
 
     def get_forecast(self, account_id: UUID) -> dict:
-        """Прогноз дохода до конца года."""
+        """Прогноз дохода до конца года с пакетной загрузкой зависимых данных."""
         today = date.today()
         year_end = date(today.year, 12, 31)
 
@@ -32,31 +32,38 @@ class ForecastService:
             if c.status in ("active", "overdue") and c.end_date >= today
         ]
 
+        contract_ids = [contract.id for contract in active_contracts]
+        charges = self.charge_repo.list_by_contracts(
+            contract_ids, account_id, date_from=today, date_to=year_end
+        )
         monthly: dict[str, Decimal] = defaultdict(Decimal)
-        ending_alerts: list[dict] = []
+        for charge in charges:
+            month_key = charge.due_date.strftime("%Y-%m")
+            monthly[month_key] += charge.amount
 
-        for contract in active_contracts:
-            charges = self.charge_repo.list_by_contract(contract.id, account_id)
-            for charge in charges:
-                if charge.due_date >= today and charge.due_date <= year_end:
-                    month_key = charge.due_date.strftime("%Y-%m")
-                    monthly[month_key] += charge.amount
+        ending_contracts = [
+            contract for contract in active_contracts
+            if (contract.end_date - today).days <= 60
+        ]
+        properties_by_id = {}
+        if self.property_repo and ending_contracts:
+            property_ids = list(dict.fromkeys(
+                contract.property_id for contract in ending_contracts
+            ))
+            properties = self.property_repo.list_by_ids(property_ids, account_id)
+            properties_by_id = {prop.id: prop for prop in properties}
 
-            days_left = (contract.end_date - today).days
-            if days_left <= 60:
-                address = "..."
-                if self.property_repo:
-                    prop = self.property_repo.get_by_id(contract.property_id, account_id)
-                    if prop:
-                        address = prop.get_address()
-                ending_alerts.append({
-                    "type": "contract_ending",
-                    "contract_id": str(contract.id),
-                    "property_address": address,
-                    "end_date": contract.end_date.isoformat(),
-                    "monthly_income": format(contract.rent_amount, "f"),
-                    "days_until_end": days_left,
-                })
+        ending_alerts = []
+        for contract in ending_contracts:
+            prop = properties_by_id.get(contract.property_id)
+            ending_alerts.append({
+                "type": "contract_ending",
+                "contract_id": str(contract.id),
+                "property_address": prop.get_address() if prop else "...",
+                "end_date": contract.end_date.isoformat(),
+                "monthly_income": format(contract.rent_amount, "f"),
+                "days_until_end": (contract.end_date - today).days,
+            })
 
         sorted_months = sorted(monthly.items())
         monthly_breakdown = [
@@ -64,13 +71,12 @@ class ForecastService:
                 "month": month,
                 "expected_income": format(amount, "f"),
                 "contracts_ending": len([
-                    c for c in active_contracts
-                    if c.end_date.strftime("%Y-%m") == month
+                    contract for contract in active_contracts
+                    if contract.end_date.strftime("%Y-%m") == month
                 ]),
             }
             for month, amount in sorted_months
         ]
-
         total = sum((amount for _, amount in sorted_months), Decimal("0"))
 
         return {

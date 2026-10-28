@@ -9,7 +9,7 @@ import type {
   Role,
   Subscription,
 } from '@/entities/account';
-import type { AuthResponse } from '@/features/auth/api';
+import type { AuthData, AuthResponse } from '@/features/auth/api';
 
 export const accountApi = {
   get: async (): Promise<Account> => {
@@ -125,13 +125,13 @@ export const accountApi = {
   acceptInvite: async (
     token: string,
     data: { password: string; full_name?: string },
-  ): Promise<AuthResponse> => {
+  ): Promise<AuthData> => {
     const response = await apiClient.post<AuthResponse>(
       `/public/invites/${token}/accept`,
       data,
       { headers: { 'X-Return-Bearer-Token': 'false' } },
     );
-    return response.data;
+    return response.data.data;
   },
 
   exportData: async (): Promise<void> => {

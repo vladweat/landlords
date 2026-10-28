@@ -1,5 +1,6 @@
 """Реализация репозитория арендаторов."""
 
+from typing import Sequence
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -45,6 +46,17 @@ class TenantRepository(ITenantRepository):
             query = query.filter(TenantModel.full_name.ilike(f"%{search}%"))
 
         return paginate(query, page, per_page)
+
+    def list_by_ids(self, tenant_ids: Sequence[UUID], account_id: UUID) -> list[TenantEntity]:
+        """Получить арендаторов одним запросом в рамках аккаунта."""
+        if not tenant_ids:
+            return []
+        models = (
+            self.session.query(TenantModel)
+            .filter(TenantModel.account_id == account_id, TenantModel.id.in_(tenant_ids))
+            .all()
+        )
+        return [model.to_entity() for model in models]
 
     def create(self, entity: TenantEntity) -> TenantEntity:
         """Создать арендатора."""

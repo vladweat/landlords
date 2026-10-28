@@ -18,10 +18,12 @@ export interface ApiError {
 
 export interface AuthResponse {
   status: 'success';
-  token?: string;
-  user: {
-    id: string;
-    email: string;
-    full_name: string;
+  data: {
+    token?: string;
+    user: {
+      id: string;
+      email: string;
+      full_name: string;
+    };
   };
 }

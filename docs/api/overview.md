@@ -16,6 +16,11 @@ OpenAPI является источником детальных request/respons
 
 При `DEBUG=false` Swagger, ReDoc и `/openapi.json` отключены.
 
+Все успешные JSON-ответы используют оболочку `{"status":"success","data":...}`;
+ошибки — `{"status":"error","message":"..."}`. Данные auth entrypoints
+(login/register/invite accept), включая опциональный Bearer token, находятся в
+`data`. Ответы `204 No Content` и файловые downloads не содержат JSON body.
+
 ## Аутентификация
 
 Login/register/accept invite устанавливают cookie `access_token`: HttpOnly,
@@ -30,7 +35,9 @@ Payload access JWT содержит `sub`, `account_id`, `jti`, `exp`. Посл�
 новым login/register/invite flow.
 
 `GET /v1/auth/registration-status` — публичный endpoint без персональных данных;
-он возвращает `data.enabled` из `ALLOW_PUBLIC_REGISTRATION`. Login page показывает
+он возвращает `data.enabled` из `ALLOW_PUBLIC_REGISTRATION`. Auth methods
+используют общий `status/data` response envelope; Bearer token при явном запросе
+находится в `data.token`, user — в `data.user`. Login page показывает
 ссылку на регистрацию только при `true`; прямой `/register` объясняет, если она
 выключена.
 

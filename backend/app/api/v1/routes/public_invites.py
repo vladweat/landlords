@@ -6,7 +6,7 @@ from app.api.v1.schemas.account_schema import (
     InvitePreviewResponse,
     InvitePreviewSingleResponse,
 )
-from app.api.v1.schemas.user_schema import AuthResponse, UserResponse
+from app.api.v1.schemas.user_schema import AuthData, AuthResponse, UserResponse
 from app.services.dto.invite_dto import InviteAcceptDTO
 from app.services.invite_service import InviteService
 from fastapi import APIRouter, Depends, Header, Response
@@ -49,6 +49,8 @@ def accept_invite(
     set_access_cookie(response, jwt)
     return AuthResponse(
         status="success",
-        token=jwt if return_bearer_token else None,
-        user=UserResponse.model_validate(user),
+        data=AuthData(
+            token=jwt if return_bearer_token else None,
+            user=UserResponse.model_validate(user),
+        ),
     )

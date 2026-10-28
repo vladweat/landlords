@@ -34,7 +34,7 @@
 
 ### Код (без смены поведения) — порядок в ARCHITECTURE.md
 - [x] Убрать `float()` для денежных значений из `forecast_service.py` / `roi_service.py` — суммы в JSON отдаются строками; проценты ROI остаются числами.
-- [ ] N+1: батч-выборки charges/properties в forecast, ROI, обзоре объектов.
+- [x] N+1: batch-запросы charges/properties/contracts/payments/expenses для forecast, dashboard и ROI; account-scoped методы в repositories.
 - [ ] Разрезать `contract_service` (lifecycle), `pdf_service` (layout vs data), `routes/contracts.py` (документы/ledger/заметки).
 - [ ] Слить `get_active_by_property` → один метод с `get_active_for_property`.
 - [ ] Резать `deps.py` по доменам при следующем новом сервисе.
