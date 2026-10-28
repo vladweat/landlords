@@ -8,6 +8,7 @@ from uuid import UUID, uuid4
 from unittest.mock import Mock
 
 import pytest
+from sqlalchemy import text
 from sqlalchemy.orm import sessionmaker
 
 from app.core.exceptions import ValidationError
@@ -19,6 +20,7 @@ from app.db.repositories.account_repo import AccountRepository
 from app.db.repositories.contract_repo import ContractRepository
 from app.db.repositories.payment_repo import PaymentRepository
 from app.db.repositories.rent_charge_repo import RentChargeRepository
+from app.db.tenant_context import set_tenant_context
 from app.services.billing_service import BillingService
 from app.services.dto.payment_dto import PaymentCreateDTO, PaymentUpdateDTO
 from app.services.payment_allocation import allocate_unlinked_payments
@@ -99,6 +101,11 @@ def _payment_result(payment_id, account_id, period_end):
     )
 
 
+def _commit_tenant_session(session, account_id):
+    session.commit()
+    set_tenant_context(session, account_id)
+
+
 def test_renewal_retry_after_successful_provider_call_and_failed_commit(
     client, financial_auth_headers, test_engine, db_session
 ):
@@ -107,6 +114,7 @@ def test_renewal_retry_after_successful_provider_call_and_failed_commit(
     initial_end = datetime.now(timezone.utc) - timedelta(hours=1)
     Session = sessionmaker(bind=test_engine, expire_on_commit=False)
     with Session() as session:
+        set_tenant_context(session, account_id)
         account = session.query(AccountModel).filter_by(id=account_id).one()
         account.plan = "pro"
         account.subscription_status = "active"
@@ -131,7 +139,16 @@ def test_renewal_retry_after_successful_provider_call_and_failed_commit(
         first_session.commit()
 
     first_session = Session()
-    first = BillingService(AccountRepository(first_session), provider, commit=fail_after_provider_id_once)
+    set_tenant_context(first_session, account_id)
+
+    def commit_and_restore_context():
+        fail_after_provider_id_once()
+        if commits < 3:
+            set_tenant_context(first_session, account_id)
+
+    first = BillingService(
+        AccountRepository(first_session), provider, commit=commit_and_restore_context
+    )
     with pytest.raises(RuntimeError, match="simulated database commit failure"):
         first.process_renewals(now=datetime.now(timezone.utc))
     first_key = provider.create_recurring_payment.call_args.kwargs["idempotence_key"]
@@ -139,6 +156,7 @@ def test_renewal_retry_after_successful_provider_call_and_failed_commit(
     first_session.close()
 
     with Session() as session:
+        set_tenant_context(session, account_id)
         account = session.query(AccountModel).filter_by(id=account_id).one()
         assert account.subscription_period_end == initial_end
         assert account.yookassa_renewal_idempotence_key == first_key
@@ -148,7 +166,12 @@ def test_renewal_retry_after_successful_provider_call_and_failed_commit(
     create_calls_before_retry = provider.create_recurring_payment.call_count
     expected_end = max(initial_end, datetime.now(timezone.utc)) + timedelta(days=30)
     with Session() as session:
-        service = BillingService(AccountRepository(session), provider, commit=session.commit)
+        set_tenant_context(session, account_id)
+        service = BillingService(
+            AccountRepository(session),
+            provider,
+            commit=lambda: _commit_tenant_session(session, account_id),
+        )
         result = service.process_renewals(now=datetime.now(timezone.utc))
         assert result["renewed"] == 1
     assert provider.create_recurring_payment.call_count == create_calls_before_retry
@@ -161,6 +184,7 @@ def test_renewal_retry_after_successful_provider_call_and_failed_commit(
     }
 
     with Session() as session:
+        set_tenant_context(session, account_id)
         account = session.query(AccountModel).filter_by(id=account_id).one()
         assert abs((account.subscription_period_end - expected_end).total_seconds()) < 5
         assert account.yookassa_last_payment_id == payment.id
@@ -177,6 +201,10 @@ def test_repeated_renewal_webhook_applies_period_once(
     payment = _payment_result("webhook-renewal-once", account_id, initial_end)
     with test_engine.begin() as connection:
         connection.execute(
+            text("SELECT set_config('app.account_id', :account_id, true)"),
+            {"account_id": str(account_id)},
+        )
+        connection.execute(
             AccountModel.__table__.update()
             .where(AccountModel.id == account_id)
             .values(
@@ -192,13 +220,17 @@ def test_repeated_renewal_webhook_applies_period_once(
     Session = sessionmaker(bind=test_engine, expire_on_commit=False)
     for _ in range(2):
         session = Session()
-        BillingService(AccountRepository(session), provider).handle_webhook(
+        BillingService(AccountRepository(session), provider, session=session).handle_webhook(
             {"object": {"id": payment.id}}
         )
         session.commit()
         session.close()
     expected_end = max(initial_end, datetime.now(timezone.utc)) + timedelta(days=30)
     with test_engine.connect() as connection:
+        connection.execute(
+            text("SELECT set_config('app.account_id', :account_id, true)"),
+            {"account_id": str(account_id)},
+        )
         row = connection.execute(
             AccountModel.__table__.select().where(AccountModel.id == account_id)
         ).one()
@@ -217,6 +249,7 @@ def test_parallel_charge_generation_creates_one_charge_per_period(
 
     def generate():
         with Session() as session:
+            set_tenant_context(session, account_id)
             barrier.wait()
             service = RentChargeService(
                 RentChargeRepository(session),
@@ -231,6 +264,7 @@ def test_parallel_charge_generation_creates_one_charge_per_period(
         counts = list(pool.map(lambda _: generate(), range(2)))
     assert counts[0] == counts[1] > 0
     with Session() as session:
+        set_tenant_context(session, account_id)
         periods = (
             session.query(RentChargeModel.period_start, RentChargeModel.period_end)
             .filter_by(contract_id=contract_id, account_id=account_id)
@@ -247,6 +281,7 @@ def test_parallel_payments_do_not_overpay_one_charge(
     db_session.commit()
     Session = sessionmaker(bind=test_engine, expire_on_commit=False)
     with Session() as session:
+        set_tenant_context(session, account_id)
         charge = _charge(session, contract_id, account_id, start=date.today())
         charge_id = charge.id
         session.commit()
@@ -254,6 +289,7 @@ def test_parallel_payments_do_not_overpay_one_charge(
 
     def pay():
         with Session() as session:
+            set_tenant_context(session, account_id)
             barrier.wait()
             service = PaymentService(
                 PaymentRepository(session),
@@ -276,6 +312,7 @@ def test_parallel_payments_do_not_overpay_one_charge(
     with ThreadPoolExecutor(max_workers=2) as pool:
         list(pool.map(lambda _: pay(), range(2)))
     with Session() as session:
+        set_tenant_context(session, account_id)
         linked_total = sum(
             (row.amount for row in session.query(PaymentModel).filter_by(rent_charge_id=charge_id)),
             Decimal("0"),
@@ -293,6 +330,7 @@ def test_parallel_advance_allocation_is_idempotent(
     db_session.commit()
     Session = sessionmaker(bind=test_engine, expire_on_commit=False)
     with Session() as session:
+        set_tenant_context(session, account_id)
         first = _charge(session, contract_id, account_id, start=date.today())
         second = _charge(session, contract_id, account_id, start=date.today() + timedelta(days=30))
         session.add_all(
@@ -315,6 +353,7 @@ def test_parallel_advance_allocation_is_idempotent(
 
     def allocate():
         with Session() as session:
+            set_tenant_context(session, account_id)
             barrier.wait()
             charge_repo = RentChargeRepository(session)
             payment_repo = PaymentRepository(session)
@@ -332,6 +371,7 @@ def test_parallel_advance_allocation_is_idempotent(
         allocation_counts = list(pool.map(lambda _: allocate(), range(2)))
     assert sorted(allocation_counts) == [0, 2]
     with Session() as session:
+        set_tenant_context(session, account_id)
         linked_first = session.query(PaymentModel).filter_by(rent_charge_id=first_id).all()
         linked_second = session.query(PaymentModel).filter_by(rent_charge_id=second_id).one()
         assert sum((row.amount for row in linked_first), Decimal("0")) == Decimal("1000.00")
@@ -349,6 +389,7 @@ def test_payment_update_cannot_overfill_charge_and_delete_reallocates_advance(
     db_session.commit()
     Session = sessionmaker(bind=test_engine, expire_on_commit=False)
     with Session() as session:
+        set_tenant_context(session, account_id)
         charge = _charge(session, contract_id, account_id, start=date.today())
         linked = PaymentModel(
             id=uuid4(), account_id=account_id, contract_id=contract_id,
@@ -365,6 +406,7 @@ def test_payment_update_cannot_overfill_charge_and_delete_reallocates_advance(
         charge_id, linked_id = charge.id, linked.id
 
     with Session() as session:
+        set_tenant_context(session, account_id)
         service = PaymentService(
             PaymentRepository(session),
             ContractRepository(session),
@@ -379,6 +421,7 @@ def test_payment_update_cannot_overfill_charge_and_delete_reallocates_advance(
         session.rollback()
 
     with Session() as session:
+        set_tenant_context(session, account_id)
         service = PaymentService(
             PaymentRepository(session),
             ContractRepository(session),
@@ -388,6 +431,7 @@ def test_payment_update_cannot_overfill_charge_and_delete_reallocates_advance(
         session.commit()
 
     with Session() as session:
+        set_tenant_context(session, account_id)
         linked_total = session.query(PaymentModel).filter_by(
             rent_charge_id=charge_id
         ).with_entities(PaymentModel.amount).all()
@@ -405,10 +449,12 @@ def test_financial_operation_rolls_back_after_mid_operation_failure(
     db_session.commit()
     Session = sessionmaker(bind=test_engine, expire_on_commit=False)
     with Session() as session:
+        set_tenant_context(session, account_id)
         charge = _charge(session, contract_id, account_id, start=date.today())
         charge_id = charge.id
         session.commit()
     with Session() as session:
+        set_tenant_context(session, account_id)
         class FailingEventRepository:
             def create(self, _event):
                 raise RuntimeError("event write failed")
@@ -432,5 +478,6 @@ def test_financial_operation_rolls_back_after_mid_operation_failure(
             )
         session.rollback()
     with Session() as session:
+        set_tenant_context(session, account_id)
         assert session.query(PaymentModel).filter_by(contract_id=contract_id).count() == 0
         assert session.query(RentChargeModel).filter_by(id=charge_id).one().status == "pending"

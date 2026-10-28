@@ -7,6 +7,7 @@ from app.db.models.contract_model import ContractModel
 from app.db.models.outbox_message_model import OutboxMessageModel
 from app.db.models.user_model import UserModel
 from app.db.session import get_db_session
+from app.db.tenant_context import set_tenant_context
 from tests.integration.conftest import property_payload
 
 
@@ -75,6 +76,9 @@ def test_activation_and_outbox_row_rollback_together(
     client, auth_headers, db_session
 ):
     contract_id = _create_contract(client, auth_headers, auto_generate_charges=True)
+    account_id = UUID(
+        client.get("/v1/auth/me", headers=auth_headers).json()["data"]["account"]["id"]
+    )
     user = db_session.query(UserModel).filter_by(email="test@example.com").one()
     user.email = f"test+{uuid4().hex}@example.com"
     db_session.commit()
@@ -97,6 +101,7 @@ def test_activation_and_outbox_row_rollback_together(
         client.app.dependency_overrides[get_db_session] = previous_override
 
     assert response.status_code == 200
+    set_tenant_context(db_session, account_id)
     contract = db_session.get(ContractModel, UUID(contract_id))
     assert contract is not None
     assert contract.status == "draft"

@@ -1,11 +1,14 @@
 """Интеграционные тесты SaaS-биллинга."""
 
 from unittest.mock import patch
+from uuid import UUID
 
 from fastapi.testclient import TestClient
+from sqlalchemy import text
 
 from app.core.config import settings
 from app.db.models.account_model import AccountModel
+from app.db.tenant_context import set_tenant_context
 from app.services.yookassa_client import YooKassaPaymentResult
 
 
@@ -25,7 +28,7 @@ def test_subscription_includes_billing_fields(client: TestClient, auth_headers):
     assert data["plans_catalog"][1]["price_rub_monthly"] == 990
 
 
-def test_webhook_with_mock(client: TestClient, auth_headers):
+def test_webhook_with_mock(client: TestClient, auth_headers, db_session):
     me = client.get("/v1/auth/me", headers=auth_headers)
     account_id = me.json()["data"]["account"]["id"]
 
@@ -39,6 +42,7 @@ def test_webhook_with_mock(client: TestClient, auth_headers):
         metadata={"account_id": account_id, "plan": "pro"},
         test=True,
     )
+    db_session.execute(text("SELECT set_config('app.account_id', '', true)"))
 
     with patch(
         "app.services.yookassa_client.YooKassaClient.find_payment",
@@ -104,5 +108,7 @@ def test_confirm_rejects_payment_owned_by_another_account(client, auth_headers, 
 
     assert response.status_code == 422
     db_session.expire_all()
+    set_tenant_context(db_session, UUID(current_id))
     assert db_session.query(AccountModel).filter_by(id=current_id).one().plan == "free"
+    set_tenant_context(db_session, UUID(other_id))
     assert db_session.query(AccountModel).filter_by(id=other_id).one().plan == "free"

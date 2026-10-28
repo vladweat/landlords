@@ -8,7 +8,9 @@ from celery.utils.log import get_task_logger
 from sqlalchemy.exc import OperationalError
 
 from app.db.repositories.account_repo import AccountRepository
+from app.db.repositories.tenant_context_repo import TenantContextRepository
 from app.db.session import SessionLocal
+from app.db.tenant_context import set_tenant_context
 from app.services.billing_service import BillingService
 from app.services.yookassa_client import YooKassaClient
 from app.tasks.lock import RedisLock
@@ -35,16 +37,27 @@ def process_subscription_renewals() -> dict[str, Any]:
 
     session = SessionLocal()
     try:
-        service = BillingService(
-            AccountRepository(session), YooKassaClient(), commit=session.commit
-        )
-        result = service.process_renewals(now=datetime.now(timezone.utc))
-        session.commit()
+        context_repo = TenantContextRepository(session)
+        aggregate = {"renewed": 0, "past_due": 0, "downgraded": 0, "skipped": 0}
+        for account_id in context_repo.account_ids():
+            set_tenant_context(session, account_id)
+            service = BillingService(
+                AccountRepository(session),
+                YooKassaClient(),
+                commit=lambda: _commit_with_tenant_context(session, account_id),
+                session=session,
+            )
+            result = service.process_renewals(
+                now=datetime.now(timezone.utc), account_id=account_id
+            )
+            for key in aggregate:
+                aggregate[key] += result.get(key, 0)
+            session.commit()
         from app.services.ops_heartbeat import mark_beat_ok
 
         mark_beat_ok()
-        logger.info("Subscription renewals done: %s", result)
-        return {"status": "success", **result}
+        logger.info("Subscription renewals done: %s", aggregate)
+        return {"status": "success", **aggregate}
     except Exception:
         session.rollback()
         logger.exception("Subscription renewals failed")
@@ -55,3 +68,9 @@ def process_subscription_renewals() -> dict[str, Any]:
         except Exception:
             pass
         session.close()
+
+
+def _commit_with_tenant_context(session, account_id) -> None:
+    """Зафиксировать renewal state до HTTP-вызова и восстановить tenant scope."""
+    session.commit()
+    set_tenant_context(session, account_id)

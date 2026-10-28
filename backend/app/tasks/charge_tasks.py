@@ -14,7 +14,9 @@ from app.db.repositories.contract_repo import ContractRepository
 from app.db.repositories.outbox_message_repo import OutboxMessageRepository
 from app.db.repositories.payment_repo import PaymentRepository
 from app.db.repositories.rent_charge_repo import RentChargeRepository
+from app.db.repositories.tenant_context_repo import TenantContextRepository
 from app.db.session import SessionLocal
+from app.db.tenant_context import set_tenant_context
 from app.services.rent_charge_service import RentChargeService
 
 logger = get_task_logger(__name__)
@@ -42,14 +44,16 @@ def generate_charges_for_contract(
     )
 
     message_id = UUID(outbox_id) if outbox_id is not None else None
+    tenant_id = UUID(account_id)
     session = SessionLocal()
     try:
+        set_tenant_context(session, tenant_id)
         outbox_repo = OutboxMessageRepository(session) if message_id else None
         if outbox_repo:
-            message = outbox_repo.get_for_update(message_id, UUID(account_id))
+            message = outbox_repo.get_for_update(message_id, tenant_id)
             if message is None:
                 raise LookupError("Outbox message does not exist")
-            if message.account_id != UUID(account_id) or message.contract_id != UUID(contract_id):
+            if message.account_id != tenant_id or message.contract_id != UUID(contract_id):
                 raise ValueError("Outbox message does not match charge task scope")
             if message.task_name != "app.tasks.charge_tasks.generate_charges_for_contract":
                 raise ValueError("Outbox message task is not allow-listed")
@@ -64,12 +68,12 @@ def generate_charges_for_contract(
 
         service = RentChargeService(charge_repo, payment_repo, contract_repo)
         charges = service.create_charges_batch(
-            account_id=UUID(account_id),
+            account_id=tenant_id,
             contract_id=UUID(contract_id),
         )
 
         if outbox_repo and message_id:
-            outbox_repo.mark_completed(message_id, UUID(account_id))
+            outbox_repo.mark_completed(message_id, tenant_id)
         session.commit()
 
         logger.info(
@@ -90,9 +94,10 @@ def generate_charges_for_contract(
         if message_id:
             failure_session = SessionLocal()
             try:
+                set_tenant_context(failure_session, tenant_id)
                 OutboxMessageRepository(failure_session).record_task_failure(
                     message_id,
-                    UUID(account_id),
+                    tenant_id,
                     type(exc).__name__,
                     settings.OUTBOX_TASK_MAX_FAILURES,
                     datetime.now(timezone.utc) + timedelta(seconds=180),
@@ -148,46 +153,63 @@ def update_overdue_charges() -> dict[str, Any]:
     session = SessionLocal()
     try:
         today = datetime.now(timezone.utc).date()
-        charge_repo = RentChargeRepository(session)
-        payment_repo = PaymentRepository(session)
-        contract_repo = ContractRepository(session)
+        charges_updated = contracts_to_overdue = contracts_to_active = 0
+        account_ids = TenantContextRepository(session).account_ids()
+        for account_id in account_ids:
+            set_tenant_context(session, account_id)
+            charge_repo = RentChargeRepository(session)
+            payment_repo = PaymentRepository(session)
+            contract_repo = ContractRepository(session)
 
-        # 1. Update charges: pending/partially_paid -> overdue when past due
-        charges_result = session.execute(
-            sql_update(RentChargeModel)
-            .where(
-                RentChargeModel.due_date < today,
-                RentChargeModel.status.in_(("pending", "partially_paid")),
+            charges_result = session.execute(
+                sql_update(RentChargeModel)
+                .where(
+                    RentChargeModel.account_id == account_id,
+                    RentChargeModel.due_date < today,
+                    RentChargeModel.status.in_(("pending", "partially_paid")),
+                )
+                .values(status="overdue")
             )
-            .values(status="overdue")
-        )
-        charges_updated = charges_result.rowcount
+            charges_updated += charges_result.rowcount or 0
 
-        # 2. Find contracts with overdue charges and set active -> overdue
-        overdue_contract_ids = (
-            session.query(RentChargeModel.contract_id)
-            .filter(RentChargeModel.status == "overdue", RentChargeModel.due_date < today)
-            .distinct()
-            .subquery()
-        )
+            overdue_contract_ids = (
+                session.query(RentChargeModel.contract_id)
+                .filter(
+                    RentChargeModel.account_id == account_id,
+                    RentChargeModel.status == "overdue",
+                    RentChargeModel.due_date < today,
+                )
+                .distinct()
+                .subquery()
+            )
+            contracts_result = session.execute(
+                sql_update(ContractModel)
+                .where(
+                    ContractModel.account_id == account_id,
+                    ContractModel.id.in_(session.query(overdue_contract_ids)),
+                    ContractModel.status == "active",
+                )
+                .values(status="overdue")
+            )
+            contracts_to_overdue += contracts_result.rowcount or 0
 
-        contracts_result = session.execute(
-            sql_update(ContractModel)
-            .where(ContractModel.id.in_(session.query(overdue_contract_ids)), ContractModel.status == "active")
-            .values(status="overdue")
-        )
-        contracts_to_overdue = contracts_result.rowcount
-
-        # 3. Return paid contracts back to active
-        overdue_contracts = session.query(ContractModel).filter_by(status="overdue").all()
-        contracts_to_active = 0
-        for contract in overdue_contracts:
-            old_status = contract.status
-            check_and_update_contract_status(charge_repo, payment_repo, contract_repo, contract.id, contract.account_id)
-            if old_status != contract.status:
-                contracts_to_active += 1
-
-        session.commit()
+            overdue_contracts = (
+                session.query(ContractModel)
+                .filter_by(account_id=account_id, status="overdue")
+                .all()
+            )
+            for contract in overdue_contracts:
+                old_status = contract.status
+                check_and_update_contract_status(
+                    charge_repo,
+                    payment_repo,
+                    contract_repo,
+                    contract.id,
+                    account_id,
+                )
+                if old_status != contract.status:
+                    contracts_to_active += 1
+            session.commit()
 
         from app.services.ops_heartbeat import mark_beat_ok
 
