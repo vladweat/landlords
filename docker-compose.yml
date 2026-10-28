@@ -266,6 +266,10 @@ volumes:
 networks:
   app-network:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.18.0.0/16
+          ip_range: 172.18.128.0/17
 
 secrets:
   redis_acl_file:
