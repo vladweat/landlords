@@ -7,6 +7,13 @@ Alembic. Движок SQLAlchemy и `SessionLocal` создаются в
 `backend/app/db/session.py`.
 `DATABASE_URL` собирается из рабочих `DB_*`; `MIGRATION_DATABASE_URL` — из `MIGRATION_DB_*` в `app/core/config.py`. Рабочая роль не владеет таблицами и не имеет `BYPASSRLS`; миграции и выдача grants выполняются одноразовыми сервисами с отдельными credentials.
 
+Для узких `SECURITY DEFINER` resolver-функций используется отдельная роль
+`landlords_rls_resolver`: `NOLOGIN`, без `SUPERUSER` и DDL-привилегий, с
+`BYPASSRLS` и column-level `SELECT` только на данных, нужных функциям. Владельцем
+этих функций является resolver-роль; API/worker не являются её участниками и
+получают только `EXECUTE`. Bootstrap этой роли требует migration admin с
+superuser-привилегией PostgreSQL.
+
 Схему определяют миграции `backend/alembic/versions/`; ORM-модели не заменяют
 миграции. Применение:
 
@@ -39,7 +46,8 @@ alembic upgrade head
 
 Публичные ссылки с токеном и глобальные Celery-задачи требуют отдельно
 определить аккаунт до запросов его данным; см. [background-jobs.md](background-jobs.md).
-Не обходить RLS рабочей ролью, владельцем таблиц или `BYPASSRLS`.
+Функция возвращает только ID аккаунта; последующие запросы выполняются обычной
+runtime-ролью под RLS. Не выдавать `BYPASSRLS` runtime-роли.
 
 ```mermaid
 erDiagram
@@ -110,7 +118,8 @@ ORM и доменный слой используют `Decimal`; API долже�
   запроса; relay выбирает ограниченную пачку записей с временной арендой, но
   публикует их в Redis после фиксации выбора. Начисления и отметка завершения
   outbox фиксируются одной транзакцией задачи.
-- Пакетные задачи по расписанию используют блокировки Redis с TTL 600 секунд.
+- Пакетные задачи по расписанию используют блокировки Redis с TTL 900 секунд;
+  hard time limit задачи — 600 секунд.
 - Генерация начислений защищена ограничением уникальности
   `(account_id, contract_id, period_start, period_end)` и PostgreSQL
   `ON CONFLICT DO NOTHING`. Миграция проверяет существующие дубли и отказывает

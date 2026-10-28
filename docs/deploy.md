@@ -50,7 +50,19 @@ curl -sf http://127.0.0.1:8080/ready
 curl -sf https://landlords.wvzl.site/ready
 ```
 
-Первый запуск выполняет one-shot `db-role-bootstrap`, затем `db-migrate`; API и Celery используют непривилегированную runtime-роль и стартуют после успешной миграции. Для существующего Postgres volume `POSTGRES_USER` и `POSTGRES_PASSWORD` не меняют роли в базе. В `MIGRATION_DB_USER`/`MIGRATION_DB_PASSWORD` укажи текущую роль-владельца с правом создавать роли (обычно действующий `postgres`), а в `DB_USER`/`DB_PASSWORD` — новые runtime credentials. Затем запусти `docker compose run --rm db-role-bootstrap`, после него `docker compose run --rm db-migrate`; команды не очищают volume. После успешной проверки перезапусти стек, чтобы API/worker подключились runtime-ролью.
+Перед изменением существующей БД создай и проверь backup. Первый запуск выполняет
+one-shot `db-role-bootstrap`, затем `db-migrate`; API и Celery используют
+непривилегированную runtime-роль и стартуют после успешной миграции. Для
+существующего Postgres volume `POSTGRES_USER` и `POSTGRES_PASSWORD` не меняют роли
+в базе. `MIGRATION_DB_USER`/`MIGRATION_DB_PASSWORD` должны принадлежать
+PostgreSQL superuser: bootstrap создаёт `landlords_rls_resolver` с `BYPASSRLS`,
+но без login и DDL-привилегий, и переводит на неё только узкие resolver-функции.
+Укажи новые runtime credentials в `DB_USER`/`DB_PASSWORD`, затем запусти
+`docker compose run --rm db-role-bootstrap`, после него
+`docker compose run --rm db-migrate`; команды не очищают volume. После миграции
+проверь `/ready` и tenant/auth smoke tests, затем перезапусти стек, чтобы
+API/worker подключились runtime-ролью. Не удаляй migration credentials до
+проверки rollback-процедуры.
 
 ## Модель API процессов
 

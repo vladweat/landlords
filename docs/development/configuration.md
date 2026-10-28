@@ -49,6 +49,11 @@ Compose передаёт `backend/.env` сервисам через `env_file` �
 | `DB_ECHO` | `false` | SQL logging; не включать без необходимости |
 
 `DATABASE_URL` вычисляется для runtime-роли; `MIGRATION_DATABASE_URL` — для Alembic/bootstrap. В development при отсутствии migration credentials Alembic использует runtime connection. В production обе переменные migration-роли обязательны и должны отличаться от runtime-роли.
+Bootstrap дополнительно создаёт отдельную `landlords_rls_resolver` роль без login
+и DDL-возможностей. Она имеет `BYPASSRLS` только для узких `SECURITY DEFINER`
+функций и получает column-level `SELECT`; API и worker не являются её
+участниками. Создание `BYPASSRLS` роли требует, чтобы migration admin был
+PostgreSQL superuser. Новых секретов для resolver-роли нет.
 При нескольких API/worker processes учитывайте pool на каждый process.
 
 ## Redis и Celery
