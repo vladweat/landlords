@@ -74,6 +74,21 @@ def upgrade() -> None:
     )
     bind = op.get_bind()
     runtime_role = bind.dialect.identifier_preparer.quote(settings.DB_USER)
+    resolver_role = bind.dialect.identifier_preparer.quote("landlords_rls_resolver")
+    resolver_grants = (
+        "GRANT SELECT (public_token, public_token_expires_at, account_id) "
+        "ON TABLE public.invoices TO "
+        f"{resolver_role}",
+        "GRANT SELECT (portal_token, portal_token_expires_at, account_id) "
+        "ON TABLE public.contracts TO "
+        f"{resolver_role}",
+        f"GRANT SELECT (id) ON TABLE public.accounts TO {resolver_role}",
+        "GRANT SELECT (account_id, status, available_at, lease_until) "
+        "ON TABLE public.task_outbox TO "
+        f"{resolver_role}",
+    )
+    for statement in resolver_grants:
+        op.execute(statement)
     signatures = (
         "public.app_account_id_for_invoice_token(text)",
         "public.app_account_id_for_portal_token(text)",
@@ -82,12 +97,32 @@ def upgrade() -> None:
     )
     for signature in signatures:
         op.execute(f"REVOKE ALL ON FUNCTION {signature} FROM PUBLIC")
+        op.execute(f"ALTER FUNCTION {signature} OWNER TO {resolver_role}")
         op.execute(f"GRANT EXECUTE ON FUNCTION {signature} TO {runtime_role}")
 
 
 def downgrade() -> None:
     """Удалить resolver-функции."""
-    op.execute("DROP FUNCTION public.app_account_ids()")
-    op.execute("DROP FUNCTION public.app_outbox_account_ids()")
-    op.execute("DROP FUNCTION public.app_account_id_for_portal_token(text)")
-    op.execute("DROP FUNCTION public.app_account_id_for_invoice_token(text)")
+    signatures = (
+        "public.app_account_ids()",
+        "public.app_outbox_account_ids()",
+        "public.app_account_id_for_portal_token(text)",
+        "public.app_account_id_for_invoice_token(text)",
+    )
+    for signature in signatures:
+        op.execute(f"DROP FUNCTION {signature}")
+    op.execute(
+        "REVOKE SELECT (public_token, public_token_expires_at, account_id) "
+        "ON TABLE public.invoices FROM landlords_rls_resolver"
+    )
+    op.execute(
+        "REVOKE SELECT (portal_token, portal_token_expires_at, account_id) "
+        "ON TABLE public.contracts FROM landlords_rls_resolver"
+    )
+    op.execute(
+        "REVOKE SELECT (id) ON TABLE public.accounts FROM landlords_rls_resolver"
+    )
+    op.execute(
+        "REVOKE SELECT (account_id, status, available_at, lease_until) "
+        "ON TABLE public.task_outbox FROM landlords_rls_resolver"
+    )
