@@ -7,6 +7,8 @@ from uuid import UUID, uuid4
 
 from app.core.config import settings
 from app.core.exceptions import NotFoundError
+from app.db.repositories.tenant_context_repo import TenantContextRepository
+from app.db.tenant_context import set_tenant_context
 from app.domain.entities import InvoiceEntity
 from app.domain.interfaces import (
     IAccountRepository,
@@ -42,6 +44,7 @@ class InvoiceService:
         document_repo: IDocumentRepository,
         pdf_service: PdfService,
         claim_repo: IPaymentClaimRepository | None = None,
+        tenant_context_repo: TenantContextRepository | None = None,
     ) -> None:
         self.invoice_repo = invoice_repo
         self.charge_repo = charge_repo
@@ -53,6 +56,7 @@ class InvoiceService:
         self.document_repo = document_repo
         self.pdf_service = pdf_service
         self.claim_repo = claim_repo
+        self.tenant_context_repo = tenant_context_repo
 
     def _share_url(self, token: str) -> str:
         base = settings.FRONTEND_URL.rstrip("/")
@@ -167,6 +171,7 @@ class InvoiceService:
 
     def get_public(self, token: str) -> PublicInvoiceDTO:
         """Публичные данные квитанции по токену."""
+        self._set_context_for_public_token(token)
         invoice = self.invoice_repo.get_by_token(token)
         if not invoice:
             raise NotFoundError("Invoice not found")
@@ -220,6 +225,7 @@ class InvoiceService:
 
     def get_public_pdf_bytes(self, token: str) -> tuple[bytes, str]:
         """Вернуть существующий PDF по публичному токену без побочных записей."""
+        self._set_context_for_public_token(token)
         invoice = self.invoice_repo.get_by_token(token)
         if not invoice:
             raise NotFoundError("Invoice not found")
@@ -231,3 +237,11 @@ class InvoiceService:
             raise NotFoundError("Invoice PDF not available")
         with open(document_file_path(doc, invoice.account_id), "rb") as f:
             return f.read(), doc.filename
+
+    def _set_context_for_public_token(self, token: str) -> None:
+        if self.tenant_context_repo is None:
+            return
+        account_id = self.tenant_context_repo.account_id_for_invoice_token(token)
+        if account_id is None:
+            raise NotFoundError("Invoice not found")
+        set_tenant_context(self.tenant_context_repo.session, account_id)

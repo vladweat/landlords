@@ -7,8 +7,11 @@ from decimal import Decimal
 from typing import Callable
 from uuid import UUID, uuid5
 
+from sqlalchemy.orm import Session
+
 from app.core.config import settings
 from app.core.exceptions import NotFoundError, ValidationError
+from app.db.tenant_context import set_tenant_context
 from app.domain.billing import is_pro_period_due
 from app.domain.entities import AccountEntity
 from app.domain.interfaces import IAccountRepository
@@ -28,10 +31,12 @@ class BillingService:
         account_repo: IAccountRepository,
         yookassa: YooKassaClient | None = None,
         commit: Callable[[], None] | None = None,
+        session: Session | None = None,
     ) -> None:
         self.account_repo = account_repo
         self.yookassa = yookassa or YooKassaClient()
         self.commit = commit or (lambda: None)
+        self.session = session
 
     def create_checkout(self, account_id: UUID) -> dict:
         """Создать платёж Pro и вернуть confirmation_url."""
@@ -99,6 +104,8 @@ class BillingService:
         if expected_account_id is not None and account_id != expected_account_id:
             raise ValidationError("Платёж принадлежит другому аккаунту")
 
+        if self.session is not None:
+            set_tenant_context(self.session, account_id)
         account = self._require_account_for_update(account_id)
         if account is None:
             raise NotFoundError("Account not found")
@@ -144,7 +151,9 @@ class BillingService:
             account.subscription_period_end = None
         return self.account_repo.update(account)
 
-    def process_renewals(self, *, now: datetime | None = None) -> dict:
+    def process_renewals(
+        self, *, now: datetime | None = None, account_id: UUID | None = None
+    ) -> dict:
         """Продлить или отключить Pro с истёкшим периодом (Celery beat)."""
         moment = now or datetime.now(timezone.utc)
         renewed = 0
@@ -153,6 +162,8 @@ class BillingService:
         skipped = 0
 
         for listed_account in self.account_repo.list_pro_subscriptions():
+            if account_id is not None and listed_account.id != account_id:
+                continue
             account = self._require_account_for_update(listed_account.id)
             if account is None or account.plan != PlanId.PRO.value:
                 continue

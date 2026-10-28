@@ -12,9 +12,11 @@ from app.db.repositories.email_dispatch_log_repo import EmailDispatchLogReposito
 from app.db.repositories.payment_repo import PaymentRepository
 from app.db.repositories.property_repo import PropertyRepository
 from app.db.repositories.rent_charge_repo import RentChargeRepository
+from app.db.repositories.tenant_context_repo import TenantContextRepository
 from app.db.repositories.tenant_repo import TenantRepository
 from app.db.repositories.user_repo import UserRepository
 from app.db.session import SessionLocal
+from app.db.tenant_context import set_tenant_context
 from app.services.calendar_service import CalendarService
 from app.services.email_service import EmailService
 from app.services.reminder_email_service import ReminderEmailService
@@ -54,6 +56,7 @@ def send_daily_reminder_emails() -> dict[str, Any]:
 
     session = SessionLocal()
     try:
+        context_repo = TenantContextRepository(session)
         service = ReminderEmailService(
             account_repo=AccountRepository(session),
             user_repo=UserRepository(session),
@@ -66,18 +69,25 @@ def send_daily_reminder_emails() -> dict[str, Any]:
             ),
             dispatch_log_repo=EmailDispatchLogRepository(session),
             email_service=EmailService(),
-            commit=session.commit,
+            commit=lambda: _commit_with_tenant_context(session, account_id),
         )
-        stats = service.send_daily_reminders()
-        if stats.get("retryable_errors", 0):
+        aggregate = {"sent": 0, "skipped": 0, "errors": 0, "retryable_errors": 0}
+        for account_id in context_repo.account_ids():
+            set_tenant_context(session, account_id)
+            stats = service.send_daily_reminders(account_id)
+            for key in aggregate:
+                aggregate[key] += stats.get(key, 0)
+            session.commit()
+
+        if aggregate.get("retryable_errors", 0):
             raise TransientEmailDeliveryError(
-                f"SMTP temporarily failed for {stats['retryable_errors']} reminder(s)"
+                f"SMTP temporarily failed for {aggregate['retryable_errors']} reminder(s)"
             )
         from app.services.ops_heartbeat import mark_beat_ok
 
         mark_beat_ok()
-        logger.info("Daily reminder emails: {}", stats)
-        return {"status": "success", **stats}
+        logger.info("Daily reminder emails: {}", aggregate)
+        return {"status": "success", **aggregate}
     except Exception:
         session.rollback()
         logger.exception("Failed send_daily_reminder_emails")
@@ -88,3 +98,9 @@ def send_daily_reminder_emails() -> dict[str, Any]:
         except Exception:
             pass
         session.close()
+
+
+def _commit_with_tenant_context(session, account_id) -> None:
+    """Зафиксировать dedup row и восстановить tenant scope новой транзакции."""
+    session.commit()
+    set_tenant_context(session, account_id)

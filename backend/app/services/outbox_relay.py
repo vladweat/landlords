@@ -13,6 +13,8 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.db.repositories.outbox_message_repo import OutboxMessageRepository
+from app.db.repositories.tenant_context_repo import TenantContextRepository
+from app.db.tenant_context import set_tenant_context
 from app.domain.entities import OutboxMessageEntity
 
 
@@ -59,8 +61,17 @@ class OutboxRelay:
     def dispatch_once(self) -> DispatchSummary:
         claim_session = self.session_factory()
         try:
-            repository = self.repository_factory(claim_session)
-            messages = repository.claim_due_batch(self.batch_size, self.lease_seconds)
+            context_repository = TenantContextRepository(claim_session)
+            messages = []
+            for account_id in context_repository.outbox_account_ids():
+                set_tenant_context(claim_session, account_id)
+                remaining = self.batch_size - len(messages)
+                if remaining <= 0:
+                    break
+                repository = self.repository_factory(claim_session)
+                messages.extend(
+                    repository.claim_due_batch(remaining, self.lease_seconds)
+                )
             claim_session.commit()
         except Exception:
             claim_session.rollback()
@@ -82,6 +93,7 @@ class OutboxRelay:
                 )
                 update_session = self.session_factory()
                 try:
+                    set_tenant_context(update_session, message.account_id)
                     self.repository_factory(update_session).mark_published(
                         message.id, message.account_id, message.lease_token
                     )
@@ -96,6 +108,7 @@ class OutboxRelay:
                 delay = self._retry_delay(message.attempts)
                 update_session = self.session_factory()
                 try:
+                    set_tenant_context(update_session, message.account_id)
                     terminal = self.repository_factory(update_session).mark_dispatch_failure(
                         message.id,
                         message.account_id,
@@ -118,9 +131,17 @@ class OutboxRelay:
 
         snapshot_session = self.session_factory()
         try:
-            pending, oldest_age, terminal_failures = self.repository_factory(
-                snapshot_session
-            ).backlog_snapshot()
+            pending = terminal_failures = 0
+            oldest_age = 0.0
+            context_repository = TenantContextRepository(snapshot_session)
+            for account_id in context_repository.account_ids():
+                set_tenant_context(snapshot_session, account_id)
+                account_pending, account_age, account_failures = (
+                    self.repository_factory(snapshot_session).backlog_snapshot()
+                )
+                pending += account_pending
+                oldest_age = max(oldest_age, account_age)
+                terminal_failures += account_failures
             snapshot_session.commit()
         except Exception:
             snapshot_session.rollback()

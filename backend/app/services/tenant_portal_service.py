@@ -9,6 +9,8 @@ from uuid import UUID, uuid4
 
 from app.core.config import settings
 from app.core.exceptions import ConflictError, NotFoundError, ValidationError
+from app.db.repositories.tenant_context_repo import TenantContextRepository
+from app.db.tenant_context import set_tenant_context
 from app.domain.entities import ContractEntity, ContractEventEntity, PaymentClaimEntity
 from app.domain.interfaces import (
     IAccountRepository,
@@ -56,6 +58,7 @@ class TenantPortalService:
         ledger_service: LedgerService,
         invoice_service: InvoiceService,
         payment_service: PaymentService,
+        tenant_context_repo: TenantContextRepository | None = None,
     ) -> None:
         self.contract_repo = contract_repo
         self.claim_repo = claim_repo
@@ -69,6 +72,7 @@ class TenantPortalService:
         self.ledger_service = ledger_service
         self.invoice_service = invoice_service
         self.payment_service = payment_service
+        self.tenant_context_repo = tenant_context_repo
 
     def _share_url(self, token: str) -> str:
         base = settings.FRONTEND_URL.rstrip("/")
@@ -147,6 +151,7 @@ class TenantPortalService:
 
     def get_public(self, token: str) -> PublicPortalDTO:
         """Публичные данные портала по magic link."""
+        self._set_context_for_portal_token(token)
         contract = self._resolve_contract_by_token(token)
         account_id = contract.account_id
 
@@ -216,6 +221,7 @@ class TenantPortalService:
 
     def create_claim(self, token: str, dto: CreatePaymentClaimDTO) -> PortalClaimDTO:
         """Создать заявку «я оплатил» по portal magic link."""
+        self._set_context_for_portal_token(token)
         contract = self._resolve_contract_by_token(token)
         return self._create_claim(contract, dto, require_amount=True)
 
@@ -223,6 +229,7 @@ class TenantPortalService:
         self, invoice_token: str, dto: CreatePaymentClaimDTO
     ) -> PortalClaimDTO:
         """Создать заявку «я оплатил» со страницы квитанции."""
+        self._set_context_for_invoice_token(invoice_token)
         invoice = self.invoice_repo.get_by_token(invoice_token)
         if not invoice:
             raise NotFoundError("Invoice not found")
@@ -247,6 +254,22 @@ class TenantPortalService:
             CreatePaymentClaimDTO(charge_id=charge_id, amount=amount, note=dto.note),
             require_amount=True,
         )
+
+    def _set_context_for_portal_token(self, token: str) -> None:
+        if self.tenant_context_repo is None:
+            return
+        account_id = self.tenant_context_repo.account_id_for_portal_token(token)
+        if account_id is None:
+            raise NotFoundError("Portal link not found")
+        set_tenant_context(self.tenant_context_repo.session, account_id)
+
+    def _set_context_for_invoice_token(self, token: str) -> None:
+        if self.tenant_context_repo is None:
+            return
+        account_id = self.tenant_context_repo.account_id_for_invoice_token(token)
+        if account_id is None:
+            raise NotFoundError("Invoice not found")
+        set_tenant_context(self.tenant_context_repo.session, account_id)
 
     def _create_claim(
         self,

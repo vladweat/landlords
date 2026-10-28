@@ -35,6 +35,7 @@ from app.db.repositories.property_repo import PropertyRepository
 from app.db.repositories.reminder_repo import ReminderRepository
 from app.db.repositories.rent_charge_repo import RentChargeRepository
 from app.db.repositories.tenant_repo import TenantRepository
+from app.db.repositories.tenant_context_repo import TenantContextRepository
 from app.db.repositories.user_repo import UserRepository
 from app.db.session import get_db_session
 from app.db.tenant_context import set_tenant_context
@@ -172,6 +173,12 @@ def get_account_invite_repo(
 ) -> AccountInviteRepository:
     return AccountInviteRepository(session)
 
+
+def get_tenant_context_repo(
+    session: Session = Depends(get_db_session, scope="function"),
+) -> TenantContextRepository:
+    return TenantContextRepository(session)
+
 def get_audit_service(session: Session = Depends(get_db_session, scope="function")) -> AuditService:
     return AuditService(session)
 
@@ -255,8 +262,9 @@ def get_plan_limit_service(
 
 def get_billing_service(
     account_repo: AccountRepository = Depends(get_account_repo),
+    session: Session = Depends(get_db_session, scope="function"),
 ) -> BillingService:
-    return BillingService(account_repo, YooKassaClient())
+    return BillingService(account_repo, YooKassaClient(), session=session)
 
 
 def get_invite_service(
@@ -416,6 +424,7 @@ def get_invoice_service(
     document_repo: DocumentRepository = Depends(get_document_repo),
     pdf_service: PdfService = Depends(get_pdf_service),
     claim_repo: PaymentClaimRepository = Depends(get_payment_claim_repo),
+    tenant_context_repo: TenantContextRepository = Depends(get_tenant_context_repo),
 ) -> InvoiceService:
     return InvoiceService(
         invoice_repo,
@@ -428,6 +437,7 @@ def get_invoice_service(
         document_repo,
         pdf_service,
         claim_repo,
+        tenant_context_repo,
     )
 
 
@@ -444,6 +454,7 @@ def get_tenant_portal_service(
     ledger_service: LedgerService = Depends(get_ledger_service),
     invoice_service: InvoiceService = Depends(get_invoice_service),
     payment_service: PaymentService = Depends(get_payment_service),
+    tenant_context_repo: TenantContextRepository = Depends(get_tenant_context_repo),
 ) -> TenantPortalService:
     return TenantPortalService(
         contract_repo,
@@ -458,6 +469,7 @@ def get_tenant_portal_service(
         ledger_service,
         invoice_service,
         payment_service,
+        tenant_context_repo,
     )
 
 def get_credit_score_service(

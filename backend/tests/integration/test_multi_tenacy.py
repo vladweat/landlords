@@ -16,6 +16,7 @@ from app.db.models.property_expense_model import PropertyExpenseModel
 from app.db.models.property_model import PropertyModel
 from app.db.models.rent_charge_model import RentChargeModel
 from app.db.models.tenant_model import TenantModel
+from app.db.tenant_context import set_tenant_context
 
 from tests.integration.conftest import property_payload
 
@@ -97,6 +98,7 @@ class TestMultiTenancyIsolation:
             json={**body, "account_id": _account_id(client, headers_b)})
         assert forged_context.status_code == 201
         assert forged_context.json()["data"]["account_id"] == _account_id(client, headers_a)
+        set_tenant_context(db_session, UUID(_account_id(client, headers_a)))
         assert db_session.query(ContractModel).filter_by(
             account_id=UUID(_account_id(client, headers_a)),
             property_id=UUID(property_a),
@@ -131,6 +133,7 @@ class TestMultiTenancyIsolation:
         assert client.put(f"/v1/expenses/{expense_id}", headers=headers_a,
             json={"note": "modified"}).status_code == 404
         assert client.delete(f"/v1/expenses/{expense_id}", headers=headers_a).status_code == 404
+        set_tenant_context(db_session, UUID(_account_id(client, headers_b)))
         assert db_session.query(PropertyExpenseModel).filter_by(id=expense_id).one().note == "private note"
         assert str(db_session.query(PropertyModel).filter_by(id=prop_b).one().account_id) != _account_id(client, headers_a)
 
@@ -182,6 +185,7 @@ class TestMultiTenancyIsolation:
             payload = json.loads(archive.read("account_export.json"))
         assert all(item["id"] != contract_id for item in payload["contracts"])
         assert all(item["id"] != prop_b for item in payload["properties"])
+        set_tenant_context(db_session, UUID(_account_id(client, headers_b)))
         stored = db_session.query(ContractModel).filter_by(id=contract_id).one()
         assert str(stored.account_id) == _account_id(client, headers_b)
         assert str(stored.account_id) != _account_id(client, headers_a)
@@ -220,12 +224,14 @@ class TestMultiTenancyIsolation:
             data={"category": "other"})
         assert upload.status_code == 200
         doc_id = upload.json()["data"]["id"]
+        set_tenant_context(db_session, UUID(_account_id(client, owner_headers)))
         document = db_session.query(DocumentModel).filter_by(id=doc_id).one()
         original_path = document.file_path
 
         download = client.get(f"/v1/documents/{doc_id}", headers=other_headers)
         assert download.status_code == 404
         assert client.delete(f"/v1/documents/{doc_id}", headers=other_headers).status_code == 404
+        set_tenant_context(db_session, UUID(_account_id(client, owner_headers)))
         db_session.refresh(document)
         assert document.file_path == original_path
         assert str(document.account_id) == _account_id(client, owner_headers)
@@ -301,6 +307,7 @@ class TestMultiTenancyIsolation:
         assert client.delete(f"/v1/payments/{payment_id}", headers=headers_a).status_code == 404
 
         db_session.expire_all()
+        set_tenant_context(db_session, account_b)
         stored = db_session.query(PaymentModel).filter_by(id=payment_id).one()
         assert stored.account_id == account_b
         assert stored.amount == Decimal("1000.00")

@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
+from dataclasses import replace
 from unittest.mock import Mock
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from app.domain.entities import OutboxMessageEntity
 from app.services.outbox_relay import OutboxRelay
@@ -27,6 +28,13 @@ def test_dispatch_publishes_stable_task_id_after_claim_commit():
 
     class Session:
         committed = False
+
+        def execute(self, statement, params=None):
+            if "app_outbox_account_ids" in str(statement):
+                return [Mock(account_id=message.account_id)]
+            if "app_account_ids" in str(statement):
+                return [Mock(account_id=message.account_id)]
+            return None
 
         def commit(self):
             self.committed = True
@@ -77,7 +85,24 @@ def test_dispatch_failure_schedules_retry_and_stores_only_error_type():
     repository.mark_dispatch_failure.return_value = False
     publisher = Mock()
     publisher.send_task.side_effect = ConnectionError("redis password=secret")
-    session_factory = Mock(side_effect=lambda: Mock())
+    class Session:
+        def execute(self, statement, params=None):
+            if "app_outbox_account_ids" in str(statement):
+                return [Mock(account_id=message.account_id)]
+            if "app_account_ids" in str(statement):
+                return [Mock(account_id=message.account_id)]
+            return None
+
+        def commit(self):
+            pass
+
+        def rollback(self):
+            pass
+
+        def close(self):
+            pass
+
+    session_factory = Mock(side_effect=Session)
 
     summary = OutboxRelay(
         session_factory=session_factory,
@@ -91,3 +116,57 @@ def test_dispatch_failure_schedules_retry_and_stores_only_error_type():
     assert args[0:3] == (message.id, message.account_id, message.lease_token)
     assert args[3] > datetime.now(timezone.utc)
     assert args[4] == "ConnectionError"
+
+
+def test_dispatch_claims_messages_under_each_account_context():
+    account_a, account_b = uuid4(), uuid4()
+    message_a = replace(_message(), account_id=account_a)
+    message_b = replace(_message(), account_id=account_b)
+    messages_by_account = {account_a: message_a, account_b: message_b}
+    claim_scopes = []
+
+    class Session:
+        account_id = None
+
+        def execute(self, statement, params=None):
+            if "app_outbox_account_ids" in str(statement):
+                return [Mock(account_id=account_a), Mock(account_id=account_b)]
+            if "app_account_ids" in str(statement):
+                return [Mock(account_id=account_a), Mock(account_id=account_b)]
+            if "set_config" in str(statement):
+                self.account_id = UUID(params["account_id"])
+            return None
+
+        def commit(self):
+            pass
+
+        def rollback(self):
+            pass
+
+        def close(self):
+            pass
+
+    def repository_factory(session):
+        class Repository:
+            def claim_due_batch(self, _batch_size, _lease_seconds):
+                claim_scopes.append(session.account_id)
+                message = messages_by_account.get(session.account_id)
+                return [message] if message else []
+
+            def mark_published(self, *_args):
+                return True
+
+            def backlog_snapshot(self):
+                return (0, 0.0, 0)
+
+        return Repository()
+
+    summary = OutboxRelay(
+        session_factory=Session,
+        publisher=Mock(),
+        repository_factory=repository_factory,
+    ).dispatch_once()
+
+    assert claim_scopes == [account_a, account_b]
+    assert summary.claimed == 2
+    assert summary.published == 2
