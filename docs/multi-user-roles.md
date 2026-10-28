@@ -8,8 +8,6 @@
 
 - Роли: **owner / manager / accountant** с матрицей ниже.
 - Участников приглашает owner по ссылке (email + full_name + role → письмо / ссылка → accept с паролем). Роли invite: `manager` / `accountant`.
-- В текущей модели один user связан максимум с одной membership.
-- Без transfer ownership и без account switcher.
 - Источник правды — backend; frontend только скрывает недоступные действия.
 - UI и дашборд общие для всех ролей; отличаются права на мутации и блоки «Команда» / «Аккаунт» у owner.
 
@@ -55,17 +53,12 @@ erDiagram
 
 - Таблица `account_memberships`: `id`, `account_id`, `user_id`, `role` (`owner|manager|accountant`), `is_active`, timestamps.
 - Таблица `account_invites`: pending invite (TTL 7 дней), `token` unique; accept создаёт user + membership.
-- Constraints: `UNIQUE(account_id, user_id)`, `UNIQUE(user_id)` (один аккаунт на user в v1).
+- Constraints: `UNIQUE(account_id, user_id)`.
 - `accounts.owner_id` **оставляем** (канонический владелец); при register создаём account + membership `role=owner`.
 
-## Приглашения и ограничения модели
+## Приглашения
 
 Owner может приглашать пользователей с ролями `manager` и `accountant` по
 одноразовой ссылке; срок действия приглашения — 7 дней. Owner может отозвать
 приглашение, менять роль участника и удалить участника. Роль `owner` нельзя
 назначить через приглашение или обычную смену роли.
-
-Текущие HTTP-маршруты и схемы смотри в OpenAPI для конкретного checkout; не
-используй прежнюю таблицу проектных маршрутов ниже в git history как API
-reference. Поддержка нескольких аккаунтов на одного пользователя и transfer
-ownership в текущую модель не входят.
