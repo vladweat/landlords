@@ -13,7 +13,7 @@ from app.db.session import SessionLocal
 from app.db.tenant_context import set_tenant_context
 from app.services.billing_service import BillingService
 from app.services.yookassa_client import YooKassaClient
-from app.tasks.lock import RedisLock
+from app.tasks.lock import RedisLock, SCHEDULED_TASK_LOCK_TTL_SECONDS
 
 logger = get_task_logger(__name__)
 
@@ -30,7 +30,9 @@ logger = get_task_logger(__name__)
 )
 def process_subscription_renewals() -> dict[str, Any]:
     """Продлить Pro или отключить при неоплате (ежедневно)."""
-    lock = RedisLock("process_subscription_renewals", ttl=900)
+    lock = RedisLock(
+        "process_subscription_renewals", ttl=SCHEDULED_TASK_LOCK_TTL_SECONDS
+    )
     if not lock.try_acquire():
         logger.info("process_subscription_renewals: lock not acquired")
         return {"status": "skipped", "reason": "lock_not_acquired"}

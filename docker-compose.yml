@@ -133,7 +133,7 @@ services:
     networks:
       - app-network
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"from celery import Celery; from app.core.config import settings; app = Celery(broker=settings.REDIS_URL); app.connection().connect(); print('OK')\""]
+      test: ["CMD-SHELL", "python -m celery -A worker.celery_app inspect ping --timeout=5 | grep -qi pong"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -165,7 +165,11 @@ services:
     networks:
       - app-network
     healthcheck:
-      disable: true
+      test: ["CMD", "python", "-m", "app.scripts.check_celery_beat_health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
   outbox-relay:
     build:
@@ -196,7 +200,11 @@ services:
     networks:
       - app-network
     healthcheck:
-      disable: true
+      test: ["CMD", "python", "-m", "app.scripts.check_outbox_relay_health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
   flower:
     build:
@@ -237,6 +245,7 @@ services:
       - --web.enable-lifecycle
     volumes:
       - ./deploy/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deploy/monitoring/rules:/etc/prometheus/rules:ro
       - prometheus_data:/prometheus
     depends_on:
       - api
@@ -259,6 +268,8 @@ services:
     volumes:
       - grafana_data:/var/lib/grafana
       - ./deploy/monitoring/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./deploy/monitoring/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./deploy/monitoring/grafana/dashboards:/etc/grafana/dashboards:ro
     depends_on:
       - prometheus
     restart: unless-stopped

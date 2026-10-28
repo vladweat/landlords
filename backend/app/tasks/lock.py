@@ -7,18 +7,20 @@ import redis
 
 from app.core.config import settings
 
+SCHEDULED_TASK_LOCK_TTL_SECONDS = 900
+
 
 class RedisLock:
     """
     Simple context-manager wrapper around redis-py's Lock.
 
     Usage:
-        with RedisLock("update_overdue_charges", ttl=600):
+        with RedisLock("update_overdue_charges", ttl=SCHEDULED_TASK_LOCK_TTL_SECONDS):
             # do work
     If the lock cannot be acquired immediately, a RuntimeError is raised.
     """
 
-    def __init__(self, name: str, ttl: int = 600) -> None:
+    def __init__(self, name: str, ttl: int = SCHEDULED_TASK_LOCK_TTL_SECONDS) -> None:
         self.name = f"{settings.REDIS_KEY_PREFIX}locks:{name}"
         self.ttl = ttl
         self._client: Optional[redis.Redis] = None

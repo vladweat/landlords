@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: landlords
+    orgId: 1
+    folder: Landlords
+    type: file
+    disableDeletion: true
+    editable: false
+    options:
+      path: /etc/grafana/dashboards

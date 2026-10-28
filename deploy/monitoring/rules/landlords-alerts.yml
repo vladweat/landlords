@@ -1,0 +1,65 @@
+groups:
+  - name: landlords-availability
+    rules:
+      - alert: LandlordsScrapeTargetUnavailable
+        expr: up == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Prometheus не может опросить {{ $labels.job }}"
+          description: "Цель {{ $labels.instance }} недоступна не менее двух минут."
+
+      - alert: LandlordsHostDiskLow
+        expr: node_filesystem_avail_bytes{mountpoint="/",fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{mountpoint="/",fstype!~"tmpfs|overlay"} < 0.10
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "На сервере осталось меньше 10% места"
+          description: "Свободное место на корневом разделе ниже 10% не менее десяти минут."
+
+      - alert: LandlordsDocumentsDiskLow
+        expr: ops_documents_disk_free_bytes < 524288000
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Мало места в хранилище документов"
+          description: "Свободно меньше 500 MiB не менее десяти минут."
+
+      - alert: LandlordsScheduledHealthCheckStale
+        expr: time() - landlords_celery_task_last_event_timestamp_seconds{task_name="check_ops_health",event="success"} > 7200
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Плановая задача проверки состояния давно не выполнялась"
+          description: "Последний успешный check_ops_health старше двух часов."
+
+      - alert: LandlordsOutboxRelayStale
+        expr: time() - landlords_outbox_relay_last_poll_timestamp_seconds > 120
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Outbox relay не обновляет heartbeat"
+          description: "Heartbeat relay отсутствует или старше 120 секунд."
+
+      - alert: LandlordsCeleryTaskFailures
+        expr: increase(landlords_celery_task_events_total{status="failure"}[15m]) >= 3
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Повторяются ошибки Celery-задачи {{ $labels.task_name }}"
+          description: "За последние 15 минут зарегистрировано не менее трёх ошибок."
+
+      - alert: LandlordsOutboxTerminalFailures
+        expr: increase(landlords_outbox_terminal_failures_total[15m]) > 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Outbox-задача перешла в терминальную ошибку"
+          description: "За последние 15 минут появились терминальные ошибки обработки outbox."

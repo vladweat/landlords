@@ -20,7 +20,7 @@ from app.db.tenant_context import set_tenant_context
 from app.services.calendar_service import CalendarService
 from app.services.email_service import EmailService
 from app.services.reminder_email_service import ReminderEmailService
-from app.tasks.lock import RedisLock
+from app.tasks.lock import RedisLock, SCHEDULED_TASK_LOCK_TTL_SECONDS
 from celery import shared_task
 from celery.utils.log import get_task_logger
 
@@ -49,7 +49,9 @@ class TransientEmailDeliveryError(Exception):
 )
 def send_daily_reminder_emails() -> dict[str, Any]:
     """Ежедневная рассылка писем owner о просрочках и конце договоров."""
-    lock = RedisLock("send_daily_reminder_emails", ttl=900)
+    lock = RedisLock(
+        "send_daily_reminder_emails", ttl=SCHEDULED_TASK_LOCK_TTL_SECONDS
+    )
     if not lock.try_acquire():
         logger.info("send_daily_reminder_emails: lock not acquired")
         return {"status": "skipped", "reason": "lock_not_acquired"}
