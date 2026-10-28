@@ -27,8 +27,6 @@ Backend проверяет права через membership из базы и `re
 | Дашборд, календарь, ledger, чтение всего | да | да | да |
 | Свой профиль / пароль | да | да | да |
 
-Реализация: enum `Role` + `Permission` + словарь `ROLE_PERMISSIONS` в [`backend/app/domain/permissions.py`](../backend/app/domain/permissions.py). Проверка через dependency `require_permissions(...)` → `ForbiddenError`.
-
 ## Модель данных
 
 ```mermaid
