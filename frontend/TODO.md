@@ -2,9 +2,7 @@
 
 Checkboxes ниже сохраняют состояние предыдущего review, а не актуальный
 backlog. Текущее устройство приложения описано в
-[`docs/architecture/overview.md`](../docs/architecture/overview.md), открытые
-инженерные риски — в
-[`docs/maintenance/technical-debt.md`](../docs/maintenance/technical-debt.md).
+[`docs/architecture/overview.md`](../docs/architecture/overview.md).
 
 Чеклист по результатам аудита `frontend/src` (сентябрь 2026).  
 Стек: React 19, Vite, TanStack Query, Zustand (auth), Tailwind 4, FSD-подобная структура.
@@ -47,7 +45,7 @@ backlog. Текущее устройство приложения описано
 - [x] Редирект авторизованных с `/login` / forgot / reset на `/dashboard`.
 - [ ] Onboarding gate на Dashboard: не только `active_properties === 0 && active_contracts === 0`. — оставлен исходный gate
 
-## P2 — техдолг и полиш
+## P2 — полировка
 
 - [x] Удалить мёртвое: `ForecastWidget.tsx`, `dashboardApi.getPropertiesOverview` (endpoint нет на backend), дубли `DashboardSummary` в `entities/payment.ts`.
 - [x] Убрать неиспользуемые deps: `antd`, `@ant-design/*`, `dayjs`, `magic-string` (в `src` не импортируются).

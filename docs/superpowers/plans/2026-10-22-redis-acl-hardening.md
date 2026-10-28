@@ -64,10 +64,9 @@
 **Files:**
 - Test: `backend/tests/integration/test_redis_acl.py`
 - Modify: `docs/development/testing.md`
-- Modify: `docs/maintenance/technical-debt.md`
 
 - [ ] Add integration checks for unauthenticated rejection, invalid password rejection, default-user disabled, and allowed/denied commands for each identity.
 - [ ] Verify API readiness, task publish/consume, result backend, locks, beat, and optional Flower against ACL-enabled Redis.
 - [ ] Present exact Compose recreation command, affected containers, outage expectation, and secret-file prerequisites; wait for explicit operational approval.
 - [ ] After approval, recreate Redis and dependent clients, run live checks without printing credentials, and record actual results.
-- [ ] Update the technical-debt row only after live checks pass; otherwise preserve the unresolved status with the concrete failure.
+- [ ] Record live check outcomes only after the checks pass; otherwise keep the concrete failure with the result.
