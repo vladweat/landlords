@@ -1,53 +1,75 @@
-# Портфолио — чеклист перед публикацией
+# Демонстрация проекта на интервью
 
-Краткий список перед тем, как открыть репозиторий или показать демо рекрутеру.
+Маршрут на 5–10 минут. Цель — показать законченную предметную цепочку и
+объяснить решения на конкретных местах в коде, не заявляя о непроверенных
+production-свойствах.
 
-## Репозиторий
+## Подготовка
 
-- [ ] В git нет `backend/.env`, корневого `.env`, ключей ЮKassa/SMTP/Sentry
-- [ ] `.env.example` актуален: `ALLOW_PUBLIC_REGISTRATION=false`, комментарии к секретам
-- [ ] README: быстрый старт, демо-креды, скриншоты, ссылка на этот чеклист
-- [ ] `docs/assets/` содержит актуальные скриншоты (см. ниже)
-
-## Локальная проверка
+Подними локальный проект по [гайду разработчика](development/getting-started.md),
+затем создай демонстрационные данные:
 
 ```bash
-cp .env.example backend/.env
-# при необходимости: cp .env.example .env
-docker compose up -d --build
-curl -sf http://localhost/ready
 docker compose exec api python -m app.cli seed-demo
 ```
 
-Демо-вход:
+Команда создаёт demo user `demo@example.com` с паролем `ChangeMeDemo1!` и
+демо-данные. Не используй этот пароль на публичном стенде. Screenshots в
+репозитории пока являются SVG-заглушками, см. [assets README](assets/README.md).
 
-- email: `demo@example.com`
-- password: `ChangeMeDemo1!`
+## Маршрут
 
-Проверить: дашборд с цифрами, договоры (active / overdue / draft), платежи, расходы, Settings → тариф без шума про оплату.
+### 1. Проблема и структура приложения — 1 минута
 
-## Скриншоты
+Покажи дашборд и кратко опиши поток: договор → начисления → платежи → баланс и
+ROI. Архитектурный обзор: [overview](architecture/overview.md).
 
-После `seed-demo` и входа снять три кадра (desktop, ширина ~1280px) и положить в `docs/assets/`:
+### 2. Договор и денежный ledger — 2–3 минуты
 
-| Файл | Экран |
-|------|--------|
-| `docs/assets/dashboard.png` | Дашборд |
-| `docs/assets/contracts.png` | Список договоров или карточка с ledger |
-| `docs/assets/settings.png` | Настройки (тариф / команда) |
+Открой договор, покажи начисления и ledger. Объясни, что договор сначала
+создаётся как draft, начисления появляются при активации или ручной генерации,
+а депозит не смешивается с арендными платежами. Затем покажи частичный платёж,
+аванс и распределение FIFO.
 
-Имена должны совпадать со ссылками в README.
+Ссылки на правила и сценарии:
+[денежный поток](MONEY_FLOW.md),
+[use cases](use-cases-contracts-payments.md),
+[`payment_service.py`](../backend/app/services/payment_service.py),
+[`test_payment_service.py`](../backend/tests/unit/services/test_payment_service.py).
 
-## Что показать рекрутеру
+### 3. Изоляция аккаунтов и роли — 1 минута
 
-1. Landing → «Демо-доступ» → `/login` с фиксированными кредами.
-2. Дашборд и денежный контур (начисления / платежи / ledger).
-3. Роли и multi-tenancy (кратко: изоляция по `account_id`, RBAC).
-4. Стек и compose: один вход nginx, Celery для фоновых задач.
-5. Runbook: [deploy.md](./deploy.md).
+Покажи раздел команды или объясни три роли и server-side проверку permissions.
+В UI скрытые кнопки не являются защитой; права проверяет backend. Смотри
+[справку по ролям](multi-user-roles.md),
+[`permissions.py`](../backend/app/domain/permissions.py) и
+[`test_rbac_api.py`](../backend/tests/integration/test_rbac_api.py).
 
-## Не делать на публичном демо
+### 4. Фоновые задачи — 1–2 минуты
 
-- Не включать `ALLOW_PUBLIC_REGISTRATION=true` без rate-limit и мониторинга.
-- Не публиковать прод-`SECRET_KEY` и пароли БД из реального VPS.
-- Не обещать live HTTPS URL, пока стек не выложен отдельно.
+Объясни, что транзакционный outbox записывает намерение поставить задачу вместе
+с изменением в PostgreSQL, а relay публикует её в Celery после commit. Доставка
+может повториться, поэтому обработчики должны быть идемпотентны. Документы:
+[фоновые задачи](architecture/background-jobs.md),
+[`outbox_relay.py`](../backend/app/services/outbox_relay.py).
+
+### 5. Компромисс и следующий шаг — 1–2 минуты
+
+Выбери один реальный риск из
+[реестра техдолга](maintenance/technical-debt.md): например, усилить проверку
+Redis command allowlist или подтвердить disaster recovery из offsite-копии.
+Уточни, что наличие runbook и restore-check не подтверждает настройку VPS и не
+является end-to-end восстановлением приложения.
+
+## Для обсуждения
+
+- Почему роли и tenant scope проверяются backend dependency, а не только UI?
+- Какие гарантии даёт transactional outbox и почему он не обеспечивает
+  exactly-once delivery?
+- Как проверить конкурентную обработку платежей и какой уровень изоляции
+  обеспечивает блокировка договора?
+- Какие шаги нужны, чтобы перейти от репозиторного backup к проверяемому
+  восстановлению после потери VPS?
+
+Источник подробных технических и onboarding материалов —
+[индекс документации](index.md).

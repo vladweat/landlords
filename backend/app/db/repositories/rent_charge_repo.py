@@ -1,6 +1,7 @@
 """Реализация репозитория начислений."""
 
 from decimal import Decimal
+from typing import Sequence
 from uuid import UUID
 from datetime import date, datetime, timezone
 
@@ -39,6 +40,27 @@ class RentChargeRepository(IRentChargeRepository):
             .all()
         )
         return [m.to_entity() for m in models]
+
+    def list_by_contracts(
+        self,
+        contract_ids: Sequence[UUID],
+        account_id: UUID,
+        date_from: date | None = None,
+        date_to: date | None = None,
+    ) -> list[RentChargeEntity]:
+        """Получить начисления для набора контрактов аккаунта одним запросом."""
+        if not contract_ids:
+            return []
+        query = self.session.query(RentChargeModel).filter(
+            RentChargeModel.account_id == account_id,
+            RentChargeModel.contract_id.in_(contract_ids),
+        )
+        if date_from:
+            query = query.filter(RentChargeModel.due_date >= date_from)
+        if date_to:
+            query = query.filter(RentChargeModel.due_date <= date_to)
+        models = query.order_by(RentChargeModel.due_date).all()
+        return [model.to_entity() for model in models]
 
     def list_by_account(self, account_id: UUID) -> list[RentChargeEntity]:
         """Список всех начислений аккаунта."""

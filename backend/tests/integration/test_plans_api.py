@@ -15,7 +15,7 @@ def _register(client: TestClient, email: str) -> dict:
         },
     )
     assert resp.status_code == 200, resp.text
-    token = resp.json()["token"]
+    token = resp.json()["data"]["token"]
     return {"Authorization": f"Bearer {token}"}
 
 
@@ -123,7 +123,7 @@ class TestPlansApi:
             json={"password": "secret123", "full_name": "Mgr"},
         )
         assert accept.status_code == 200, accept.text
-        mgr_token = accept.json()["token"]
+        mgr_token = accept.json()["data"]["token"]
         mgr_headers = {"Authorization": f"Bearer {mgr_token}"}
 
         resp = client.patch(

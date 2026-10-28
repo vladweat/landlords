@@ -2,6 +2,7 @@
 
 from datetime import date
 from decimal import Decimal
+from typing import Sequence
 from uuid import UUID
 
 from sqlalchemy import func
@@ -76,6 +77,34 @@ class PropertyExpenseRepository(IPropertyExpenseRepository):
         if end_date:
             query = query.filter(PropertyExpenseModel.date_incurred <= end_date)
         return Decimal(str(query.scalar()))
+
+    def sum_by_property_ids(
+        self,
+        property_ids: Sequence[UUID],
+        account_id: UUID,
+        start_date: date | None = None,
+        end_date: date | None = None,
+    ) -> dict[UUID, Decimal]:
+        """Сгруппировать расходы по объектам одним запросом."""
+        if not property_ids:
+            return {}
+        query = (
+            self.session.query(
+                PropertyExpenseModel.property_id,
+                func.coalesce(func.sum(PropertyExpenseModel.amount), 0),
+            )
+            .filter(
+                PropertyExpenseModel.account_id == account_id,
+                PropertyExpenseModel.property_id.in_(property_ids),
+            )
+        )
+        if start_date:
+            query = query.filter(PropertyExpenseModel.date_incurred >= start_date)
+        if end_date:
+            query = query.filter(PropertyExpenseModel.date_incurred <= end_date)
+        return {property_id: Decimal(str(total)) for property_id, total in query.group_by(
+            PropertyExpenseModel.property_id
+        ).all()}
 
     def create(self, entity: PropertyExpenseEntity) -> PropertyExpenseEntity:
         """Создать расход."""

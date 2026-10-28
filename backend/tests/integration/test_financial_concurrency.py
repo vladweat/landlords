@@ -41,7 +41,7 @@ def financial_auth_headers(client, monkeypatch):
         },
     )
     assert response.status_code == 200, response.text
-    return {"Authorization": f"Bearer {response.json()['token']}"}
+    return {"Authorization": f"Bearer {response.json()['data']['token']}"}
 
 
 def _create_contract(client, headers, *, start=None, days=400):

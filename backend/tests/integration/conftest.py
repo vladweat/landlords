@@ -122,5 +122,5 @@ def auth_headers(client):
         },
     )
     data = resp.json()
-    token = data["token"]
+    token = data["data"]["token"]
     return {"Authorization": f"Bearer {token}"}

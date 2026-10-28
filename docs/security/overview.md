@@ -17,8 +17,8 @@ Compose доступны только сети `app-network`. В dev override и
 - Access JWT: HS256, 24 часа, `sub` + `account_id` + `jti` + `exp`; каждый JWT
   привязан к записи `auth_sessions` и проверяется по ней на каждом protected request.
 - Browser transport: HttpOnly `access_token`, `SameSite=Lax`, `Secure` в
-  production и `Cache-Control: no-store`. Auth responses не содержат JWT по
-  умолчанию; API-клиент явно включает legacy-compatible Bearer response через
+  production и `Cache-Control: no-store`. Успешные auth responses не содержат
+  JWT в JSON по умолчанию; API-клиент может запросить Bearer token через
   `X-Return-Bearer-Token: true`.
 - Reset JWT действует один час, содержит `jti` и принимается один раз. В БД
   хранится только ID последнего выпущенного reset token; новый запрос сброса
@@ -49,7 +49,7 @@ policy surface. Для RLS пришлось бы задавать и очища�
 policy для каждой tenant table. Возвращаться к RLS стоит при требовании защиты от
 ошибок приложения на уровне БД или заметном росте неучтённых query paths.
 
-### Матрица доступа (проверено 21 октября 2026)
+### Матрица доступа (сверено с кодом 28 октября 2026)
 
 Protected endpoints требуют действительную серверную JWT-сессию и активную
 membership; account ID берётся из неё. Указанные permission нужны для mutations;
@@ -85,8 +85,9 @@ Owner имеет все права, manager — write-доступ к объек
 
 nginx добавляет `X-Content-Type-Options`, `X-Frame-Options` и
 `Referrer-Policy`, ограничивает body 20 MiB и rate-limit для login,
-forgot-password, reset-password и reminders. Compose/nginx не терминирует TLS;
-HTTPS redirect и HSTS настраиваются внешним production ingress.
+forgot-password, reset-password и reminders. Base nginx работает по HTTP;
+production Compose overlay добавляет Caddy для HTTPS и HSTS. Live DNS,
+сертификат и сетевые правила VPS см. в статусе проверки ниже.
 FastAPI импортирует `CORSMiddleware`, но не добавляет его; ожидается same-origin
 через nginx/Vite proxy.
 
@@ -150,15 +151,15 @@ Public invoice PDF GET только читает готовый документ
 
 | Severity | Ограничение | Последствие |
 |---|---|---|
-| High | Compose/nginx не терминирует TLS | Production требует внешнего HTTPS ingress; прямой публичный HTTP раскрывает credentials |
+| High | Live TLS topology не подтверждена | Production overlay содержит Caddy, но DNS, firewall, certificate и прямой доступ к origin на VPS не проверены |
 | Medium | Tenant isolation только application-level | Ошибка repository filter создаёт cross-tenant риск |
 | Medium | Нет refresh tokens или интерфейса управления устройствами | Пользователь не может посмотреть/отозвать другие сессии отдельно |
 | Medium | Ограниченный nginx rate limit, direct API bypass | Brute-force protection зависит от topology |
 | Medium | CSRF защита зависит от FRONTEND_URL и cookie topology | Origin allowlist нужно обновлять при смене public origin; Bearer clients остаются отдельным транспортом |
-| Low | Swagger скрыт в production, но `/openapi.json` остаётся | Раскрытие API surface |
-
-Это архитектурные риски, не утверждение о факте эксплуатации. Приоритеты и
-evidence: [technical-debt.md](../maintenance/technical-debt.md).
+Production Compose overlay содержит Caddy для HTTPS и HSTS. Фактические DNS,
+сетевые правила VPS и состояние сертификата не проверялись. Остальные пункты —
+архитектурные риски, не утверждение о факте эксплуатации. Приоритеты и evidence:
+[technical-debt.md](../maintenance/technical-debt.md).
 
 ## Checklist изменений
 

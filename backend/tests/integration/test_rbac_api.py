@@ -66,7 +66,7 @@ class TestTeamMembers:
         accepted = _invite_and_accept(
             client, auth_headers, "manager@example.com", role="manager", name="Manager"
         )
-        assert accepted["user"]["email"] == "manager@example.com"
+        assert accepted["data"]["user"]["email"] == "manager@example.com"
 
         listed = client.get("/v1/account/members", headers=auth_headers)
         assert listed.status_code == 200
@@ -90,7 +90,7 @@ class TestTeamMembers:
             json={"email": "acc@example.com", "password": "secret123"},
         )
         assert login.status_code == 200
-        member_headers = _headers(login.json()["token"])
+        member_headers = _headers(login.json()["data"]["token"])
 
         me = client.get("/v1/auth/me", headers=member_headers)
         assert me.json()["data"]["role"] == "accountant"
@@ -106,7 +106,7 @@ class TestTeamMembers:
         accepted = _invite_and_accept(
             client, auth_headers, "acc2@example.com", role="accountant", name="Acc"
         )
-        member_headers = _headers(accepted["token"])
+        member_headers = _headers(accepted["data"]["token"])
 
         assert client.get("/v1/properties", headers=member_headers).status_code == 200
         resp = client.post(
@@ -144,7 +144,7 @@ class TestTeamMembers:
         accepted = _invite_and_accept(
             client, auth_headers, "mgr@example.com", role="manager", name="Mgr"
         )
-        member_headers = _headers(accepted["token"])
+        member_headers = _headers(accepted["data"]["token"])
 
         prop = client.post(
             "/v1/properties",
@@ -160,8 +160,8 @@ class TestTeamMembers:
         accepted = _invite_and_accept(
             client, auth_headers, "temp@example.com", role="manager", name="Temp"
         )
-        user_id = accepted["user"]["id"]
-        stale_member_headers = _headers(accepted["token"])
+        user_id = accepted["data"]["user"]["id"]
+        stale_member_headers = _headers(accepted["data"]["token"])
 
         delete = client.delete(
             f"/v1/account/members/{user_id}",
@@ -182,7 +182,7 @@ class TestTeamMembers:
         accepted = _invite_and_accept(
             client, auth_headers, "retained-member@example.com", role="manager", name="Retained"
         )
-        user_id = accepted["user"]["id"]
+        user_id = accepted["data"]["user"]["id"]
         property_response = client.post(
             "/v1/properties", headers=auth_headers,
             json=property_payload(street="Must remain"),
@@ -202,7 +202,7 @@ class TestTeamMembers:
         accepted = _invite_and_accept(
             client, auth_headers, "mgrdel@example.com", role="manager", name="Mgr"
         )
-        member_headers = _headers(accepted["token"])
+        member_headers = _headers(accepted["data"]["token"])
         resp = client.request(
             "DELETE",
             "/v1/auth/me",
@@ -216,12 +216,12 @@ class TestTeamMembers:
     ):
         owner_a = _register(client, "admin-a@test.com", "Owner A")
         owner_b = _register(client, "admin-b@test.com", "Owner B")
-        headers_a = _headers(owner_a["token"])
-        headers_b = _headers(owner_b["token"])
+        headers_a = _headers(owner_a["data"]["token"])
+        headers_b = _headers(owner_b["data"]["token"])
         member = _invite_and_accept(
             client, headers_b, "admin-target@test.com", role="manager", name="Target"
         )
-        target_id = member["user"]["id"]
+        target_id = member["data"]["user"]["id"]
 
         change = client.patch(f"/v1/account/members/{target_id}", headers=headers_a,
             json={"role": "accountant"})
@@ -233,7 +233,7 @@ class TestTeamMembers:
             "email": "admin-target@test.com", "password": "secret123"
         })
         assert login.status_code == 200
-        me = client.get("/v1/auth/me", headers=_headers(login.json()["token"]))
+        me = client.get("/v1/auth/me", headers=_headers(login.json()["data"]["token"]))
         assert me.json()["data"]["role"] == "manager"
         assert db_session.query(AccountModel).filter_by(
             id=me.json()["data"]["account"]["id"]
@@ -243,7 +243,7 @@ class TestTeamMembers:
 class TestMemberIsolation:
     def test_member_does_not_see_other_account(self, client: TestClient):
         owner_a = _register(client, "ownera@test.com", "Owner A")
-        headers_a = _headers(owner_a["token"])
+        headers_a = _headers(owner_a["data"]["token"])
         _invite_and_accept(
             client, headers_a, "membera@test.com", role="manager", name="Member A"
         )
@@ -254,7 +254,7 @@ class TestMemberIsolation:
         )
 
         owner_b = _register(client, "ownerb@test.com", "Owner B")
-        headers_b = _headers(owner_b["token"])
+        headers_b = _headers(owner_b["data"]["token"])
         client.post(
             "/v1/properties",
             headers=headers_b,
@@ -265,7 +265,7 @@ class TestMemberIsolation:
             "/v1/auth/login",
             json={"email": "membera@test.com", "password": "secret123"},
         )
-        member_headers = _headers(login.json()["token"])
+        member_headers = _headers(login.json()["data"]["token"])
         props = client.get("/v1/properties", headers=member_headers)
         addresses = [p["address"] for p in props.json()["data"]["items"]]
         assert any("Only A" in a for a in addresses)

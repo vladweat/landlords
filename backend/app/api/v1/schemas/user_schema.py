@@ -34,12 +34,38 @@ class LoginRequest(BaseModel):
     password: str
 
 
-class AuthResponse(BaseModel):
-    """Ответ аутентификации; Bearer JWT выдаётся только по явному запросу."""
+class AuthData(BaseModel):
+    """Данные успешной аутентификации."""
 
-    status: str = "success"
     token: str | None = None
     user: UserResponse
+
+
+class AuthResponse(BaseModel):
+    """Стандартный успешный ответ аутентификации."""
+
+    status: str = "success"
+    data: AuthData
+
+
+class MessageData(BaseModel):
+    """Сообщение успешной операции."""
+
+    message: str
+
+
+class MessageResponse(BaseModel):
+    """Стандартный ответ операции с сообщением."""
+
+    status: str = "success"
+    data: MessageData
+
+
+class UserSingleResponse(BaseModel):
+    """Стандартный ответ с пользователем."""
+
+    status: str = "success"
+    data: UserResponse
 
 
 class MeData(BaseModel):

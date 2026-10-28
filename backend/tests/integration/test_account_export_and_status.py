@@ -19,7 +19,7 @@ def test_non_owner_cannot_export(client: TestClient, auth_headers):
     accepted = _invite_and_accept(
         client, auth_headers, "mgr-export@example.com", role="manager", name="Mgr"
     )
-    member_headers = _headers(accepted["token"])
+    member_headers = _headers(accepted["data"]["token"])
     resp = client.get("/v1/account/export", headers=member_headers)
     assert resp.status_code == 403
 
@@ -36,4 +36,4 @@ def test_public_status(client: TestClient):
 
 def test_register_still_works(client: TestClient):
     data = _register(client, "export-owner@example.com", "Export Owner")
-    assert "token" in data
+    assert "token" in data["data"]

@@ -61,38 +61,60 @@ class DashboardService:
         overdue_total = self.charge_repo.get_overdue_total_amount(account_id)
         overdue_count = self.charge_repo.get_overdue_count(account_id)
 
-        # Сводка по объектам
-        properties_overview = []
+        # Сводка по объектам: все связи загружаются пакетно, а не внутри цикла.
         all_properties = self.property_repo.list_by_account(account_id, page=1, per_page=1000)
-        for p in all_properties.items:
-            prop = p.to_entity() if hasattr(p, 'to_entity') else p
+        properties = [p.to_entity() if hasattr(p, "to_entity") else p for p in all_properties.items]
+        property_ids = [prop.id for prop in properties]
+        active_contracts_for_properties = self.contract_repo.list_active_by_properties(
+            property_ids, account_id
+        )
+        active_by_property = {}
+        for contract in active_contracts_for_properties:
+            active_by_property.setdefault(contract.property_id, contract)
 
-            active_contract = self.contract_repo.get_active_for_property(prop.id, account_id)
-            tenant_name = None
-            if active_contract and self.tenant_repo:
-                tenant = self.tenant_repo.get_by_id(active_contract.tenant_id, account_id)
-                tenant_name = tenant.full_name if tenant else None
+        active_contract_ids = [contract.id for contract in active_by_property.values()]
+        contract_ids_for_property = {
+            contract.id: contract.property_id for contract in active_by_property.values()
+        }
+        tenant_ids = [contract.tenant_id for contract in active_by_property.values()]
+        tenants_by_id = {}
+        if self.tenant_repo and tenant_ids:
+            tenants_by_id = {
+                tenant.id: tenant
+                for tenant in self.tenant_repo.list_by_ids(tenant_ids, account_id)
+            }
 
-            annual_income = Decimal("0")
+        year_ago = today - timedelta(days=365)
+        payments_by_property: dict[UUID, Decimal] = {}
+        if active_contract_ids:
+            payments = self.payment_repo.list_by_contracts(
+                active_contract_ids, account_id, date_from=year_ago
+            )
+            for payment in payments:
+                property_id = contract_ids_for_property.get(payment.contract_id)
+                if property_id:
+                    payments_by_property[property_id] = (
+                        payments_by_property.get(property_id, Decimal("0")) + payment.amount
+                    )
+
+        expenses_by_property: dict[UUID, Decimal] = {}
+        if self.expense_repo and property_ids:
+            expenses_by_property = self.expense_repo.sum_by_property_ids(
+                property_ids, account_id, start_date=year_ago, end_date=today
+            )
+
+        properties_overview = []
+        for prop in properties:
+            active_contract = active_by_property.get(prop.id)
+            tenant = tenants_by_id.get(active_contract.tenant_id) if active_contract else None
+            annual_income = payments_by_property.get(prop.id, Decimal("0"))
             income_is_forecast = False
-            if active_contract:
-                payments = self.payment_repo.list_by_contract(active_contract.id, account_id)
-                year_ago = today - timedelta(days=365)
-                for payment in payments:
-                    if payment.date_paid >= year_ago:
-                        annual_income += payment.amount
-                if annual_income == 0:
-                    annual_income = active_contract.rent_amount * 12
-                    income_is_forecast = True
+            if active_contract and annual_income == 0:
+                annual_income = active_contract.rent_amount * 12
+                income_is_forecast = True
 
-            annual_expenses = Decimal("0")
-            if self.expense_repo:
-                year_ago = today - timedelta(days=365)
-                annual_expenses = self.expense_repo.get_total_for_property(
-                    prop.id, account_id, start_date=year_ago, end_date=today
-                )
+            annual_expenses = expenses_by_property.get(prop.id, Decimal("0"))
             annual_profit = annual_income - annual_expenses
-
             roi = None
             payback = None
             if prop.purchase_price and prop.purchase_price > 0:
@@ -107,7 +129,7 @@ class DashboardService:
             properties_overview.append({
                 "property_id": str(prop.id),
                 "address": prop.get_address(),
-                "tenant_name": tenant_name,
+                "tenant_name": tenant.full_name if tenant else None,
                 "contract_status": active_contract.status if active_contract else None,
                 "monthly_income": str(active_contract.rent_amount) if active_contract else "0",
                 "roi": roi,
@@ -135,28 +157,36 @@ class DashboardService:
         )
 
     def get_last_payments(self, account_id: UUID, limit: int = 5) -> list[dict]:
-        """Последние платежи для дашборда с адресом и арендатором."""
+        """Последние платежи с пакетной загрузкой связанных объектов."""
         payments = self.payment_repo.list_by_account(account_id)[:limit]
+        contracts = self.contract_repo.list_all_by_account(account_id)
+        contract_ids = {payment.contract_id for payment in payments}
+        contracts_by_id = {
+            contract.id: contract for contract in contracts if contract.id in contract_ids
+        }
+        property_ids = list({contract.property_id for contract in contracts_by_id.values()})
+        properties_by_id = {
+            prop.id: prop for prop in self.property_repo.list_by_ids(property_ids, account_id)
+        } if property_ids else {}
+        tenant_ids = list({contract.tenant_id for contract in contracts_by_id.values()})
+        tenants_by_id = {}
+        if self.tenant_repo and tenant_ids:
+            tenants_by_id = {
+                tenant.id: tenant for tenant in self.tenant_repo.list_by_ids(tenant_ids, account_id)
+            }
+
         data = []
-        for p in payments:
-            contract = self.contract_repo.get_by_id(p.contract_id, account_id)
-            address = ""
-            tenant_name = ""
-            if contract:
-                prop = self.property_repo.get_by_id(contract.property_id, account_id)
-                if prop:
-                    address = prop.get_address()
-                if self.tenant_repo:
-                    tenant = self.tenant_repo.get_by_id(contract.tenant_id, account_id)
-                    if tenant:
-                        tenant_name = tenant.full_name
+        for payment in payments:
+            contract = contracts_by_id.get(payment.contract_id)
+            prop = properties_by_id.get(contract.property_id) if contract else None
+            tenant = tenants_by_id.get(contract.tenant_id) if contract else None
             data.append({
-                "id": str(p.id),
-                "contract_id": str(p.contract_id),
-                "amount": str(p.amount),
-                "date_paid": p.date_paid.isoformat(),
-                "method": p.method,
-                "property_address": address,
-                "tenant_name": tenant_name,
+                "id": str(payment.id),
+                "contract_id": str(payment.contract_id),
+                "amount": str(payment.amount),
+                "date_paid": payment.date_paid.isoformat(),
+                "method": payment.method,
+                "property_address": prop.get_address() if prop else "",
+                "tenant_name": tenant.full_name if tenant else "",
             })
         return data

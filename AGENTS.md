@@ -26,10 +26,14 @@ server state, Zustand только для auth. Browser auth — HttpOnly-cookie
 ```bash
 (cd backend && ruff check app tests --select E9,F63,F7,F82)
 (cd backend && pytest -q tests/unit tests/tasks)
-(cd backend && ALLOW_PUBLIC_REGISTRATION=true pytest -q tests/integration)  # PostgreSQL/Redis
 (cd frontend && npm test)
 (cd frontend && npm run build)
 ```
+
+Integration suite destructively recreates `landlords_test`; start the isolated
+test services and use the explicit connection settings in
+[`docs/development/testing.md`](docs/development/testing.md). Never point it at
+the normal Compose volumes or a shared database.
 
 Запускайте пропорционально изменению. Schema change требует Alembic migration и
 integration test. Task change требует проверки retry/idempotency/lock.
@@ -41,5 +45,12 @@ integration test. Task change требует проверки retry/idempotency/
 - Route/auth change → `docs/api/overview.md`; model/migration →
   `docs/architecture/database.md`; task/schedule →
   `docs/architecture/background-jobs.md`.
-- Не копировать большие OpenAPI schemas вручную и не публиковать secrets.
-- Поддерживать relative links и помечать assumptions/gaps явно.
+- Источники истины по убыванию: код/миграции, runtime-конфигурация и Compose,
+  CI/tests, затем документация. Не копировать OpenAPI schemas вручную.
+- Обновлять существующий canonical doc, не дублировать настройки и команды в
+  нескольких местах. Перекрёстные ссылки вести к основному описанию.
+- Закрытые планы/review TODO помечать историческими; единственный текущий
+  реестр рисков — `docs/maintenance/technical-debt.md`.
+- Поддерживать relative links, проверять команды/пути и явно маркировать
+  предположения, ограничения и непроверенное состояние VPS/production.
+- Не публиковать secrets, capability tokens или персональные данные.

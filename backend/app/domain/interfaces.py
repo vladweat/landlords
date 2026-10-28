@@ -186,6 +186,11 @@ class IPropertyRepository(ABC):
         ...
 
     @abstractmethod
+    def list_by_ids(self, property_ids: Sequence[UUID], account_id: UUID) -> Sequence[PropertyEntity]:
+        """Получить объекты по списку ID в рамках аккаунта."""
+        ...
+
+    @abstractmethod
     def count_active(self, account_id: UUID) -> int:
         """Количество активных объектов."""
         ...
@@ -209,6 +214,11 @@ class ITenantRepository(ABC):
         self, account_id: UUID, page: int = 1, per_page: int = 20,
         search: str | None = None,
     ) -> PaginatedResult:
+        ...
+
+    @abstractmethod
+    def list_by_ids(self, tenant_ids: Sequence[UUID], account_id: UUID) -> Sequence[TenantEntity]:
+        """Получить арендаторов по списку ID в рамках аккаунта."""
         ...
 
     @abstractmethod
@@ -292,6 +302,13 @@ class IContractRepository(ABC):
         ...
 
     @abstractmethod
+    def list_active_by_properties(
+        self, property_ids: Sequence[UUID], account_id: UUID
+    ) -> Sequence[ContractEntity]:
+        """Получить active/overdue контракты для набора объектов аккаунта."""
+        ...
+
+    @abstractmethod
     def get_active_for_tenant(
         self, tenant_id: UUID, account_id: UUID
     ) -> Sequence[ContractEntity]:
@@ -316,6 +333,17 @@ class IRentChargeRepository(ABC):
         self, contract_id: UUID, account_id: UUID
     ) -> Sequence[RentChargeEntity]:
         """Список начислений по контракту."""
+        ...
+
+    @abstractmethod
+    def list_by_contracts(
+        self,
+        contract_ids: Sequence[UUID],
+        account_id: UUID,
+        date_from: date | None = None,
+        date_to: date | None = None,
+    ) -> Sequence[RentChargeEntity]:
+        """Получить начисления для набора контрактов аккаунта."""
         ...
 
     @abstractmethod
@@ -410,6 +438,17 @@ class IPaymentRepository(ABC):
         self, contract_id: UUID, account_id: UUID
     ) -> Sequence[PaymentEntity]:
         """Список платежей по контракту."""
+        ...
+
+    @abstractmethod
+    def list_by_contracts(
+        self,
+        contract_ids: Sequence[UUID],
+        account_id: UUID,
+        date_from: date | None = None,
+        date_to: date | None = None,
+    ) -> Sequence[PaymentEntity]:
+        """Получить платежи для набора контрактов аккаунта."""
         ...
 
     @abstractmethod
@@ -513,6 +552,17 @@ class IPropertyExpenseRepository(ABC):
         end_date: date | None = None,
     ) -> Decimal:
         """Сумма расходов по объекту за период."""
+        ...
+
+    @abstractmethod
+    def sum_by_property_ids(
+        self,
+        property_ids: Sequence[UUID],
+        account_id: UUID,
+        start_date: date | None = None,
+        end_date: date | None = None,
+    ) -> dict[UUID, Decimal]:
+        """Сгруппировать суммы расходов по объектам аккаунта."""
         ...
 
     @abstractmethod
