@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import os
 import re
 import secrets
@@ -21,8 +22,10 @@ def provision(output_dir: Path, key_prefix: str = DEFAULT_KEY_PREFIX) -> None:
         "api": "landlords_api",
         "worker": "landlords_worker",
         "flower": "landlords_flower",
+        "exporter": "landlords_exporter",
     }
     paths = [output_dir / f"{name}.password" for name in identities]
+    paths.append(output_dir / "exporter-passwords.json")
     acl_path = output_dir / "users.acl"
     existing = [path.name for path in [*paths, acl_path] if path.exists()]
     if existing:
@@ -36,16 +39,19 @@ def provision(output_dir: Path, key_prefix: str = DEFAULT_KEY_PREFIX) -> None:
 
     passwords = {name: secrets.token_urlsafe(48) for name in identities}
     for name, password in passwords.items():
-        _write_private_file(output_dir / f"{name}.password", f"{password}\n")
+        _write_private_file(
+            output_dir / f"{name}.password", f"{password}\n", mode=0o644
+        )
 
     _write_acl_file(output_dir, passwords, key_prefix=key_prefix, replace=False)
+    _write_exporter_password_file(output_dir, passwords["exporter"], replace=False)
 
 
 def refresh_acl(output_dir: Path, key_prefix: str = DEFAULT_KEY_PREFIX) -> None:
     """Refresh ACL rules from existing password files without rotating credentials."""
     output_dir = Path(output_dir)
     key_prefix = _validate_key_prefix(key_prefix)
-    identities = ("api", "worker", "flower")
+    identities = ("api", "worker", "flower", "exporter")
     missing = [
         f"{name}.password"
         for name in identities
@@ -65,6 +71,27 @@ def refresh_acl(output_dir: Path, key_prefix: str = DEFAULT_KEY_PREFIX) -> None:
         passwords[name] = password
 
     _write_acl_file(output_dir, passwords, key_prefix=key_prefix, replace=True)
+    _write_exporter_password_file(output_dir, passwords["exporter"], replace=True)
+
+
+def _write_exporter_password_file(
+    output_dir: Path, password: str, *, replace: bool
+) -> None:
+    """Write redis_exporter's address-to-password JSON secret file."""
+    path = output_dir / "exporter-passwords.json"
+    contents = json.dumps(
+        {"redis://landlords_exporter@redis:6379": password}, indent=2
+    ) + "\n"
+    if not replace:
+        _write_private_file(path, contents, mode=0o644)
+        return
+
+    temporary_path = output_dir / f".exporter-passwords.{secrets.token_hex(8)}.tmp"
+    try:
+        _write_private_file(temporary_path, contents, mode=0o644)
+        os.replace(temporary_path, path)
+    finally:
+        temporary_path.unlink(missing_ok=True)
 
 
 def _validate_key_prefix(key_prefix: str) -> str:
@@ -86,6 +113,7 @@ def _write_acl_file(
         "api": "landlords_api",
         "worker": "landlords_worker",
         "flower": "landlords_flower",
+        "exporter": "landlords_exporter",
     }
     acl_lines = ["user default off"]
     for name, username in identities.items():
@@ -94,6 +122,15 @@ def _write_acl_file(
             rules = (
                 f"resetkeys resetchannels ~{key_prefix}ops:* "
                 "+@read +@write +@connection -@admin -@dangerous"
+            )
+        elif name == "exporter":
+            rules = (
+                f"resetkeys resetchannels ~{key_prefix}* "
+                "-@all +@connection +ping +memory -readonly +strlen +config|get +xinfo "
+                "+pfcount -quit +zcard +type +xlen -readwrite -command +command|info "
+                "+client -wait +scard +llen +hlen +get +eval +slowlog +cluster|info "
+                "+cluster|slots +cluster|nodes -hello -echo +info +latency +scan "
+                "-reset -auth -asking"
             )
         else:
             channels = [f"&{key_prefix}/0.celery.pidbox"]
@@ -130,13 +167,13 @@ def _write_acl_file(
         temporary_path.unlink(missing_ok=True)
 
 
-def _write_private_file(path: Path, contents: str) -> None:
+def _write_private_file(path: Path, contents: str, *, mode: int = 0o600) -> None:
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
-    descriptor = os.open(path, flags, 0o600)
+    descriptor = os.open(path, flags, mode)
     with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
         stream.write(contents)
     if os.name != "nt":
-        os.chmod(path, 0o600)
+        os.chmod(path, mode)
 
 
 def main() -> None:

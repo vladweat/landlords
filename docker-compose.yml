@@ -68,7 +68,11 @@ services:
       DB_HOST: postgres
       DB_NAME: ${DB_NAME:-landlords_db}
       MIGRATION_DB_HOST: postgres
+      POSTGRES_EXPORTER_USER: ${POSTGRES_EXPORTER_USER:-landlords_metrics}
+      POSTGRES_EXPORTER_PASSWORD_FILE: /run/secrets/postgres_exporter_password
       APP_ENV: development
+    secrets:
+      - postgres_exporter_password
     depends_on:
       postgres:
         condition: service_healthy
@@ -223,6 +227,101 @@ services:
     profiles:
       - development
 
+  prometheus:
+    image: prom/prometheus:v3.13.3
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+      - --storage.tsdb.retention.size=4GB
+      - --web.enable-lifecycle
+    volumes:
+      - ./deploy/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    depends_on:
+      - api
+      - node-exporter
+      - postgres-exporter
+      - redis-exporter
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  grafana:
+    image: grafana/grafana:13.3.0
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD__FILE: /run/secrets/grafana_admin_password
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    ports:
+      - "127.0.0.1:3000:3000"
+    secrets:
+      - grafana_admin_password
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./deploy/monitoring/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  alertmanager:
+    image: prom/alertmanager:v0.34.1
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    volumes:
+      - ./deploy/monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  node-exporter:
+    image: prom/node-exporter:v1.12.1
+    command:
+      - --path.procfs=/host/proc
+      - --path.sysfs=/host/sys
+      - --path.rootfs=/rootfs
+      - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|var/lib/docker/.+|var/lib/containers/storage/.+)(/|$)
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro,rslave
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  postgres-exporter:
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.20.1
+    environment:
+      DATA_SOURCE_URI: postgres:5432/${DB_NAME:-landlords_db}?sslmode=disable
+      DATA_SOURCE_USER: ${POSTGRES_EXPORTER_USER:-landlords_metrics}
+      DATA_SOURCE_PASS_FILE: /run/secrets/postgres_exporter_password
+    secrets:
+      - postgres_exporter_password
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  redis-exporter:
+    image: quay.io/oliver006/redis_exporter:v1.93.0-alpine
+    environment:
+      REDIS_ADDR: redis://redis:6379
+      REDIS_USER: landlords_exporter
+      REDIS_PASSWORD_FILE: /run/secrets/redis_exporter_password
+    secrets:
+      - redis_exporter_password
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - app-network
+
   postgres:
     image: postgres:15
     environment:
@@ -262,6 +361,9 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  prometheus_data:
+  grafana_data:
+  alertmanager_data:
 
 networks:
   app-network:
@@ -280,3 +382,9 @@ secrets:
     file: ${REDIS_WORKER_PASSWORD_FILE:-./secrets/redis/worker.password}
   redis_flower_password:
     file: ${REDIS_FLOWER_PASSWORD_FILE:-./secrets/redis/flower.password}
+  redis_exporter_password:
+    file: ${REDIS_EXPORTER_PASSWORD_FILE:-./secrets/redis/exporter-passwords.json}
+  postgres_exporter_password:
+    file: ${POSTGRES_EXPORTER_PASSWORD_FILE:-./secrets/postgres/exporter.password}
+  grafana_admin_password:
+    file: ${GRAFANA_ADMIN_PASSWORD_FILE:-./secrets/monitoring/grafana_admin.password}

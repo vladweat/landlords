@@ -1,4 +1,5 @@
 import hashlib
+import json
 import os
 
 import pytest
@@ -15,10 +16,16 @@ def test_provision_creates_distinct_secrets_and_acl_hashes_without_printing_valu
 
     passwords = {
         name: (output_dir / f"{name}.password").read_text(encoding="utf-8").strip()
-        for name in ("api", "worker", "flower")
+        for name in ("api", "worker", "flower", "exporter")
     }
     acl = (output_dir / "users.acl").read_text(encoding="utf-8")
-    assert len(set(passwords.values())) == 3
+    exporter_passwords = json.loads(
+        (output_dir / "exporter-passwords.json").read_text(encoding="utf-8")
+    )
+    assert exporter_passwords == {
+        "redis://landlords_exporter@redis:6379": passwords["exporter"]
+    }
+    assert len(set(passwords.values())) == 4
     assert "user default off" in acl
     assert "user landlords_health on nopass resetkeys resetchannels ~* +ping" in acl
     assert "~landlords:ops:*" in acl
@@ -26,6 +33,7 @@ def test_provision_creates_distinct_secrets_and_acl_hashes_without_printing_valu
     assert "&landlords:/0.celery.pidbox" in acl
     worker_acl = next(line for line in acl.splitlines() if line.startswith("user landlords_worker "))
     flower_acl = next(line for line in acl.splitlines() if line.startswith("user landlords_flower "))
+    exporter_acl = next(line for line in acl.splitlines() if line.startswith("user landlords_exporter "))
     assert "&landlords:/0.celeryev/worker.*" in worker_acl
     assert "&landlords:/0.celeryev/*" in flower_acl
     assert "&landlords:celery-task-meta-*" in worker_acl
@@ -34,12 +42,20 @@ def test_provision_creates_distinct_secrets_and_acl_hashes_without_printing_valu
     assert "&landlords:/0.celeryev/#" not in acl
     assert "&landlords:/0.celeryev/worker.#" not in acl
     assert "&landlords:*" not in acl
+    assert "-@all" in exporter_acl
+    assert "+info" in exporter_acl
+    assert "+ping" in exporter_acl
+    assert "+config|get" in exporter_acl
+    assert "+client" in exporter_acl
+    assert "~landlords:*" in exporter_acl
+    assert "+@all" not in exporter_acl
     for password in passwords.values():
         assert password not in acl
         assert hashlib.sha256(password.encode()).hexdigest() in acl
     assert all(password not in capsys.readouterr().out for password in passwords.values())
     if os.name != "nt":
-        assert (output_dir / "api.password").stat().st_mode & 0o777 == 0o600
+        assert output_dir.stat().st_mode & 0o777 == 0o700
+        assert (output_dir / "api.password").stat().st_mode & 0o777 == 0o644
         assert (output_dir / "users.acl").stat().st_mode & 0o777 == 0o644
 
 
@@ -50,8 +66,9 @@ def test_refresh_acl_preserves_password_files_and_never_prints_passwords(
     provision(output_dir)
     passwords = {
         name: (output_dir / f"{name}.password").read_bytes()
-        for name in ("api", "worker", "flower")
+        for name in ("api", "worker", "flower", "exporter")
     }
+    exporter_config = (output_dir / "exporter-passwords.json").read_bytes()
 
     refresh_acl(output_dir)
 
@@ -64,6 +81,7 @@ def test_refresh_acl_preserves_password_files_and_never_prints_passwords(
         assert (output_dir / f"{name}.password").read_bytes() == password
         assert hashlib.sha256(password.strip()).hexdigest() in acl
         assert password.decode().strip() not in capsys.readouterr().out
+    assert (output_dir / "exporter-passwords.json").read_bytes() == exporter_config
 
 
 def test_provision_uses_configured_key_prefix_for_keys_and_pubsub_channels(tmp_path):

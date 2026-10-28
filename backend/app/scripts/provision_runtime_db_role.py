@@ -1,5 +1,7 @@
 """Повторяемая настройка runtime роли с минимальными правами."""
 
+from pathlib import Path
+
 from app.core.config import settings
 from psycopg2 import connect, sql
 from sqlalchemy.engine import make_url
@@ -31,6 +33,64 @@ def provision_runtime_role(database_name: str | None = None) -> None:
                 raise RuntimeError(
                     "Migration database role must be a superuser to provision the "
                     "dedicated PostgreSQL RLS resolver role."
+                )
+
+            exporter_password_file = settings.POSTGRES_EXPORTER_PASSWORD_FILE
+            if exporter_password_file:
+                try:
+                    exporter_password = Path(exporter_password_file).read_text(
+                        encoding="utf-8"
+                    ).strip()
+                except OSError:
+                    raise RuntimeError(
+                        "Unable to read PostgreSQL exporter password file."
+                    ) from None
+                if not exporter_password:
+                    raise RuntimeError("PostgreSQL exporter password file is empty.")
+
+                exporter = settings.POSTGRES_EXPORTER_USER
+                cursor.execute("SELECT 1 FROM pg_roles WHERE rolname = %s", (exporter,))
+                exporter_exists = cursor.fetchone() is not None
+                exporter_statement = sql.SQL(
+                    "ALTER ROLE {} LOGIN PASSWORD {} NOSUPERUSER NOCREATEDB "
+                    "NOCREATEROLE INHERIT NOREPLICATION NOBYPASSRLS"
+                    if exporter_exists
+                    else "CREATE ROLE {} LOGIN PASSWORD {} NOSUPERUSER NOCREATEDB "
+                    "NOCREATEROLE INHERIT NOREPLICATION NOBYPASSRLS"
+                ).format(sql.Identifier(exporter), sql.Literal(exporter_password))
+                cursor.execute(exporter_statement)
+                cursor.execute(
+                    sql.SQL("REVOKE ALL PRIVILEGES ON DATABASE {} FROM {}").format(
+                        sql.Identifier(database_name), sql.Identifier(exporter)
+                    )
+                )
+                cursor.execute(
+                    sql.SQL("GRANT CONNECT ON DATABASE {} TO {}").format(
+                        sql.Identifier(database_name), sql.Identifier(exporter)
+                    )
+                )
+                cursor.execute(
+                    sql.SQL("REVOKE ALL ON SCHEMA public FROM {}").format(
+                        sql.Identifier(exporter)
+                    )
+                )
+                cursor.execute(
+                    sql.SQL("REVOKE ALL ON ALL TABLES IN SCHEMA public FROM {}").format(
+                        sql.Identifier(exporter)
+                    )
+                )
+                cursor.execute(
+                    sql.SQL("REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM {}").format(
+                        sql.Identifier(exporter)
+                    )
+                )
+                cursor.execute(
+                    sql.SQL("REVOKE pg_read_all_data, pg_write_all_data FROM {}").format(
+                        sql.Identifier(exporter)
+                    )
+                )
+                cursor.execute(
+                    sql.SQL("GRANT pg_monitor TO {}").format(sql.Identifier(exporter))
                 )
 
             cursor.execute(

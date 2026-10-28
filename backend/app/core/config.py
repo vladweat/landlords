@@ -108,6 +108,8 @@ class Settings(BaseSettings):
     DB_PASSWORD: str = "postgres"
     MIGRATION_DB_USER: str | None = None
     MIGRATION_DB_PASSWORD: SecretStr | None = None
+    POSTGRES_EXPORTER_USER: str = "landlords_metrics"
+    POSTGRES_EXPORTER_PASSWORD_FILE: str | None = None
     DB_NAME: str = "landlords_db"
     DB_POOL_SIZE: int = 20
     DB_MAX_OVERFLOW: int = 40
