@@ -62,10 +62,11 @@ PostgreSQL superuser. Новых секретов для resolver-роли не�
 
 Production overlay подключает Caddy к `app-network` по адресу `172.18.0.10`;
 nginx доступен только внутри сети, а host ports 80/443 публикует Caddy. Для
-`app-network` зарезервированы subnet `172.18.0.0/16`, gateway `172.18.0.1` и
-динамический IP range `172.18.128.0/17`. Перед первым запуском проверь, что этот
-subnet не используется другим Docker network на сервере. Nginx доверяет
-forwarded client IP только от статического адреса Caddy.
+`app-network` задан subnet `172.18.0.0/16` и динамический IP range
+`172.18.128.0/17`. Docker назначает gateway автоматически; в развёрнутой сети
+на 2026-10-28 это `172.18.128.0`. Перед первым запуском проверь, что subnet не
+пересекается с другим Docker network на сервере. Nginx доверяет forwarded
+client IP только от статического адреса Caddy.
 
 ## Redis и Celery
 
