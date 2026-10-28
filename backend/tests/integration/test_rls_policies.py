@@ -1,6 +1,9 @@
 from uuid import uuid4
 
 import pytest
+from psycopg2 import connect as psycopg_connect
+from app.core.config import settings
+from app.scripts.provision_runtime_db_role import provision_runtime_role
 from app.db.models.account_model import AccountModel
 from app.db.models.property_model import PropertyModel
 from app.db.models.user_model import UserModel
@@ -87,6 +90,46 @@ def test_runtime_role_is_not_superuser_or_table_owner(test_engine) -> None:
         ).one()
 
     assert role == (False, False, False, False)
+
+
+def test_postgres_exporter_role_can_monitor_without_reading_application_rows(
+    test_engine, tmp_path, monkeypatch
+) -> None:
+    password_file = tmp_path / "postgres-exporter.password"
+    password_file.write_text("metrics-test-password\n", encoding="utf-8")
+    monkeypatch.setattr(settings, "POSTGRES_EXPORTER_USER", "landlords_metrics", raising=False)
+    monkeypatch.setattr(
+        settings, "POSTGRES_EXPORTER_PASSWORD_FILE", str(password_file), raising=False
+    )
+
+    provision_runtime_role("landlords_test")
+
+    with test_engine.connect() as connection:
+        privileges = connection.execute(
+            text(
+                """
+                SELECT role.rolcanlogin, role.rolsuper, role.rolcreaterole,
+                       role.rolcreatedb, role.rolbypassrls,
+                       pg_has_role('landlords_metrics', 'pg_monitor', 'MEMBER'),
+                       has_database_privilege('landlords_metrics', current_database(), 'CONNECT'),
+                       has_table_privilege('landlords_metrics', 'public.accounts', 'SELECT')
+                FROM pg_roles AS role
+                WHERE role.rolname = 'landlords_metrics'
+                """
+            )
+        ).one_or_none()
+
+    assert privileges == (True, False, False, False, False, True, True, False)
+    with psycopg_connect(
+        host=settings.DB_HOST,
+        port=settings.DB_PORT,
+        dbname="landlords_test",
+        user="landlords_metrics",
+        password=password_file.read_text(encoding="utf-8").strip(),
+    ) as exporter_connection:
+        with exporter_connection.cursor() as cursor:
+            cursor.execute("SELECT 1")
+            assert cursor.fetchone() == (1,)
 
 
 def test_rls_resolver_role_is_narrow_and_owns_resolver_functions(test_engine) -> None:
