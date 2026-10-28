@@ -48,14 +48,13 @@ Compose smoke test и deploy; последний должен оставатьс
 
 **TLS** в nginx не терминируется. Production overlay запускает Caddy с
 автоматическим HTTPS по домену из `deploy/Caddyfile`; подробные шаги и порты —
-в [deploy.md](./deploy.md). DNS, доступность 80/443 и действующий сертификат на
-VPS не проверялись. Для другого ingress замени Caddy и закрой прямой доступ к
-origin.
+в [deploy.md](./deploy.md). Для другого ingress замени Caddy и закрой прямой
+доступ к origin.
 
 **Почта:** без SMTP/Resend письма пишутся в `storage/emails/` только вне production. В production provider обязателен при запуске; SMTP использует STARTTLS или implicit TLS, plaintext запрещён.
 
-**Наблюдаемость воркеров:** worker healthcheck подтверждает соединение с
-broker, у beat healthcheck отключён. Prometheus server, Alertmanager и log
+**Наблюдаемость воркеров:** worker healthcheck проверяет соединение с broker,
+у beat healthcheck отключён. Prometheus server, Alertmanager и log
 retention в Compose отсутствуют; перед production необходимо определить
 внешний scrape/alerting и ответственного, а не считать `/metrics` готовой
 системой мониторинга.

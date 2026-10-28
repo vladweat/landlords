@@ -25,9 +25,6 @@ flowchart LR
   Worker --> Yoo
 ```
 
-Runtime подтверждён `docker-compose.yml`, `nginx/nginx.conf`,
-`backend/app/main.py` и `backend/app/celery_app.py`.
-
 ## Backend
 
 Основное направление зависимостей:
