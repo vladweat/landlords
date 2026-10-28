@@ -9,7 +9,7 @@ from celery.utils.log import get_task_logger
 from sqlalchemy.exc import OperationalError
 
 from app.core.config import settings
-from app.tasks.lock import RedisLock
+from app.tasks.lock import RedisLock, SCHEDULED_TASK_LOCK_TTL_SECONDS
 from app.db.repositories.contract_repo import ContractRepository
 from app.db.repositories.outbox_message_repo import OutboxMessageRepository
 from app.db.repositories.payment_repo import PaymentRepository
@@ -149,7 +149,9 @@ def update_overdue_charges() -> dict[str, Any]:
     logger.info("Updating overdue charges and contracts")
 
     # Acquire distributed lock to avoid concurrent runs across workers.
-    lock = RedisLock("update_overdue_charges", ttl=900)
+    lock = RedisLock(
+        "update_overdue_charges", ttl=SCHEDULED_TASK_LOCK_TTL_SECONDS
+    )
     if not lock.try_acquire():
         logger.info("update_overdue_charges: could not acquire lock, another worker is running")
         return {"status": "skipped", "reason": "lock_not_acquired"}
