@@ -7,7 +7,7 @@
 1. Скопируй [`.env.example`](../.env.example) в `backend/.env` и корневой `.env`; Compose читает из корневого файла `${DB_*}` и пути к host-only Redis secrets.
 2. В `backend/.env` задай уникальный `SECRET_KEY`, `APP_ENV=production`, `DEBUG=false`, `ALLOW_PUBLIC_REGISTRATION=false`, email provider (`SMTP_HOST` или `RESEND_API_KEY`) и `SMTP_TLS_MODE=starttls` либо `ssl`.
 3. Создай отдельные Redis password files и ACL file согласно [configuration guide](development/configuration.md). Redis ACL file хранит hashes; passwords не передаются через env, Git, logs или синхронизацию.
-4. Пароли Postgres задаются env, Redis — secret files; в prod-профиле порты БД/Redis на host не публикуются (см. `docker-compose.yml` без override).
+4. Настрой отдельные `DB_USER`/`DB_PASSWORD` для runtime-роли и `MIGRATION_DB_USER`/`MIGRATION_DB_PASSWORD` для роли миграций. Секрет миграционной роли хранится в корневом `.env`; Compose передаёт его только one-shot сервисам подготовки роли и миграции. Redis использует secret files; порты БД/Redis не публикуются на host.
 
 Online-сборка образа API (CI / машина с PyPI):
 
@@ -50,7 +50,7 @@ curl -sf http://127.0.0.1:8080/ready
 curl -sf https://landlords.wvzl.site/ready
 ```
 
-Миграции Alembic накатывает entrypoint сервиса `api` (`RUN_MIGRATIONS=1`). Worker и beat ждут healthy API.
+Первый запуск выполняет one-shot `db-role-bootstrap`, затем `db-migrate`; API и Celery используют непривилегированную runtime-роль и стартуют после успешной миграции. Для существующего Postgres volume `POSTGRES_USER` и `POSTGRES_PASSWORD` не меняют роли в базе. В `MIGRATION_DB_USER`/`MIGRATION_DB_PASSWORD` укажи текущую роль-владельца с правом создавать роли (обычно действующий `postgres`), а в `DB_USER`/`DB_PASSWORD` — новые runtime credentials. Затем запусти `docker compose run --rm db-role-bootstrap`, после него `docker compose run --rm db-migrate`; команды не очищают volume. После успешной проверки перезапусти стек, чтобы API/worker подключились runtime-ролью.
 
 ## Модель API процессов
 

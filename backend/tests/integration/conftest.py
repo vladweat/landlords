@@ -6,14 +6,15 @@ from unittest.mock import patch
 import pytest
 from alembic import command
 from alembic.config import Config
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, text
-from sqlalchemy.orm import sessionmaker
-
 from app.core.config import settings
 from app.db.session import get_db_session
 from app.main import create_app
+from app.scripts.provision_runtime_db_role import provision_runtime_role
 from app.services.email_service import EmailService
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine, text
+from sqlalchemy.engine import make_url
+from sqlalchemy.orm import sessionmaker
 
 TEST_DB_NAME = "landlords_test"
 ALEMBIC_INI = Path(__file__).resolve().parents[2] / "alembic.ini"
@@ -42,22 +43,27 @@ def property_payload(
 
 @pytest.fixture(scope="session")
 def test_engine():
-    """Создать тестовую БД и применить миграции Alembic."""
-    admin_url = settings.DATABASE_URL.replace(settings.DB_NAME, "postgres")
+    """Создать отдельную test DB, применить миграции owner role и вернуть runtime engine."""
+    admin_url = make_url(settings.MIGRATION_DATABASE_URL).set(database="postgres")
     admin_engine = create_engine(admin_url, isolation_level="AUTOCOMMIT")
     with admin_engine.connect() as conn:
         conn.execute(text(f"DROP DATABASE IF EXISTS {TEST_DB_NAME}"))
         conn.execute(text(f"CREATE DATABASE {TEST_DB_NAME}"))
     admin_engine.dispose()
 
-    test_url = settings.DATABASE_URL.replace(settings.DB_NAME, TEST_DB_NAME)
-    engine = create_engine(test_url)
+    provision_runtime_role(TEST_DB_NAME)
+    migration_url = make_url(settings.MIGRATION_DATABASE_URL).set(database=TEST_DB_NAME)
+    runtime_url = make_url(settings.DATABASE_URL).set(database=TEST_DB_NAME)
 
     alembic_cfg = Config(str(ALEMBIC_INI))
     alembic_cfg.set_main_option("script_location", str(ALEMBIC_INI.parent / "alembic"))
-    alembic_cfg.set_main_option("sqlalchemy.url", test_url)
+    alembic_cfg.set_main_option(
+        "sqlalchemy.url",
+        migration_url.render_as_string(hide_password=False).replace("%", "%%"),
+    )
     with patch.object(settings, "DB_NAME", TEST_DB_NAME):
         command.upgrade(alembic_cfg, "head")
+    engine = create_engine(runtime_url)
 
     yield engine
     engine.dispose()

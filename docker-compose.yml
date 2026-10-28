@@ -31,13 +31,16 @@ services:
       - backend/.env
     environment:
       DB_HOST: postgres
+      MIGRATION_DB_USER: ""
+      MIGRATION_DB_PASSWORD: ""
       REDIS_HOST: redis
       REDIS_USERNAME: landlords_api
       REDIS_PASSWORD_FILE: /run/secrets/redis_api_password
-      RUN_MIGRATIONS: "1"
     secrets:
       - redis_api_password
     depends_on:
+      db-migrate:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:
@@ -51,6 +54,48 @@ services:
       timeout: 5s
       retries: 5
       start_period: 40s
+
+  db-role-bootstrap:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      args:
+        INSTALL_MODE: ${INSTALL_MODE:-offline}
+    command: ["python", "-m", "app.scripts.provision_runtime_db_role"]
+    env_file:
+      - backend/.env
+    environment:
+      DB_HOST: postgres
+      DB_NAME: ${DB_NAME:-landlords_db}
+      MIGRATION_DB_HOST: postgres
+      APP_ENV: development
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - app-network
+
+  db-migrate:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      args:
+        INSTALL_MODE: ${INSTALL_MODE:-offline}
+    command: ["true"]
+    env_file:
+      - backend/.env
+    environment:
+      DB_HOST: postgres
+      MIGRATION_DB_HOST: postgres
+      APP_ENV: production
+      RUN_MIGRATIONS: "1"
+    depends_on:
+      db-role-bootstrap:
+        condition: service_completed_successfully
+    restart: "no"
+    networks:
+      - app-network
 
   celery-worker:
     build:
@@ -66,6 +111,8 @@ services:
       - backend/.env
     environment:
       DB_HOST: postgres
+      MIGRATION_DB_USER: ""
+      MIGRATION_DB_PASSWORD: ""
       REDIS_HOST: redis
       REDIS_USERNAME: landlords_worker
       REDIS_PASSWORD_FILE: /run/secrets/redis_worker_password
@@ -98,6 +145,8 @@ services:
       - backend/.env
     environment:
       DB_HOST: postgres
+      MIGRATION_DB_USER: ""
+      MIGRATION_DB_PASSWORD: ""
       REDIS_HOST: redis
       REDIS_USERNAME: landlords_worker
       REDIS_PASSWORD_FILE: /run/secrets/redis_worker_password
@@ -125,6 +174,8 @@ services:
       - backend/.env
     environment:
       DB_HOST: postgres
+      MIGRATION_DB_USER: ""
+      MIGRATION_DB_PASSWORD: ""
       REDIS_HOST: redis
       REDIS_USERNAME: landlords_worker
       REDIS_PASSWORD_FILE: /run/secrets/redis_worker_password
@@ -154,6 +205,8 @@ services:
       - backend/.env
     environment:
       DB_HOST: postgres
+      MIGRATION_DB_USER: ""
+      MIGRATION_DB_PASSWORD: ""
       REDIS_HOST: redis
       REDIS_USERNAME: landlords_flower
       REDIS_PASSWORD_FILE: /run/secrets/redis_flower_password
@@ -173,13 +226,13 @@ services:
   postgres:
     image: postgres:15
     environment:
-      POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_USER: ${MIGRATION_DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${MIGRATION_DB_PASSWORD:-postgres}
       POSTGRES_DB: ${DB_NAME:-landlords_db}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      test: ["CMD-SHELL", "pg_isready -U ${MIGRATION_DB_USER:-postgres}"]
       interval: 5s
       timeout: 3s
       retries: 5
