@@ -38,10 +38,9 @@
       "id": 3,
       "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi", "sort": "desc" } },
       "targets": [
-        { "expr": "node_filesystem_avail_bytes{mountpoint=\"/\",fstype!~\"tmpfs|overlay\"} / node_filesystem_size_bytes{mountpoint=\"/\",fstype!~\"tmpfs|overlay\"}", "legendFormat": "Хост: {{mountpoint}}", "refId": "A" },
-        { "expr": "ops_documents_disk_free_bytes / (1024^3)", "legendFormat": "Документы: GiB свободно", "refId": "B" }
+        { "expr": "node_filesystem_avail_bytes{mountpoint=\"/\",fstype!~\"tmpfs|overlay\"} / node_filesystem_size_bytes{mountpoint=\"/\",fstype!~\"tmpfs|overlay\"}", "legendFormat": "{{mountpoint}}", "refId": "A" }
       ],
-      "title": "Диск",
+      "title": "Хост: свободное место на корневом разделе",
       "type": "timeseries"
     },
     {

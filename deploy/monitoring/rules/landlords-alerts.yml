@@ -29,7 +29,7 @@ groups:
           description: "Свободно меньше 500 MiB не менее десяти минут."
 
       - alert: LandlordsScheduledHealthCheckStale
-        expr: time() - landlords_celery_task_last_event_timestamp_seconds{task_name="check_ops_health",event="success"} > 7200
+        expr: landlords_celery_task_last_event_timestamp_seconds{task_name="check_ops_health",event="success"} > 0 and time() - landlords_celery_task_last_event_timestamp_seconds{task_name="check_ops_health",event="success"} > 7200
         for: 10m
         labels:
           severity: critical
