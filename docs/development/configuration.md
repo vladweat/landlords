@@ -161,6 +161,11 @@ host users. Compose file-backed secrets сохраняют mode исходног
 остальными Redis secret files; остальные два файла создаются вручную. Compose
 монтирует их только соответствующим сервисам.
 
+Prometheus rules находятся в `deploy/monitoring/rules/landlords-alerts.yml`;
+пороги и интервалы описаны в [runbook мониторинга](../deploy.md#мониторинг).
+Изменения rule-файла требуют проверки Prometheus config/rules до обновления
+сервисов.
+
 ## Email
 
 | Переменная | Default | Назначение |
