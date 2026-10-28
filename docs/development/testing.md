@@ -122,10 +122,3 @@ dependency audit, migration downgrade, smoke Compose и deployment.
 | Transactional outbox | `tests/unit/services/test_outbox_relay.py`, `tests/integration/test_outbox_api.py`, `tests/integration/test_outbox_relay.py` |
 | Frontend API/type/component | Vitest + build |
 | Документация | relative links, paths, команды и config keys |
-
-## Ограничения доказательств
-
-Зелёные unit tests не подтверждают tenant isolation всех queries.
-Integration suite покрывает основные auth/RBAC/money/resources, но не является
-полным API contract test. Docker image build не подтверждает запуск Compose,
-миграцию production volume или backup restore.

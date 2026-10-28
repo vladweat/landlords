@@ -7,7 +7,7 @@
   offline build backend.
 - Node.js 20.19+ или 22.12+ и npm — для frontend build и Vite dev server.
 
-## Вариант 1: весь runtime в Docker
+## Запуск среды в Docker
 
 На чистой машине используйте online build:
 
