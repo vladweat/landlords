@@ -37,6 +37,7 @@ from app.db.repositories.rent_charge_repo import RentChargeRepository
 from app.db.repositories.tenant_repo import TenantRepository
 from app.db.repositories.user_repo import UserRepository
 from app.db.session import get_db_session
+from app.db.tenant_context import set_tenant_context
 from app.domain.entities import MembershipEntity
 from app.domain.permissions import Permission, has_permission
 
@@ -179,10 +180,12 @@ def get_audit_service(session: Session = Depends(get_db_session, scope="function
 
 def get_auth_session_service(
     repository: AuthSessionRepository = Depends(get_auth_session_repo),
+    session: Session = Depends(get_db_session, scope="function"),
 ) -> AuthSessionService:
-    return AuthSessionService(repository)
+    return AuthSessionService(repository, session=session)
 
 def get_user_service(
+    session: Session = Depends(get_db_session, scope="function"),
     user_repo: UserRepository = Depends(get_user_repo),
     account_repo: AccountRepository = Depends(get_account_repo),
     membership_repo: MembershipRepository = Depends(get_membership_repo),
@@ -190,7 +193,12 @@ def get_user_service(
     email_service: EmailService = Depends(get_email_service),
 ) -> UserService:
     return UserService(
-        user_repo, account_repo, membership_repo, auth_session_service, email_service
+        user_repo,
+        account_repo,
+        membership_repo,
+        auth_session_service,
+        email_service,
+        session=session,
     )
 
 def get_account_service(
@@ -252,6 +260,7 @@ def get_billing_service(
 
 
 def get_invite_service(
+    session: Session = Depends(get_db_session, scope="function"),
     invite_repo: AccountInviteRepository = Depends(get_account_invite_repo),
     account_repo: AccountRepository = Depends(get_account_repo),
     user_repo: UserRepository = Depends(get_user_repo),
@@ -268,6 +277,7 @@ def get_invite_service(
         auth_session_service,
         email_service,
         plan_limit_service,
+        session=session,
     )
 
 def get_property_service(
@@ -547,6 +557,7 @@ def get_current_membership(
     membership_repo: MembershipRepository = Depends(get_membership_repo),
     user_repo: UserRepository = Depends(get_user_repo),
     auth_session_service: AuthSessionService = Depends(get_auth_session_service),
+    session: Session = Depends(get_db_session, scope="function"),
 ) -> MembershipEntity:
     """Проверить JWT, активную серверную сессию и membership."""
     payload = _decode_token(_token_from_request(authorization, access_token))
@@ -557,6 +568,7 @@ def get_current_membership(
     except (KeyError, ValueError, TypeError) as e:
         raise UnauthorizedError("Invalid token payload") from e
 
+    set_tenant_context(session, account_id)
     auth_session_service.require_active(session_id, user_id, account_id)
 
     user = user_repo.get_by_id(user_id)

@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 from uuid import UUID, uuid4
 
 from jose import JWTError
+from sqlalchemy.orm import Session
 
 from app.core.exceptions import UnauthorizedError
 from app.core.security import (
@@ -13,13 +14,17 @@ from app.core.security import (
 )
 from app.domain.entities import AuthSessionEntity
 from app.domain.interfaces import IAuthSessionRepository
+from app.db.tenant_context import set_tenant_context
 
 
 class AuthSessionService:
     """Выдаёт access-токены и проверяет/отзывает связанные сессии."""
 
-    def __init__(self, repository: IAuthSessionRepository) -> None:
+    def __init__(
+        self, repository: IAuthSessionRepository, session: Session | None = None
+    ) -> None:
         self.repository = repository
+        self.session = session
 
     def issue_access_token(self, user_id: UUID, account_id: UUID) -> str:
         """Создать серверную сессию и связанный с ней JWT."""
@@ -51,8 +56,11 @@ class AuthSessionService:
         try:
             payload = decode_access_token(token)
             session_id = UUID(payload["jti"])
+            account_id = UUID(payload["account_id"])
         except (JWTError, KeyError, TypeError, ValueError):
             return
+        if self.session is not None:
+            set_tenant_context(self.session, account_id)
         self.repository.revoke(session_id, datetime.now(timezone.utc))
 
     def revoke_all_for_user(self, user_id: UUID) -> None:

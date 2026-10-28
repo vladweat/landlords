@@ -7,6 +7,9 @@ from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
 from app.core.config import settings
 from app.core.exceptions import ConflictError, GoneError, NotFoundError, ValidationError
 from app.core.security import hash_password
@@ -27,6 +30,7 @@ from app.services.dto.invite_dto import (
 from app.services.dto.user_dto import UserDTO
 from app.services.auth_session_service import AuthSessionService
 from app.services.email_service import EmailService
+from app.db.tenant_context import set_tenant_context
 from loguru import logger
 
 if TYPE_CHECKING:
@@ -52,6 +56,7 @@ class InviteService:
         auth_session_service: AuthSessionService,
         email_service: EmailService | None = None,
         plan_limit_service: PlanLimitService | None = None,
+        session: Session | None = None,
     ) -> None:
         self.invite_repo = invite_repo
         self.account_repo = account_repo
@@ -60,6 +65,7 @@ class InviteService:
         self.auth_session_service = auth_session_service
         self.email_service = email_service or EmailService()
         self.plan_limit_service = plan_limit_service
+        self.session = session
 
     def create_invite(
         self, account_id: UUID, invited_by_user_id: UUID, dto: InviteCreateDTO
@@ -133,6 +139,7 @@ class InviteService:
 
     def get_preview(self, token: str) -> InvitePreviewDTO:
         """Публичный preview приглашения."""
+        self._set_context_for_invite(token)
         invite = self._get_valid_invite(token)
         account = self.account_repo.get_by_id(invite.account_id)
         if not account:
@@ -147,6 +154,7 @@ class InviteService:
 
     def accept(self, token: str, dto: InviteAcceptDTO) -> tuple[UserDTO, str]:
         """Принять приглашение: создать user + membership, вернуть JWT."""
+        self._set_context_for_invite(token)
         invite = self._get_valid_invite(token)
 
         if self.user_repo.get_by_email(invite.email):
@@ -185,6 +193,17 @@ class InviteService:
 
         jwt = self.auth_session_service.issue_access_token(user.id, invite.account_id)
         return UserDTO.model_validate(user), jwt
+
+    def _set_context_for_invite(self, token: str) -> None:
+        if self.session is None:
+            return
+        account_id = self.session.execute(
+            text("SELECT app_account_id_for_invite_token(:token)"),
+            {"token": token},
+        ).scalar_one_or_none()
+        if account_id is None:
+            raise NotFoundError("Приглашение не найдено")
+        set_tenant_context(self.session, UUID(str(account_id)))
 
     def _get_valid_invite(self, token: str) -> AccountInviteEntity:
         invite = self.invite_repo.get_by_token(token)
