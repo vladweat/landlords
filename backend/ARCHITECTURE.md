@@ -1,14 +1,12 @@
-# Backend — архитектура и известные проблемы
+# Backend — архитектура
 
-Документ фиксирует структуру, паттерны и долг (сентябрь 2026).
-Слоистая архитектура уже держится — её не нужно переписывать. Дыры точечные.
+Документ фиксирует структуру и паттерны backend на сентябрь 2026.
 
 **Трекер исправлений:** [TODO.md](./TODO.md) · продукт: [docs/ROADMAP.md](../docs/ROADMAP.md)
 
 > **Статус:** документ сохраняет контекст code review сентября 2026. Часть
 > backlog ниже уже закрыта. Актуальное устройство системы:
-> [docs/architecture/overview.md](../docs/architecture/overview.md), текущие
-> риски: [docs/maintenance/technical-debt.md](../docs/maintenance/technical-debt.md).
+> [docs/architecture/overview.md](../docs/architecture/overview.md).
 
 ---
 
@@ -114,10 +112,10 @@ entity → interface → repo → service → schema → route → deps → те
 
 ## Стоит поменять в коде
 
-### Закрыто после review
+### Реализованные изменения
 
 1. **Денежные значения:** `forecast_service.py`, `roi_service.py` и dashboard serialise денежные суммы строками. `float()` остаётся для процентных значений ROI и не используется для денежных сумм.
-2. **N+1 в аналитике:** с 28 октября 2026 forecast, dashboard и portfolio ROI загружают связанные contracts, charges, properties, tenants, payments и expenses пакетно через account-scoped repository methods. Подтверждение и текущие эксплуатационные риски: [реестр техдолга](../docs/maintenance/technical-debt.md).
+2. **N+1 в аналитике:** с 28 октября 2026 forecast, dashboard и portfolio ROI загружают связанные contracts, charges, properties, tenants, payments и expenses пакетно через account-scoped repository methods.
 
 ### 3. Три самых толстых модуля
 
@@ -157,7 +155,7 @@ mypy на backend нет, в пагинации `items: list[Any]`. Имеет �
 
 1. Разрезать `contract_service`, PDF и роут договоров без смены поведения.
 2. Слить два `get_active_*` и порезать `deps.py` при следующем изменении этих областей.
-3. Продолжать расширять integration coverage для email и worker paths; текущие риски отмечены в реестре техдолга.
+3. Расширять integration coverage для email и worker paths.
 
 Этого достаточно, чтобы код соответствовал продукту. Новый слой абстракций и переписывание ORM ничего к этому не добавят.
 

@@ -63,7 +63,7 @@ curl -sf https://landlords.wvzl.site/ready
 число экземпляров: текущие `DB_POOL_SIZE=20` и `DB_MAX_OVERFLOW=40` дают до 60
 соединений на process при `max_connections=100`.
 
-Showcase-демо (портфолио / самопроверка; на публичном VPS смени пароль):
+Создать демо-данные:
 
 ```bash
 docker compose exec api python -m app.cli seed-demo

@@ -75,11 +75,10 @@
 
 **Files:**
 - Modify: `docs/development/testing.md`
-- Modify: `docs/maintenance/technical-debt.md`
 
 - [ ] Read effective PostgreSQL `max_connections`, current API/Celery pool settings, VM memory limits, and representative per-worker RSS without printing credentials.
 - [ ] Set initial `WEB_CONCURRENCY` and DB pool values so API, Celery, beat, migration, and monitoring consumers fit below the connection ceiling with reserved headroom.
 - [ ] Run representative load checks for latency, RSS, connection count, worker restart, graceful stop, and metric aggregation.
 - [ ] Present exact offline build/recreate command and affected API container before applying it; wait for explicit operational approval.
 - [ ] After approval, perform the approved offline build/recreation and verify live readiness, worker count/recovery, metrics, and PostgreSQL connection ceiling.
-- [ ] Update the technical-debt row only from observed results; do not label the chosen configuration load-tested before the checks pass.
+- [ ] Record measured results only after checks pass; do not label the chosen configuration load-tested beforehand.

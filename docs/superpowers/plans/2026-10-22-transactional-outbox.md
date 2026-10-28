@@ -116,7 +116,6 @@
 **Files:**
 - Modify: `docs/architecture/background-jobs.md`
 - Modify: `docs/architecture/database.md`
-- Modify: `docs/maintenance/technical-debt.md`
 - Modify: `docs/development/testing.md`
 
 - [ ] Document row lifecycle, relay operations, retry/terminal failure handling, and at-least-once guarantees.

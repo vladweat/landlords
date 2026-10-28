@@ -1,13 +1,11 @@
 # Архив приоритетов
 
 Этот файл сохраняет исторический execution checklist. Не использовать его как
-актуальный backlog: текущие технические риски находятся в
-[реестре техдолга](maintenance/technical-debt.md); продуктовые планы требуют
-отдельного пересмотра перед планированием.
+актуальный backlog: продуктовые планы требуют отдельного пересмотра перед
+планированием.
 
 Короткий чеклист поверх стратегии в [ROADMAP.md](./ROADMAP.md).  
 Инфра: [INFRA.md](./INFRA.md).  
-Техдолг: [backend/TODO.md](../backend/TODO.md), [frontend/TODO.md](../frontend/TODO.md).  
 Код (без rewrite): [backend/ARCHITECTURE.md](../backend/ARCHITECTURE.md).
 
 ```mermaid

@@ -67,9 +67,8 @@ docker compose exec api python -m app.cli seed-demo
 
 Команда создаёт showcase account. Список CLI-команд:
 
-Для интервью-стенда с самостоятельной регистрацией задайте в `backend/.env`
-`ALLOW_PUBLIC_REGISTRATION=true`. Ссылка на `/register` появляется только когда
-backend сообщает, что регистрация включена.
+Публичную регистрацию локального приложения можно включить настройкой
+`ALLOW_PUBLIC_REGISTRATION=true` в `backend/.env`.
 
 ```bash
 docker compose exec api python -m app.cli --help
@@ -120,9 +119,6 @@ docker compose down
 - Backend пишет dev email в container path `storage/emails`; этот путь не
   смонтирован отдельным volume в базовом Compose, в отличие от documents/status.
 - API docs доступны только при `DEBUG=true`.
-- Публичный запуск описан в [deploy runbook](../deploy.md) и использует
-  `docker-compose.production.yml` с Caddy. Не публикуй base nginx на VPS без
-  TLS ingress; локальный dev override не предназначен для публичного доступа.
 
 Конфигурация: [configuration.md](configuration.md). Тесты:
 [testing.md](testing.md).

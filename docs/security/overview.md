@@ -157,9 +157,7 @@ Public invoice PDF GET только читает готовый документ
 | Medium | Ограниченный nginx rate limit, direct API bypass | Brute-force protection зависит от topology |
 | Medium | CSRF защита зависит от FRONTEND_URL и cookie topology | Origin allowlist нужно обновлять при смене public origin; Bearer clients остаются отдельным транспортом |
 Production Compose overlay содержит Caddy для HTTPS и HSTS. Фактические DNS,
-сетевые правила VPS и состояние сертификата не проверялись. Остальные пункты —
-архитектурные риски, не утверждение о факте эксплуатации. Приоритеты и evidence:
-[technical-debt.md](../maintenance/technical-debt.md).
+сетевые правила VPS и состояние сертификата зависят от настройки окружения.
 
 ## Checklist изменений
 

@@ -1,6 +1,6 @@
 # Landlords — инфраструктура и деплой
 
-Локальный и VPS-стек на Docker Compose. Операционный runbook — [deploy.md](./deploy.md). Портфолио — [PORTFOLIO.md](./PORTFOLIO.md).
+Локальный и VPS-стек на Docker Compose. Операционные процедуры описаны в [deploy.md](./deploy.md).
 
 Продуктовый порядок: [ROADMAP.md](./ROADMAP.md) · чеклист: [PRIORITIES.md](./PRIORITIES.md).
 
@@ -29,11 +29,10 @@ Entrypoint API при `RUN_MIGRATIONS=1` гоняет `alembic upgrade head`. He
 локальный шаблон, а не production-конфигурация. В runtime встроенный
 `SECRET_KEY` placeholder `change-me-in-production-change-me` запрещён при
 `APP_ENV=production`. Шаблон использует другое значение — `change_me`, которое
-текущая startup-проверка принимает; его обязательно замени уникальным случайным
-ключом. Это несоответствие зарегистрировано в
-[техническом долге](maintenance/technical-debt.md).
+текущая startup-проверка принимает; для production задай собственный случайный
+ключ.
 
-**Публичная регистрация** управляется `ALLOW_PUBLIC_REGISTRATION` (для портфолио/прода — `false`). Bootstrap через CLI: `python -m app.cli seed-demo`.
+**Публичная регистрация** управляется `ALLOW_PUBLIC_REGISTRATION`. Bootstrap через CLI: `python -m app.cli seed-demo`.
 
 **Данные:** процедура бэкапа/restore — в [deploy.md](./deploy.md). Ops-алерты (beat stale, диск документов) и публичный `/status` — см. тот же runbook.
 

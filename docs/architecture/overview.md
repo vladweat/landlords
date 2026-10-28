@@ -109,5 +109,3 @@ TanStack Query хранит server state, Zustand — auth state. Axios испо
   масштабирование без shared filesystem/object storage.
 - Миграции автоматически выполняет API на старте; несколько одновременно
   стартующих API replicas не предусмотрены.
-- Полный перечень подтверждённых рисков находится в
-  [technical-debt.md](../maintenance/technical-debt.md).

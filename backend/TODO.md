@@ -2,16 +2,15 @@
 
 Checkboxes ниже фиксируют состояние на момент прежних ревью и не являются
 актуальным backlog: часть пунктов закрыта последующими изменениями, часть
-нуждается в новой проверке. Текущие подтверждённые риски ведутся только в
-[`docs/maintenance/technical-debt.md`](../docs/maintenance/technical-debt.md).
-Проверенную архитектуру см. в [`docs/architecture/overview.md`](../docs/architecture/overview.md).
+нуждается в новой проверке. Проверенную архитектуру см. в
+[`docs/architecture/overview.md`](../docs/architecture/overview.md).
 
 Чеклист по результатам code review. Отмечай выполненное: `- [ ]` → `- [x]`.
 
 Справочник по архитектуре: [ARCHITECTURE.md](./ARCHITECTURE.md)
 
 **Статус:** исторический подсчёт на дату прежнего code review. Не использовать
-как текущую оценку; актуальный реестр: [technical debt](../docs/maintenance/technical-debt.md).
+как текущую оценку.
 
 ---
 
@@ -62,7 +61,7 @@ Checkboxes ниже фиксируют состояние на момент пр
 - [x] Health/readiness endpoints (`/health`, `/ready`) в API.
 - [x] Deploy runbook и backup/restore — процедуры в репозитории нет → [docs/deploy.md](../docs/deploy.md), [INFRA.md](../docs/INFRA.md).
 
-### Мелочи / техдолг
+### Мелкие задачи
 - [x] Удалить неиспользуемые настройки и зависимости (`CACHE_DEFAULT_TTL`, `APP_TIMEZONE`, `testcontainers` в requirements).
 - [x] Добавить pre‑commit (black/ruff; import-sort через ruff) и enforce style в CI.
 - [x] Seed script / fixtures и скрипт создания initial admin user.
