@@ -67,6 +67,8 @@ services:
     environment:
       DB_HOST: postgres
       DB_NAME: ${DB_NAME:-landlords_db}
+      MIGRATION_DB_USER: ${MIGRATION_DB_USER:-}
+      MIGRATION_DB_PASSWORD: ${MIGRATION_DB_PASSWORD:-}
       MIGRATION_DB_HOST: postgres
       POSTGRES_EXPORTER_USER: ${POSTGRES_EXPORTER_USER:-landlords_metrics}
       POSTGRES_EXPORTER_PASSWORD_FILE: /run/secrets/postgres_exporter_password
@@ -91,6 +93,8 @@ services:
       - backend/.env
     environment:
       DB_HOST: postgres
+      MIGRATION_DB_USER: ${MIGRATION_DB_USER:-}
+      MIGRATION_DB_PASSWORD: ${MIGRATION_DB_PASSWORD:-}
       MIGRATION_DB_HOST: postgres
       APP_ENV: production
       RUN_MIGRATIONS: "1"
