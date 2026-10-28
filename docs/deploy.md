@@ -170,6 +170,31 @@ ssh -L 3001:127.0.0.1:3000 user@server
 Alertmanager группирует полученные alerts локально; внешний email/webhook receiver
 нужно настроить отдельно, прежде чем полагаться на доставку уведомлений.
 
+Prometheus rule-файл и dashboard загружаются из репозитория при старте сервисов.
+После подготовки secret files обнови стек обычной командой Compose с production
+overlay, затем проверь состояние и логи:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.production.yml up -d
+docker compose -f docker-compose.yml -f docker-compose.production.yml ps
+docker compose -f docker-compose.yml -f docker-compose.production.yml logs --tail=100 prometheus grafana alertmanager
+```
+
+Healthchecks worker/beat/relay показывают состояние в `docker compose ps`.
+Dashboard `Landlords overview` содержит доступность API и exporters, ресурсы
+хоста и документов, PostgreSQL, Redis, события Celery, плановую проверку, relay и
+outbox. Алерты и их `for` интервалы описаны в
+[`background-jobs.md`](architecture/background-jobs.md#healthchecks-и-метрики).
+App-level alerts о диске и активности beat также идут на `SUPPORT_EMAIL` и в
+Sentry; Prometheus Alertmanager сейчас не имеет внешнего receiver.
+
+При откате к предыдущему коду верни соответствующие версии Compose и файлов
+мониторинга, затем подними прежний стек без удаления volumes. Не используй
+`docker compose down -v`: это удалит историю Prometheus, состояние Grafana и
+Alertmanager. Host-only secret files также нужны старой конфигурации, пока
+работают monitoring services. `/metrics` доступен только из API/внутренней сети;
+nginx отдаёт по внешнему `/metrics` SPA, а не Prometheus exposition.
+
 ## Резервные копии
 
 Репозиторий содержит `deploy/backup-landlords.sh` и systemd units. После

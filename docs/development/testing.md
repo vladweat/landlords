@@ -73,6 +73,26 @@ docker compose -f docker-compose.test.yml down
 создаёт базу `landlords_test`. Пароль тестового PostgreSQL можно переопределить
 через `TEST_DB_PASSWORD` и `MIGRATION_DB_PASSWORD`; `DB_PASSWORD` задаёт отдельного пользователя приложения.
 
+Healthcheck helpers и ограничения Celery lock проверяются вместе с unit/task
+suite. Перед изменением мониторинга проверь Prometheus config и rules, Grafana
+JSON и Compose overlay:
+
+```bash
+docker run --rm --entrypoint promtool \
+  -v "$PWD/deploy/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro" \
+  -v "$PWD/deploy/monitoring/rules:/etc/prometheus/rules:ro" \
+  prom/prometheus:v3.13.3 check config /etc/prometheus/prometheus.yml
+docker run --rm --entrypoint promtool \
+  -v "$PWD/deploy/monitoring/rules:/etc/prometheus/rules:ro" \
+  prom/prometheus:v3.13.3 check rules /etc/prometheus/rules/landlords-alerts.yml
+python -m json.tool deploy/monitoring/grafana/dashboards/landlords-overview.json >/dev/null
+docker compose -f docker-compose.yml -f docker-compose.production.yml config --quiet
+```
+
+Compose config validation требует существующий `backend/.env` и host paths
+secret files из корневого `.env`; не заменяйте реальные secrets пустыми файлами
+на рабочем сервере. Команда не запускает контейнеры.
+
 ## Проверка ingress rate limits
 
 После сборки локальных образов `landlords-nginx`, `landlords-api` и `caddy:2`
