@@ -1,5 +1,6 @@
 """Реализация репозитория объектов недвижимости."""
 
+from typing import Sequence
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -49,6 +50,20 @@ class PropertyRepository(IPropertyRepository):
             query = query.filter_by(type=property_type)
 
         return paginate(query, page, per_page)
+
+    def list_by_ids(self, property_ids: Sequence[UUID], account_id: UUID) -> list[PropertyEntity]:
+        """Получить объекты одним запросом в рамках аккаунта."""
+        if not property_ids:
+            return []
+        models = (
+            self.session.query(PropertyModel)
+            .filter(
+                PropertyModel.account_id == account_id,
+                PropertyModel.id.in_(property_ids),
+            )
+            .all()
+        )
+        return [model.to_entity() for model in models]
 
     def create(self, entity: PropertyEntity) -> PropertyEntity:
         """Создать объект недвижимости."""

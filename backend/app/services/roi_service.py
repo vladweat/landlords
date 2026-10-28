@@ -30,29 +30,23 @@ class RoiService:
     def calculate_annual_income(
         self, property_id: UUID, account_id: UUID
     ) -> tuple[Decimal, bool]:
-        """Годовой доход: реальные платежи за 12 месяцев по всем контрактам объекта.
-
-        Returns:
-            (amount, income_is_forecast) — forecast=True если подставлен rent×12.
-        """
-        today = date.today()
-        year_ago = today - timedelta(days=365)
-
+        """Годовой доход: платежи за 12 месяцев или прогноз по активному договору."""
+        year_ago = date.today() - timedelta(days=365)
+        contracts = [
+            contract for contract in self.contract_repo.list_all_by_account(account_id)
+            if contract.property_id == property_id
+        ]
         total = Decimal("0")
-
-        all_contracts = self.contract_repo.list_all_by_account(account_id)
-        for contract in all_contracts:
-            if contract.property_id == property_id:
-                payments = self.payment_repo.list_by_contract(contract.id, account_id)
-                for p in payments:
-                    if p.date_paid >= year_ago:
-                        total += p.amount
+        if contracts:
+            payments = self.payment_repo.list_by_contracts(
+                [contract.id for contract in contracts], account_id, date_from=year_ago
+            )
+            total = sum((payment.amount for payment in payments), Decimal("0"))
 
         if total == Decimal("0"):
             active = self.contract_repo.get_active_for_property(property_id, account_id)
             if active:
                 return active.rent_amount * 12, True
-
         return total, False
 
     def calculate_annual_expenses(self, property_id: UUID, account_id: UUID) -> Decimal:
@@ -119,69 +113,80 @@ class RoiService:
         )
 
     def calculate_portfolio_roi(self, account_id: UUID) -> dict:
-        """Средневзвешенный ROI по портфелю (по чистой прибыли)."""
+        """Средневзвешенный ROI по портфелю с пакетной загрузкой данных."""
         properties = self.property_repo.list_by_account(account_id, page=1, per_page=1000)
+        roi_by_property = self._calculate_roi_batch(properties.items, account_id)
+        property_by_id = {prop.id: prop for prop in properties.items}
         total_profit = Decimal("0")
         total_price = Decimal("0")
-        count_with_price = 0
-
-        for prop in properties.items:
-            if prop.purchase_price and prop.purchase_price > 0:
-                income, _ = self.calculate_annual_income(prop.id, account_id)
-                expenses = self.calculate_annual_expenses(prop.id, account_id)
-                total_profit += income - expenses
-                total_price += prop.purchase_price
-                count_with_price += 1
+        for property_id, payload in roi_by_property.items():
+            prop = property_by_id[property_id]
+            total_profit += Decimal(payload["annual_profit"])
+            total_price += prop.purchase_price
 
         if total_price == 0:
             return {"portfolio_roi": None, "properties_with_roi": 0}
-
         roi = round(float(total_profit / total_price * 100), 1)
-        return {"portfolio_roi": roi, "properties_with_roi": count_with_price}
+        return {"portfolio_roi": roi, "properties_with_roi": len(roi_by_property)}
 
     def calculate_roi_batch(self, account_id: UUID) -> dict[UUID, dict]:
-        """Рассчитать ROI для всех объектов аккаунта за один проход."""
+        """Рассчитать ROI всех объектов, выполняя чтения пакетно."""
+        properties = self.property_repo.list_by_account(account_id, page=1, per_page=1000)
+        return self._calculate_roi_batch(properties.items, account_id)
+
+    def _calculate_roi_batch(self, properties, account_id: UUID) -> dict[UUID, dict]:
         today = date.today()
         year_ago = today - timedelta(days=365)
-
-        properties = self.property_repo.list_by_account(account_id, page=1, per_page=1000)
-        prop_map = {p.id: p for p in properties.items if p.purchase_price and p.purchase_price > 0}
+        properties_with_price = [
+            prop for prop in properties
+            if prop.purchase_price and prop.purchase_price > 0
+        ]
+        property_ids = [prop.id for prop in properties_with_price]
+        if not property_ids:
+            return {}
 
         contracts = self.contract_repo.list_all_by_account(account_id)
-        contract_map: dict[UUID, list[UUID]] = {}
-        for c in contracts:
-            contract_map.setdefault(c.property_id, []).append(c.id)
+        contracts_by_property: dict[UUID, list] = {}
+        active_by_property = {}
+        for contract in contracts:
+            contracts_by_property.setdefault(contract.property_id, []).append(contract)
+            if contract.status in ("active", "overdue"):
+                active_by_property.setdefault(contract.property_id, contract)
 
-        all_payments = self.payment_repo.list_by_account(account_id)
-        all_expenses = self.expense_repo.list_by_account(
-            account_id, start_date=year_ago, end_date=today
+        relevant_contracts = [
+            contract for prop_id in property_ids
+            for contract in contracts_by_property.get(prop_id, [])
+        ]
+        payments = self.payment_repo.list_by_contracts(
+            [contract.id for contract in relevant_contracts], account_id,
+            date_from=year_ago,
+        )
+        payments_by_contract: dict[UUID, Decimal] = {}
+        for payment in payments:
+            payments_by_contract[payment.contract_id] = (
+                payments_by_contract.get(payment.contract_id, Decimal("0")) + payment.amount
+            )
+
+        expenses_by_property = self.expense_repo.sum_by_property_ids(
+            property_ids, account_id, start_date=year_ago, end_date=today
         )
 
-        expenses_by_property: dict[UUID, Decimal] = {}
-        for e in all_expenses:
-            expenses_by_property[e.property_id] = (
-                expenses_by_property.get(e.property_id, Decimal("0")) + e.amount
-            )
-
         result = {}
-        for prop_id, prop in prop_map.items():
-            total = Decimal("0")
-            if prop_id in contract_map:
-                for contract_id in contract_map[prop_id]:
-                    for p in all_payments:
-                        if p.contract_id == contract_id and p.date_paid >= year_ago:
-                            total += p.amount
-
+        for prop in properties_with_price:
+            annual_income = sum(
+                (payments_by_contract.get(contract.id, Decimal("0"))
+                 for contract in contracts_by_property.get(prop.id, [])),
+                Decimal("0"),
+            )
             income_is_forecast = False
-            if total == 0:
-                active = self.contract_repo.get_active_for_property(prop_id, account_id)
+            if annual_income == 0:
+                active = active_by_property.get(prop.id)
                 if active:
-                    total = active.rent_amount * 12
+                    annual_income = active.rent_amount * 12
                     income_is_forecast = True
 
-            annual_expenses = expenses_by_property.get(prop_id, Decimal("0"))
-            result[prop_id] = self._roi_payload(
-                total, annual_expenses, prop.purchase_price, income_is_forecast
+            annual_expenses = expenses_by_property.get(prop.id, Decimal("0"))
+            result[prop.id] = self._roi_payload(
+                annual_income, annual_expenses, prop.purchase_price, income_is_forecast
             )
-
         return result

@@ -1,6 +1,7 @@
 """Реализация репозитория платежей."""
 
 from decimal import Decimal
+from typing import Sequence
 from uuid import UUID
 from datetime import date
 
@@ -50,6 +51,27 @@ class PaymentRepository(IPaymentRepository):
             .all()
         )
         return [m.to_entity() for m in models]
+
+    def list_by_contracts(
+        self,
+        contract_ids: Sequence[UUID],
+        account_id: UUID,
+        date_from: date | None = None,
+        date_to: date | None = None,
+    ) -> list[PaymentEntity]:
+        """Получить платежи для набора контрактов аккаунта одним запросом."""
+        if not contract_ids:
+            return []
+        query = self.session.query(PaymentModel).filter(
+            PaymentModel.account_id == account_id,
+            PaymentModel.contract_id.in_(contract_ids),
+        )
+        if date_from:
+            query = query.filter(PaymentModel.date_paid >= date_from)
+        if date_to:
+            query = query.filter(PaymentModel.date_paid <= date_to)
+        models = query.order_by(PaymentModel.date_paid.desc()).all()
+        return [model.to_entity() for model in models]
 
     def list_by_account(
         self,

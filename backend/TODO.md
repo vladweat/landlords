@@ -1,11 +1,17 @@
-# Backend — backlog исправлений
+# Backend — исторический checklist code review
+
+Checkboxes ниже фиксируют состояние на момент прежних ревью и не являются
+актуальным backlog: часть пунктов закрыта последующими изменениями, часть
+нуждается в новой проверке. Текущие подтверждённые риски ведутся только в
+[`docs/maintenance/technical-debt.md`](../docs/maintenance/technical-debt.md).
+Проверенную архитектуру см. в [`docs/architecture/overview.md`](../docs/architecture/overview.md).
 
 Чеклист по результатам code review. Отмечай выполненное: `- [ ]` → `- [x]`.
 
 Справочник по архитектуре: [ARCHITECTURE.md](./ARCHITECTURE.md)
 
-**Статус:** 61 / 64 infra + открытый код-долг ниже.  
-Актуальный обзор долга: [ARCHITECTURE.md](./ARCHITECTURE.md) § «Стоит поменять в коде».
+**Статус:** исторический подсчёт на дату прежнего code review. Не использовать
+как текущую оценку; актуальный реестр: [technical debt](../docs/maintenance/technical-debt.md).
 
 ---
 
@@ -34,7 +40,7 @@
 
 ### Код (без смены поведения) — порядок в ARCHITECTURE.md
 - [x] Убрать `float()` для денежных значений из `forecast_service.py` / `roi_service.py` — суммы в JSON отдаются строками; проценты ROI остаются числами.
-- [ ] N+1: батч-выборки charges/properties в forecast, ROI, обзоре объектов.
+- [x] N+1: batch-запросы charges/properties/contracts/payments/expenses для forecast, dashboard и ROI; account-scoped методы в repositories.
 - [ ] Разрезать `contract_service` (lifecycle), `pdf_service` (layout vs data), `routes/contracts.py` (документы/ledger/заметки).
 - [ ] Слить `get_active_by_property` → один метод с `get_active_for_property`.
 - [ ] Резать `deps.py` по доменам при следующем новом сервисе.

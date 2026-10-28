@@ -45,10 +45,10 @@ class TestInvitesApi:
             json={"password": "secret123"},
         )
         assert accept.status_code == 200
-        assert accept.json()["user"]["email"] == "newmgr@example.com"
-        assert "token" in accept.json()
+        assert accept.json()["data"]["user"]["email"] == "newmgr@example.com"
+        assert "token" in accept.json()["data"]
 
-        me = client.get("/v1/auth/me", headers=_headers(accept.json()["token"]))
+        me = client.get("/v1/auth/me", headers=_headers(accept.json()["data"]["token"]))
         assert me.status_code == 200
         assert me.json()["data"]["role"] == "manager"
 
@@ -78,7 +78,7 @@ class TestInvitesApi:
         )
 
         assert accepted.status_code == 200
-        assert "token" not in accepted.json()
+        assert "token" not in accepted.json()["data"]
         assert accepted.cookies.get("access_token")
 
     def test_conflict_existing_email(self, client: TestClient, auth_headers):

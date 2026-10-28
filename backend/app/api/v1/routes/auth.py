@@ -19,10 +19,12 @@ from app.api.v1.schemas.user_schema import (
     LoginRequest,
     MeData,
     MeResponse,
+    MessageResponse,
     RegisterRequest,
     ResetPasswordRequest,
     UpdateProfileRequest,
     UserResponse,
+    UserSingleResponse,
 )
 from app.core.config import settings
 from app.core.cookies import ACCESS_TOKEN_COOKIE, clear_access_cookie, set_access_cookie
@@ -57,8 +59,10 @@ def register(
     set_access_cookie(response, token)
     return {
         "status": "success",
-        "token": token if return_bearer_token else None,
-        "user": UserResponse.model_validate(user_dto),
+        "data": {
+            "token": token if return_bearer_token else None,
+            "user": UserResponse.model_validate(user_dto),
+        },
     }
 
 
@@ -74,8 +78,10 @@ def login(
     set_access_cookie(response, token)
     return {
         "status": "success",
-        "token": token if return_bearer_token else None,
-        "user": UserResponse.model_validate(user_dto),
+        "data": {
+            "token": token if return_bearer_token else None,
+            "user": UserResponse.model_validate(user_dto),
+        },
     }
 
 
@@ -117,20 +123,23 @@ def logout(
     for token in set(filter(None, tokens)):
         sessions.revoke_access_token(token)
     clear_access_cookie(response)
-    return {"status": "success"}
+    return {"status": "success", "data": {}}
 
 
-@router.post("/forgot-password")
+@router.post("/forgot-password", response_model=MessageResponse)
 def forgot_password(
     body: ForgotPasswordRequest,
     service: UserService = Depends(get_user_service),
 ) -> dict:
     """Запросить сброс пароля."""
     service.request_password_reset(body.email)
-    return {"message": "Если аккаунт с таким email существует, инструкция отправлена на почту."}
+    return {
+        "status": "success",
+        "data": {"message": "Если аккаунт с таким email существует, инструкция отправлена на почту."},
+    }
 
 
-@router.post("/reset-password")
+@router.post("/reset-password", response_model=MessageResponse)
 def reset_password(
     body: ResetPasswordRequest,
     service: UserService = Depends(get_user_service),
@@ -141,10 +150,10 @@ def reset_password(
         raise ValidationError("Токен устарел или недействителен. Запросите восстановление заново.")
     user_id, token_id = reset_claims
     service.reset_password(user_id, token_id, body.new_password)
-    return {"message": "Пароль успешно изменён."}
+    return {"status": "success", "data": {"message": "Пароль успешно изменён."}}
 
 
-@router.put("/me")
+@router.put("/me", response_model=UserSingleResponse)
 def update_profile(
     body: UpdateProfileRequest,
     user_id: UUID = Depends(get_current_user_id),
@@ -152,10 +161,13 @@ def update_profile(
 ) -> dict:
     """Обновить профиль."""
     dto = service.update_profile(user_id, body.full_name, body.phone)
-    return {"status": "success", "data": UserResponse.model_validate(dto).model_dump()}
+    return {
+        "status": "success",
+        "data": UserResponse.model_validate(dto),
+    }
 
 
-@router.post("/change-password")
+@router.post("/change-password", response_model=MessageResponse)
 def change_password(
     body: ChangePasswordRequest,
     response: Response,
@@ -165,10 +177,10 @@ def change_password(
     """Сменить пароль."""
     service.change_password(user_id, body.current_password, body.new_password)
     clear_access_cookie(response)
-    return {"message": "Пароль успешно изменён."}
+    return {"status": "success", "data": {"message": "Пароль успешно изменён."}}
 
 
-@router.delete("/me")
+@router.delete("/me", response_model=MessageResponse)
 def delete_account(
     body: DeleteAccountRequest,
     user_id: UUID = Depends(get_current_user_id),
@@ -176,4 +188,4 @@ def delete_account(
 ) -> dict:
     """Удалить аккаунт (только владелец)."""
     service.delete_account(user_id, body.confirmation)
-    return {"message": "Аккаунт удалён."}
+    return {"status": "success", "data": {"message": "Аккаунт удалён."}}

@@ -10,10 +10,22 @@ export interface RegisterRequest {
 }
 
 export interface AuthResponse {
-  status: string;
+  status: 'success';
+  data: {
+    token?: string;
+    user: User;
+  };
+}
+
+export interface AuthData {
   token?: string;
   user: User;
 }
+
+type MessageResponse = {
+  status: 'success';
+  data: { message: string };
+};
 
 const browserAuthHeaders = { 'X-Return-Bearer-Token': 'false' };
 
@@ -34,19 +46,19 @@ export const authApi = {
     return response.data.data;
   },
 
-  login: async (data: LoginFormData): Promise<AuthResponse> => {
+  login: async (data: LoginFormData): Promise<AuthData> => {
     const response = await apiClient.post<AuthResponse>('/auth/login', {
       email: data.email,
       password: data.password,
     }, { headers: browserAuthHeaders });
-    return response.data;
+    return response.data.data;
   },
 
-  register: async (data: RegisterRequest): Promise<AuthResponse> => {
+  register: async (data: RegisterRequest): Promise<AuthData> => {
     const response = await apiClient.post<AuthResponse>('/auth/register', data, {
       headers: browserAuthHeaders,
     });
-    return response.data;
+    return response.data.data;
   },
 
   getMe: async (): Promise<MeResponse> => {
@@ -59,33 +71,33 @@ export const authApi = {
       status: string;
       data: User & { is_active: boolean };
     }>('/auth/me', data);
-    return response.data;
+    return response.data.data;
   },
 
   changePassword: async (data: { current_password: string; new_password: string }) => {
-    const response = await apiClient.post<{ message: string }>('/auth/change-password', data);
-    return response.data;
+    const response = await apiClient.post<MessageResponse>('/auth/change-password', data);
+    return response.data.data;
   },
 
   forgotPassword: async (email: string) => {
-    const response = await apiClient.post<{ message: string }>('/auth/forgot-password', { email });
-    return response.data;
+    const response = await apiClient.post<MessageResponse>('/auth/forgot-password', { email });
+    return response.data.data;
   },
 
   resetPassword: async (data: { token: string; new_password: string }) => {
-    const response = await apiClient.post<{ message: string }>('/auth/reset-password', data);
-    return response.data;
+    const response = await apiClient.post<MessageResponse>('/auth/reset-password', data);
+    return response.data.data;
   },
 
   logout: async () => {
-    const response = await apiClient.post<{ status: string }>('/auth/logout');
-    return response.data;
+    const response = await apiClient.post<{ status: string; data: Record<string, never> }>('/auth/logout');
+    return response.data.data;
   },
 
   deleteAccount: async () => {
-    const response = await apiClient.delete<{ message: string }>('/auth/me', {
+    const response = await apiClient.delete<MessageResponse>('/auth/me', {
       data: { confirmation: 'DELETE' },
     });
-    return response.data;
+    return response.data.data;
   },
 };

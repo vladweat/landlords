@@ -2,12 +2,15 @@
 
 Backend использует `pydantic-settings` (`backend/app/core/config.py`):
 переменные окружения имеют приоритет над `.env` текущего working directory.
-Compose передаёт `backend/.env` через `env_file` и принудительно задаёт
-`DB_HOST=postgres`, `REDIS_HOST=redis`. Корневой `.env` используется Compose
-для `${DB_*}` и `REDIS_PASSWORD`; пароль Redis Compose передаёт API, worker,
-beat и Redis.
+Compose передаёт `backend/.env` сервисам через `env_file` и переопределяет
+`DB_HOST=postgres`, `REDIS_HOST=redis`, а также отдельную Redis ACL identity и
+путь к password file для каждого сервиса. Корневой `.env` нужен Compose для
+подстановки `${DB_*}`, путей `REDIS_*_PASSWORD_FILE` и `REDIS_ACL_FILE`; он не
+передаёт приложению общий Redis password.
 
-Ниже указаны defaults из кода, не рекомендуемые production-значения.
+Ниже указаны defaults из кода, не рекомендуемые production-значения. Шаблон
+`.env.example` переопределяет некоторые defaults: например, в коде публичная
+регистрация по умолчанию включена, а шаблон оставляет её выключенной.
 
 ## Application и безопасность
 
@@ -16,15 +19,19 @@ beat и Redis.
 | `APP_NAME` | `FastAPI DDD Service` | Название OpenAPI |
 | `APP_VERSION` | `0.1.0` | Версия API/Sentry release |
 | `APP_ENV` | `development` | `development`, `staging` или `production` |
-| `DEBUG` | `true` | Swagger/ReDoc, uvicorn reload в override |
+| `DEBUG` | `true` | Включает Swagger, ReDoc и OpenAPI; dev override отдельно запускает uvicorn с reload |
 | `ALLOW_PUBLIC_REGISTRATION` | `true` | Разрешает `POST /v1/auth/register` |
 | `SECRET_KEY` | development placeholder | Подпись JWT; обязателен уникальный secret в production |
 | `FRONTEND_URL` | `http://localhost:3000` | Ссылки в письмах и billing return |
 | `SUPPORT_EMAIL` | `hello@landlords.ru` | Получатель feedback/ops alerts |
 
 При неизвестном `APP_ENV` процесс прекращает запуск. При `APP_ENV=production`
-процесс также прекращает запуск, если `SECRET_KEY` пуст или равен встроенному
-placeholder. Значения из `.env.example` являются только локальными примерами.
+процесс также прекращает запуск, если `SECRET_KEY` пуст или равен встроенной
+строке `change-me-in-production-change-me`. В `.env.example` задано другое
+значение — `change_me`, которое текущая проверка принимает. Его нужно заменить
+уникальным случайным ключом вручную; исправление расхождения зарегистрировано в
+[техническом долге](../maintenance/technical-debt.md). Значения из `.env.example`
+— только локальные примеры.
 
 ## PostgreSQL
 
@@ -52,6 +59,7 @@ placeholder. Значения из `.env.example` являются только 
 | `REDIS_DB` | `0` | logical DB |
 | `REDIS_USERNAME` | unset | именованная Redis ACL identity; Compose задаёт отдельно для каждого service |
 | `REDIS_PASSWORD_FILE` | unset | path к read-only secret file; содержимое не читается в logs |
+| `REDIS_PASSWORD` | unset | локальная совместимость; production Compose использует password files |
 | `REDIS_KEY_PREFIX` | `landlords:` | namespace для Celery, locks и ops keys |
 | `CELERY_TASK_DEFAULT_QUEUE` | `default` | queue |
 | `CELERY_TASK_SOFT_TIME_LIMIT` | `300` | seconds |
@@ -72,19 +80,22 @@ failure rows сохраняются для операторской провер
 | `OUTBOX_TASK_MAX_FAILURES` | `5` | Число task failures до terminal failure |
 
 `REDIS_URL`, broker и result backend вычисляются; отдельные
-`CELERY_BROKER_URL`/`CELERY_RESULT_BACKEND` не используются.
+`CELERY_BROKER_URL`/`CELERY_RESULT_BACKEND` не используются. Обычный dev
+Compose не публикует Redis port на host. Для local Python используйте Redis с
+доступным host port и настройте соответствующие `REDIS_HOST`/`REDIS_PORT` и
+credentials; изолированный тестовый стек на `127.0.0.1:6380` работает без ACL.
 
 Compose использует Redis 7 ACL file и отдельные host-only password files для
-API, worker/beat и Flower. Файл ACL хранит только SHA-256
+API, worker, beat, outbox-relay и Flower. Файл ACL хранит только SHA-256
 password hashes; raw passwords доступны приложению через read-only Docker
 secrets. Переменные `REDIS_ACL_FILE`, `REDIS_API_PASSWORD_FILE`,
 `REDIS_WORKER_PASSWORD_FILE` и `REDIS_FLOWER_PASSWORD_FILE` задают host paths
 в корневом `.env`.
 
-Создайте файлы с правами `0600`, сгенерируйте независимые случайные пароли и
-поместите их SHA-256 hashes в ACL file. Не копируйте их в репозиторий и не
-синхронизируйте между Windows и Ubuntu. ACL users: `landlords_api` имеет доступ
-к `landlords:ops:*`; worker/beat и Flower ограничены ключами `landlords:*` и
+Создайте password files с правами `0600`, сгенерируйте независимые случайные
+пароли и поместите их SHA-256 hashes в ACL file. Не копируйте секреты в
+репозиторий. ACL users: `landlords_api` имеет доступ
+к `landlords:ops:*`; worker, beat, outbox-relay и Flower ограничены ключами `landlords:*` и
 каналами `landlords:/0.celery.pidbox` и `landlords:celery-task-meta-*`; worker
 дополнительно использует pattern `landlords:/0.celeryev/worker.*`, Flower —
 `landlords:/0.celeryev/*`. Kombu применяет
@@ -97,6 +108,19 @@ Redis ACL pattern для `PSUBSCRIBE` должен совпадать с пер�
 `default` выключен. Production требует username и читаемый password file. Для локальной
 изолированной конфигурации вне production можно оставить credentials пустыми,
 если локальный Redis запущен без ACL.
+
+Для первой локальной или production-настройки из корня репозитория выполните:
+
+```bash
+cd backend
+python -m app.scripts.provision_redis_acl --output-dir ../secrets/redis
+cd ..
+```
+
+Команда создаёт независимые credentials и hash-only ACL file без вывода
+паролей. Она откажется перезаписывать существующие secret files. Для обновления
+правил ACL без ротации паролей используйте `--refresh-acl`; не запускайте это
+во время подключения работающих сервисов без согласованного окна обслуживания.
 
 ## Email
 
@@ -150,6 +174,12 @@ SMTP_SSL с проверкой сертификата; для `starttls` сер�
 
 ## Безопасный production minimum
 
+Пример показывает параметры приложения, а не полный deployment manifest.
+`APP_ENV=production` также требует почтового provider и Redis credentials;
+Compose задаёт отдельные Redis ACL username и secret file для каждого сервиса.
+Значение `change_me` из `.env.example` — локальный placeholder: замените его
+уникальным случайным ключом до запуска production.
+
 ```env
 APP_ENV=production
 DEBUG=false
@@ -157,6 +187,8 @@ ALLOW_PUBLIC_REGISTRATION=false
 SECRET_KEY=<случайное длинное значение>
 FRONTEND_URL=https://example.invalid
 DB_PASSWORD=<отдельный сильный пароль>
+SMTP_HOST=<smtp-host>
+SMTP_TLS_MODE=starttls
 ```
 
 Не помещайте реальные значения в команды, docs, CI logs или Git. После смены

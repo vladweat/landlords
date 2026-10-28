@@ -70,15 +70,15 @@ class TestCalculateRoi:
         mock_property_repo.get_by_id.return_value.purchase_price = None
         result = service.calculate_roi(uuid4(), uuid4())
         assert result["roi"] is None
-        assert result["annual_income"] == Decimal("0")
-        assert result["annual_expenses"] == Decimal("0")
-        assert result["annual_profit"] == Decimal("0")
+        assert result["annual_income"] == "0"
+        assert result["annual_expenses"] == "0"
+        assert result["annual_profit"] == "0"
 
     def test_with_purchase_price_no_income(self, service):
         result = service.calculate_roi(uuid4(), uuid4())
         assert result["roi"] == 0.0
         assert result["payback_years"] is None
-        assert result["annual_profit"] == Decimal("0")
+        assert result["annual_profit"] == "0"
 
     def test_expenses_reduce_profit(self, service, mock_expense_repo, mock_contract_repo):
         from app.domain.entities import ContractEntity
@@ -100,9 +100,9 @@ class TestCalculateRoi:
 
         result = service.calculate_roi(uuid4(), uuid4())
         # income fallback 50000*12=600000, expenses 120000 → profit 480000
-        assert result["annual_income"] == Decimal("600000")
-        assert result["annual_expenses"] == Decimal("120000")
-        assert result["annual_profit"] == Decimal("480000")
+        assert result["annual_income"] == "600000"
+        assert result["annual_expenses"] == "120000"
+        assert result["annual_profit"] == "480000"
         assert result["roi"] == 9.6  # 480000/5000000*100
         assert result["income_is_forecast"] is True
 
@@ -112,15 +112,45 @@ class TestCalculatePortfolioRoi:
         assert result["portfolio_roi"] is None
         assert result["properties_with_roi"] == 0
 
-    def test_portfolio_with_prices(self, service, mock_property_repo, mock_contract_repo, mock_payment_repo):
+    def test_portfolio_with_prices(self, service, mock_property_repo, mock_contract_repo, mock_payment_repo, mock_expense_repo):
         prop1 = _property(purchase_price=Decimal("5000000"))
         prop2 = _property(purchase_price=Decimal("3000000"))
         mock_property_repo.list_by_account.return_value = PaginatedResult(
             items=[prop1, prop2], total=2, page=1, per_page=20, pages=1,
         )
-        mock_payment_repo.list_by_contract.return_value = []
+        mock_payment_repo.list_by_contracts.return_value = []
+        mock_expense_repo.sum_by_property_ids.return_value = {}
         mock_contract_repo.get_active_for_property.return_value = None
 
         result = service.calculate_portfolio_roi(uuid4())
         assert result["properties_with_roi"] == 2
         assert result["portfolio_roi"] == 0.0
+
+
+def test_roi_batch_uses_active_contracts_already_loaded_for_account(
+    service, mock_property_repo, mock_contract_repo, mock_payment_repo, mock_expense_repo
+):
+    from datetime import date, timedelta
+    from app.domain.entities import ContractEntity
+
+    account_id = uuid4()
+    properties = [_property(), _property()]
+    contracts = [
+        ContractEntity(
+            id=uuid4(), account_id=account_id, property_id=prop.id, tenant_id=uuid4(),
+            start_date=date.today(), end_date=date.today() + timedelta(days=30),
+            rent_amount=Decimal("50000"), payment_day=5, status="active",
+        ) for prop in properties
+    ]
+    mock_property_repo.list_by_account.return_value = PaginatedResult(
+        items=properties, total=2, page=1, per_page=1000, pages=1,
+    )
+    mock_contract_repo.list_all_by_account.return_value = contracts
+    mock_payment_repo.list_by_contracts.return_value = []
+    mock_expense_repo.sum_by_property_ids.return_value = {}
+
+    result = service.calculate_roi_batch(account_id)
+
+    assert len(result) == 2
+    assert all(item["income_is_forecast"] for item in result.values())
+    mock_contract_repo.get_active_for_property.assert_not_called()

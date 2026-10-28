@@ -24,9 +24,9 @@ class TestAuthRegister:
         assert resp.status_code == 200
         data = resp.json()
         assert data["status"] == "success"
-        assert "token" in data
-        assert data["user"]["email"] == "newuser@example.com"
-        assert data["user"]["full_name"] == "New User"
+        assert "token" in data["data"]
+        assert data["data"]["user"]["email"] == "newuser@example.com"
+        assert data["data"]["user"]["full_name"] == "New User"
 
     def test_register_omits_bearer_token_when_not_requested(self, client: TestClient):
         response = TestClient(client.app).post(
@@ -39,7 +39,7 @@ class TestAuthRegister:
         )
 
         assert response.status_code == 200
-        assert "token" not in response.json()
+        assert "token" not in response.json()["data"]
         assert response.cookies.get("access_token")
 
     def test_register_duplicate_email(self, client: TestClient, auth_headers):
@@ -100,7 +100,7 @@ class TestAuthLogin:
         assert resp.status_code == 200
         data = resp.json()
         assert data["status"] == "success"
-        assert "token" in data
+        assert "token" in data["data"]
 
     def test_login_omits_bearer_token_when_not_requested(
         self, client: TestClient, auth_headers
@@ -111,7 +111,7 @@ class TestAuthLogin:
         )
 
         assert response.status_code == 200
-        assert "token" not in response.json()
+        assert "token" not in response.json()["data"]
         assert response.cookies.get("access_token")
 
     def test_login_sets_access_cookie(self, client: TestClient, auth_headers):
@@ -124,7 +124,7 @@ class TestAuthLogin:
             },
         )
         assert resp.status_code == 200
-        token = resp.json()["token"]
+        token = resp.json()["data"]["token"]
         assert resp.cookies.get("access_token") == token
         set_cookie = resp.headers["set-cookie"]
         assert "access_token=" in set_cookie

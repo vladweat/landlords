@@ -1,19 +1,25 @@
-# Мультипользовательский аккаунт (роли)
+# Роли и доступ в аккаунте
 
-Дизайн и решения по roadmap #6. Реализовано сентябрь 2026; invite по ссылке — сентябрь 2026.
+Текущее поведение ролей и приглашений, сверенное с реализацией 28 октября 2026.
+Историческое проектное решение и список out-of-scope сохранены ниже только как
+контекст; актуальные риски находятся в [реестре техдолга](maintenance/technical-debt.md).
 
-Связанные документы: [ROADMAP.md](./ROADMAP.md), [backend/ARCHITECTURE.md](../backend/ARCHITECTURE.md).
+Реализация: [`permissions.py`](../backend/app/domain/permissions.py),
+`backend/app/services/invite_service.py` и account routes.
 
 ---
 
-## Решения (зафиксировано)
+## Модель доступа
 
 - Роли: **owner / manager / accountant** с матрицей ниже.
 - Участников приглашает owner по ссылке (email + full_name + role → письмо / ссылка → accept с паролем). Роли invite: `manager` / `accountant`.
-- В v1: один user → одна membership (email уже занят → `ConflictError`).
+- В текущей модели один user связан максимум с одной membership.
 - Без transfer ownership и без account switcher.
 - Источник правды — backend; frontend только скрывает недоступные действия.
 - UI и дашборд общие для всех ролей; отличаются права на мутации и блоки «Команда» / «Аккаунт» у owner.
+
+Backend проверяет права через membership из базы и `require_permissions(...)`;
+скрытие кнопок в UI — только удобство интерфейса, не механизм защиты.
 
 ## Матрица прав
 
@@ -59,86 +65,14 @@ erDiagram
 - Constraints: `UNIQUE(account_id, user_id)`, `UNIQUE(user_id)` (один аккаунт на user в v1).
 - `accounts.owner_id` **оставляем** (канонический владелец); при register создаём account + membership `role=owner`.
 
-## Auth / JWT / deps
+## Приглашения и ограничения модели
 
-1. Login / register / accept-invite: account из **membership**, не из `owner_id`.
-2. Dependency `get_current_membership`:
-   - decode JWT → `user_id`, `account_id`
-   - проверить в БД активную membership `(user_id, account_id)`
-   - **role всегда из БД** (смена роли owner’ом сразу действует без re-login); в JWT достаточно `sub` + `account_id`
-3. `require_permissions(*perms)` поверх membership.
-4. `is_active` user и membership — блокируют login и API.
+Owner может приглашать пользователей с ролями `manager` и `accountant` по
+одноразовой ссылке; срок действия приглашения — 7 дней. Owner может отозвать
+приглашение, менять роль участника и удалить участника. Роль `owner` нельзя
+назначить через приглашение или обычную смену роли.
 
-## API
-
-**`GET /v1/auth/me`:**
-
-```json
-{
-  "status": "success",
-  "data": {
-    "user": { "...": "..." },
-    "account": { "id", "name", "base_currency", "timezone", "owner_id" },
-    "role": "owner"
-  }
-}
-```
-
-**Роутер `/v1/account`:**
-
-| Method | Path | Кто | Назначение |
-|---|---|---|---|
-| GET | `/v1/account` | все роли | настройки аккаунта |
-| PATCH | `/v1/account` | owner | `name`, `base_currency`, `timezone` |
-| GET | `/v1/account/members` | owner | список участников |
-| PATCH | `/v1/account/members/{user_id}` | owner | сменить role (не owner; нельзя сделать второго owner) |
-| DELETE | `/v1/account/members/{user_id}` | owner | убрать участника (membership + user) |
-| GET | `/v1/account/invites` | owner | список pending-приглашений |
-| POST | `/v1/account/invites` | owner | создать invite (`email`, `full_name`, `role` ∈ manager\|accountant) + письмо |
-| DELETE | `/v1/account/invites/{id}` | owner | отозвать invite |
-
-**Публично (без JWT):**
-
-| Method | Path | Назначение |
-|---|---|---|
-| GET | `/v1/public/invites/{token}` | preview (email, role, account name) |
-| POST | `/v1/public/invites/{token}/accept` | `{ password, full_name? }` → user + membership + JWT |
-
-**Delete account** (`DELETE /v1/auth/me`): только **owner**; менеджер/бухгалтер → `ForbiddenError`.
-
-**Permissions на routes:**
-
-- properties/tenants/contracts/documents mutate → `WRITE_*`
-- payments / generate-charges / expenses / reminders mutate → соответствующие write
-- GET — достаточно валидной membership
-- feedback — все аутентифицированные
-
-## Слои backend
-
-- Entity / interface / repo: `MembershipEntity`, `AccountInviteEntity`, репозитории
-- Service: `AccountService` (list/update/remove members, update account), `InviteService` (create/list/revoke/accept)
-- Schemas: `account_schema.py` + invites
-- Wire в `deps.py` + `main.py`
-- Register / CLI `create-user` / seed — создают membership owner
-
-## Frontend
-
-- Типы: `entities/account.ts` (`Account`, `Role`, `Member`, `Invite`, `Permission`)
-- Auth store: `account`, `role` рядом с `user`; обновление из `/me`
-- Хелпер `useCan(permission)` в `features/auth/permissions.ts`
-- Settings: команда и аккаунт только для owner; invite без пароля; страница `/invite`
-- CRUD-страницы: скрыть Create/Edit/Delete без permission
-- 403 от API → `showError`
-
-## Тесты
-
-- Unit: `ROLE_PERMISSIONS` / `has_permission`
-- Integration (`test_rbac_api.py`, `test_invites_api.py`): register → role; invite → accept → login; accountant 403 на property create; manager 403 на team; remove → login 401; multi-tenancy; expired/revoked
-
-## Вне скоупа v1
-
-- Несколько аккаунтов на одного user / switcher
-- Transfer ownership
-- Кастомные permissions / биллинг по seats
-- Force change password при первом входе
-- Отдельный дашборд / навигация под роль
+Текущие HTTP-маршруты и схемы смотри в OpenAPI для конкретного checkout; не
+используй прежнюю таблицу проектных маршрутов ниже в git history как API
+reference. Поддержка нескольких аккаунтов на одного пользователя и transfer
+ownership в текущую модель не входят.

@@ -1,6 +1,7 @@
 """Реализация репозитория контрактов."""
 
 from datetime import datetime, timezone
+from typing import Sequence
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -161,6 +162,24 @@ class ContractRepository(IContractRepository):
         )
         return model.to_entity() if model else None
     
+    def list_active_by_properties(
+        self, property_ids: Sequence[UUID], account_id: UUID
+    ) -> list[ContractEntity]:
+        """Получить active/overdue контракты для объектов аккаунта одним запросом."""
+        if not property_ids:
+            return []
+        models = (
+            self.session.query(ContractModel)
+            .filter(
+                ContractModel.account_id == account_id,
+                ContractModel.property_id.in_(property_ids),
+                ContractModel.status.in_(["active", "overdue"]),
+            )
+            .order_by(ContractModel.created_at.desc())
+            .all()
+        )
+        return [model.to_entity() for model in models]
+
     def get_active_for_tenant(
         self, tenant_id: UUID, account_id: UUID
     ) -> list[ContractEntity]:
