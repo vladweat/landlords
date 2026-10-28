@@ -58,6 +58,10 @@ export default function LoginPage() {
           <div className="text-center mt-3">
             <Link to="/forgot-password" className="text-sm text-blue-600 hover:underline">Забыли пароль?</Link>
           </div>
+          <p className="mt-4 text-center text-sm text-gray-600">
+            Нет аккаунта?{' '}
+            <Link to="/register" className="text-blue-600 hover:underline">Создать аккаунт</Link>
+          </p>
         </Card>
         <p className="mt-6 text-center text-xs text-gray-400 space-x-3">
           <a href="/offer" className="hover:text-gray-600 hover:underline">Оферта</a>

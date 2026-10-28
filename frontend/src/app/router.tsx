@@ -5,6 +5,7 @@ import { ProtectedRoute } from './ProtectedRoute';
 import { useAuthStore } from '@/features/auth/store';
 
 const LoginPage = lazy(() => import('@/pages/login/LoginPage'));
+const RegisterPage = lazy(() => import('@/pages/register/RegisterPage'));
 const ForgotPasswordPage = lazy(() => import('@/pages/forgot-password/ForgotPasswordPage'));
 const ResetPasswordPage = lazy(() => import('@/pages/reset-password/ResetPasswordPage'));
 const InvitePage = lazy(() => import('@/pages/invite/InvitePage'));
@@ -49,6 +50,7 @@ export function AppRouter() {
       <Routes>
         <Route path="/" element={<HomeRedirect />} />
         <Route path="/login" element={<GuestOnly><LoginPage /></GuestOnly>} />
+        <Route path="/register" element={<GuestOnly><RegisterPage /></GuestOnly>} />
         <Route path="/forgot-password" element={<GuestOnly><ForgotPasswordPage /></GuestOnly>} />
         <Route path="/reset-password" element={<GuestOnly><ResetPasswordPage /></GuestOnly>} />
         <Route path="/invite" element={<GuestOnly><InvitePage /></GuestOnly>} />
