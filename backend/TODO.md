@@ -1,11 +1,17 @@
-# Backend — backlog исправлений
+# Backend — исторический checklist code review
+
+Checkboxes ниже фиксируют состояние на момент прежних ревью и не являются
+актуальным backlog: часть пунктов закрыта последующими изменениями, часть
+нуждается в новой проверке. Текущие подтверждённые риски ведутся только в
+[`docs/maintenance/technical-debt.md`](../docs/maintenance/technical-debt.md).
+Проверенную архитектуру см. в [`docs/architecture/overview.md`](../docs/architecture/overview.md).
 
 Чеклист по результатам code review. Отмечай выполненное: `- [ ]` → `- [x]`.
 
 Справочник по архитектуре: [ARCHITECTURE.md](./ARCHITECTURE.md)
 
-**Статус:** 61 / 64 infra + открытый код-долг ниже.  
-Актуальный обзор долга: [ARCHITECTURE.md](./ARCHITECTURE.md) § «Стоит поменять в коде».
+**Статус:** исторический подсчёт на дату прежнего code review. Не использовать
+как текущую оценку; актуальный реестр: [technical debt](../docs/maintenance/technical-debt.md).
 
 ---
 

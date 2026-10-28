@@ -8,7 +8,11 @@
 
 ## Что уже есть
 
-В `docker-compose.yml`: API, Celery worker и beat, Postgres 15, Redis 7, nginx (SPA + `/api`). Flower — профиль `development`. У API: `/health`, `/ready` (БД + Redis), `/metrics`. Sentry и Prometheus-клиент подключены. Документы — volume `storage/documents`. Override для разработки монтирует исходники и `--reload`.
+В `docker-compose.yml`: API, Celery worker, beat и outbox-relay, Postgres 15,
+Redis 7, nginx (SPA + `/api`). Flower — профиль `development`. У API:
+`/health`, `/ready` (БД + Redis), `/metrics`. Sentry и Prometheus client
+подключены. Документы — volume `storage/documents`. Dev override монтирует
+исходники и включает `--reload`.
 
 **Сборка API** — два режима через `INSTALL_MODE`:
 
@@ -19,7 +23,15 @@
 
 Entrypoint API при `RUN_MIGRATIONS=1` гоняет `alembic upgrade head`. Healthcheck смотрит на `/ready`.
 
-**Один вход в prod-профиле:** nginx отдаёт собранный фронт (multi-stage в `nginx/Dockerfile`) и проксирует API. Postgres/Redis без `ports` на хост (порты только в override). `.env.example` с комментариями; `SECRET_KEY` по умолчанию запрещён при `APP_ENV=production`.
+**Публичный вход:** base nginx отдаёт собранный фронт и проксирует API по HTTP.
+`docker-compose.production.yml` добавляет Caddy для HTTPS и привязывает nginx к
+`127.0.0.1:8080`; Postgres и Redis не публикуют host ports. `.env.example` —
+локальный шаблон, а не production-конфигурация. В runtime встроенный
+`SECRET_KEY` placeholder `change-me-in-production-change-me` запрещён при
+`APP_ENV=production`. Шаблон использует другое значение — `change_me`, которое
+текущая startup-проверка принимает; его обязательно замени уникальным случайным
+ключом. Это несоответствие зарегистрировано в
+[техническом долге](maintenance/technical-debt.md).
 
 **Публичная регистрация** управляется `ALLOW_PUBLIC_REGISTRATION` (для портфолио/прода — `false`). Bootstrap через CLI: `python -m app.cli seed-demo`.
 
@@ -35,7 +47,11 @@ integration с PostgreSQL/Redis, frontend tests/build и online-сборку API
 Compose smoke test и deploy; последний должен оставаться отдельным job с
 явным environment approval.
 
-**TLS** в Compose/nginx не терминируется: перед публичным доступом обязателен внешний HTTPS ingress; детали — в [deploy.md](./deploy.md). Настрой `FRONTEND_URL` на публичный HTTPS origin.
+**TLS** в nginx не терминируется. Production overlay запускает Caddy с
+автоматическим HTTPS по домену из `deploy/Caddyfile`; подробные шаги и порты —
+в [deploy.md](./deploy.md). DNS, доступность 80/443 и действующий сертификат на
+VPS не проверялись. Для другого ingress замени Caddy и закрой прямой доступ к
+origin.
 
 **Почта:** без SMTP/Resend письма пишутся в `storage/emails/` только вне production. В production provider обязателен при запуске; SMTP использует STARTTLS или implicit TLS, plaintext запрещён.
 

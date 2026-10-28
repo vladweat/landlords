@@ -16,10 +16,11 @@ OpenAPI является источником детальных request/respons
 
 При `DEBUG=false` Swagger, ReDoc и `/openapi.json` отключены.
 
-Все успешные JSON-ответы используют оболочку `{"status":"success","data":...}`;
-ошибки — `{"status":"error","message":"..."}`. Данные auth entrypoints
-(login/register/invite accept), включая опциональный Bearer token, находятся в
-`data`. Ответы `204 No Content` и файловые downloads не содержат JSON body.
+Все успешные JSON-ответы используют оболочку
+`{"status":"success","data":...}`; ошибки приложения —
+`{"status":"error","message":"..."}`. Структура `data` зависит от
+операции. Ответы `204 No Content`, файловые downloads и системные endpoints
+`/health`, `/ready`, `/metrics` не используют обычную оболочку успешного API.
 
 ## Аутентификация
 
@@ -106,24 +107,27 @@ Frontend скрывает запрещённые действия, но не я�
 точность при преобразовании `Decimal`. Это относится и к прогнозу, и к ROI;
 проценты доходности и сроки окупаемости остаются числами.
 
-Предпочтительный success envelope:
+Успешный JSON-ответ:
 
 ```json
 {"status": "success", "data": {}}
 ```
 
-Но API пока не полностью унифицирован: некоторые auth endpoints возвращают
-`token`/`user` на верхнем уровне, а forgot/reset/change/delete возвращают только
-`message`. Клиент должен следовать конкретной OpenAPI schema.
+Auth entrypoints возвращают пользователя в `data.user`, а при заголовке
+`X-Return-Bearer-Token: true` — также `data.token`. Операции с текстовым
+результатом, например сброс и смена пароля, возвращают `data.message`. Остальные
+операции могут возвращать объект, список или поля пагинации внутри `data`;
+точная структура задана схемой конкретного endpoint.
 
-Ожидаемая application error:
+Ошибки приложения и ошибки валидации:
 
 ```json
 {"status": "error", "message": "Описание"}
 ```
 
-Pydantic error: HTTP 422 с `details`; unexpected error: HTTP 500 с общим
-сообщением. nginx rate-limit может вернуть собственный HTML/статус, не envelope.
+Pydantic validation error возвращает HTTP 422 с полями `message` и `details`;
+необработанная ошибка — HTTP 500 с общим `message`. Ответ nginx rate limit может
+иметь собственное тело и не обязан следовать этому формату.
 
 `PaginationParams`: `page >= 1`, `1 <= per_page <= 100`, defaults 1/20.
 Paginated data содержит `items`, `total`, `page`, `per_page`, `pages`; не все
@@ -145,10 +149,14 @@ endpoint-specific поведение.
 
 ## Rate limiting и transport
 
-nginx ограничивает только точные URL login, forgot/reset-password и
-`POST /api/v1/reminders` общей zone `10r/m` с burst. В FastAPI rate limiter нет;
-обращение напрямую к dev-порту 8000 обходит nginx. TLS внутри Compose не
-настроен: публичный deployment обязан использовать внешний TLS ingress.
+nginx ограничивает точные URL `POST /api/v1/auth/login`,
+`POST /api/v1/auth/forgot-password`, `POST /api/v1/auth/reset-password` и
+`/api/v1/reminders` общей зоной `10r/m`; burst задан отдельно для auth и
+reminders в `nginx/nginx.conf`. В FastAPI rate limiter нет; прямое обращение к
+порту API обходит nginx. Base nginx работает по HTTP; production Compose overlay
+добавляет Caddy для HTTPS и привязывает nginx origin к `127.0.0.1:8080`. См.
+[runbook деплоя](../deploy.md). Состояние DNS, доступности портов и сертификата
+на VPS не проверялось.
 
 ## Синхронизация документации
 

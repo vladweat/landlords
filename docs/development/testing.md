@@ -9,9 +9,11 @@ CI использует Python 3.12 и устанавливает `backend/requi
 ```bash
 cd backend
 pytest -q tests/unit tests/tasks
-pytest -q tests/integration
 ruff check app tests --select E9,F63,F7,F82
 ```
+
+Для integration suite используйте только изолированный Compose-стек и явные
+`DB_*`/`REDIS_*` значения из раздела ниже.
 
 Unit/services/domain tests в основном используют mocks и не требуют runtime
 services. Task tests проверяют Celery use cases/lock. Integration fixtures:
@@ -29,26 +31,46 @@ services. Task tests проверяют Celery use cases/lock. Integration fixtu
 задаёт `false` и без override ломает setup тестов. Не направляйте suite на
 shared/production DB.
 
-После включения Redis ACL отдельную gated-проверку запускайте внутри Compose-сети
-под identity проверяемого сервиса:
+После включения Redis ACL (см. создание secret files в
+[`configuration.md`](configuration.md)) gated-проверка должна обращаться к Redis внутри
+Compose-сети и использовать credentials проверяемого сервиса. Запустите Redis,
+затем из корня проекта выполните проверки API и worker identity отдельно:
 
 ```bash
-RUN_REDIS_ACL_TESTS=true pytest -q tests/integration/test_redis_acl.py
+docker compose up -d redis
+docker compose run --rm --no-deps \
+  -e RUN_REDIS_ACL_TESTS=true \
+  -v "$PWD/backend/tests:/app/tests:ro" \
+  --entrypoint pytest api -q tests/integration/test_redis_acl.py
+docker compose run --rm --no-deps \
+  -e RUN_REDIS_ACL_TESTS=true \
+  -v "$PWD/backend/tests:/app/tests:ro" \
+  --entrypoint pytest celery-worker -q tests/integration/test_redis_acl.py
 ```
 
 Проверка подтверждает отказ для default/неверных credentials, доступ к
 разрешённым ключам и Pub/Sub channels, отказ за пределами ACL scope и чтение
-ответов `PSUBSCRIBE`. Запустите её отдельно для API и worker identity; Flower
-дополнительно проверяйте по capture worker events после старта.
+ответов `PSUBSCRIBE`. Для Flower дополнительно проверяйте capture worker events
+после старта Flower с его отдельной identity.
 
-Запуск с Compose services:
+Локальный integration suite запускайте только на отдельном тестовом стеке.
+`docker-compose.test.yml` создаёт PostgreSQL с временным `tmpfs` и Redis без
+ACL на локальных портах `5433` и `6380`:
 
 ```bash
-docker compose up -d postgres redis
+docker compose -f docker-compose.test.yml up -d --wait
 cd backend
-DB_HOST=localhost REDIS_HOST=localhost ALLOW_PUBLIC_REGISTRATION=true \
+DB_HOST=127.0.0.1 DB_PORT=5433 DB_USER=postgres \
+DB_PASSWORD=landlords-test-only DB_NAME=landlords_db \
+REDIS_HOST=127.0.0.1 REDIS_PORT=6380 ALLOW_PUBLIC_REGISTRATION=true \
   pytest -q tests/integration
+cd ..
+docker compose -f docker-compose.test.yml down
 ```
+
+Не подменяйте тестовым suite production/shared database: fixture удаляет и
+создаёт базу `landlords_test`. Пароль тестового PostgreSQL можно переопределить
+через `TEST_DB_PASSWORD` в Compose и `DB_PASSWORD` для pytest.
 
 ## Frontend
 

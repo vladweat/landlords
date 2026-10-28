@@ -1,141 +1,57 @@
-# Денежный поток — аудит и backlog
+# Денежный поток: текущие правила
 
-Аудит создания договоров и движения денег (начисления → платежи → ledger → дашборд / ROI).  
-Сентябрь 2026.
+Краткая доменная справка по договорным начислениям, платежам и ledger. Ранее
+этот файл был аудитом с закрытым backlog; текущие риски собраны отдельно в
+[реестре техдолга](maintenance/technical-debt.md). Сценарии для UI описаны в
+[use cases договоров и платежей](use-cases-contracts-payments.md).
 
-Связанные документы: [ROADMAP.md](./ROADMAP.md), [backend/TODO.md](../backend/TODO.md), [frontend/TODO.md](../frontend/TODO.md), [use cases договоров и платежей](./use-cases-contracts-payments.md).
+## Договор и начисления
 
-Отмечай выполненное: `- [ ]` → `- [x]`.
+Создание договора создаёт `draft` и само по себе не создаёт начислений. При
+активации возможна асинхронная генерация начислений, если включён
+`auto_generate_charges`; иначе пользователь может запустить ручную генерацию.
+Периоды рассчитываются с prorate для короткого первого/последнего периода.
+Активировать договор нельзя, если на объекте уже есть другой `active` или
+`overdue` договор, но черновик создать можно.
 
----
+Депозит хранится как поле договора и показывается в документах. Он не является
+арендным начислением или платежом и в договорный ledger не входит.
 
-## Как устроено сейчас
+## Платежи, распределение и баланс
 
-### Создание договора
+- Платёж с `rent_charge_id` относится к начислению того же договора. Сумма сверх
+  остатка становится авансом.
+- Платёж без привязки распределяется FIFO по сроку оплаты на открытые начисления;
+  остаток остаётся авансом договора.
+- Аванс может быть автоматически распределён на новые начисления при генерации
+  или продлении договора.
+- Частично оплаченный остаток после срока оплаты считается просроченным.
+- Денежные суммы хранятся как `Decimal`/`NUMERIC(12, 2)`, валюта берётся из
+  договора.
 
-1. UI → `POST /contracts` → всегда **`draft`**.
-2. `rent_amount` / `deposit_amount` сохраняются; **начислений нет**.
-3. Активация (`draft → active`) + флаг `auto_generate_charges` → Celery `generate_charges_for_contract`.
-4. **Депозит** — только поле и PDF, не charge и не payment.
+Баланс ledger вычисляется как `Σ начислений − Σ платежей`:
 
-| Событие | Начисления |
-|---------|------------|
-| Create | Нет |
-| Activate + `auto_generate_charges=true` | Да (async) |
-| Activate + флаг `false` | Нет (есть API `generate-charges`, UI не вызывает) |
-| Включить флаг позже без смены статуса | Не генерирует |
+| Результат | Значение |
+|---|---|
+| `> 0` | Остаток к получению |
+| `= 0` | Расчёты сведены |
+| `< 0` | Получен аванс |
 
-### Денежный поток
+Изменение платежей сериализуется блокировкой договора и связанных строк в
+транзакции. Это защищает реализованные service paths от одновременного
+распределения одной суммы; обход сервиса прямым SQL этим правилом не покрыт.
 
-```
-договор active
-    → charges (pending)
-        → payment
-            ├─ с rent_charge_id → на конкретное начисление
-            └─ без id → автораспределение FIFO по due_date;
-                         остаток → payment без charge («Аванс»)
-        → статус charge (paid / partially_paid / overdue / pending)
-        → статус договора (active ↔ overdue)
-        → ledger: +charge / −payment, running balance
-```
+## Дополнительные потоки
 
-**Ledger** (`outstanding = Σ charges − Σ payments`):
-- `> 0` — ещё к получению
-- `= 0` — сведено
-- `< 0` — аванс (деньги получены вперёд)
+- ROI объекта учитывает платежи за период и расходы объекта; при отсутствии
+  истории доход может быть обозначен как прогноз.
+- Квитанция — представление начисления и связанных платежей, а не отдельная
+  денежная операция.
+- Портал арендатора показывает баланс и квитанции. Заявка «Я оплатил» сама не
+  создаёт ledger-платёж: его создаёт подтверждение владельца.
 
-Конкурентные изменения выполняются в транзакции договора: сначала блокируется
-строка договора, далее начисления по сроку оплаты, затем авансы по дате и
-времени создания. Это не позволяет параллельным payment create/update/delete и
-повторной аллокации прочитать один и тот же остаток как свободный. Денежные
-суммы остаются `Decimal`/`NUMERIC(12, 2)`; валюта платежа берётся из договора.
-
-Математика ledger по кассе **корректна**. UI таблицы: `LedgerTable.tsx` (колонка «После операции», «аванс»).
-
-**ROI / расходы** — уровень объекта, не ledger договора: доход (платежи за 365д) − расходы объекта.
-
-**Квитанция (invoice)** — view поверх charge: PDF + публичная страница `/i/{token}`. Не создаёт ledger-операций; сумма/статус читаются live из charge и платежей. Реквизиты — `accounts.payment_details`.
-
-**Портал арендатора (`/t/{token}`)** — magic link на договор (`contracts.portal_token`), действует 2 часа: баланс, история, открытые квитанции, реквизиты. Владелец может перевыпустить ссылку из договора. Кнопка «Я оплатил» создаёт `payment_claims` (status `pending`, с суммой) и событие `payment_claim`. Landlord в CRM: **Отклонить** или **Подтвердить платёж** — confirm создаёт payment в ledger (FIFO / по charge) и закрывает claim. То же «Я оплатил» доступно на публичной квитанции `/i/{token}`.
-
----
-
-## Вердикт
-
-| Область | Статус |
-|---------|--------|
-| Создание / активация / генерация charges | OK по дизайну |
-| Ledger (касса) | OK |
-| Аванс → покрытие следующих начислений | OK (allocate FIFO) |
-| Статусы charges / дашборд outstanding | OK (остатки − аванс; partial+due → overdue) |
-| Депозит в учёте | Нет (только метаданные; вне учёта аренды — явно в UI) |
-
----
-
-## TODO
-
-### P0 — деньги и статусы
-
-- [x] **Распределять аванс на начисления** — при создании платежа, появлении новых charges (generate / renew) и по запросу: FIFO по `due_date` из unlinked payments (`rent_charge_id=None`) в неоплаченные charges. Либо явная сущность «кредит договора».
-  - `backend/app/services/payment_service.py`
-  - `backend/app/services/rent_charge_service.py`
-  - вызовы после `create_charges_batch` / renew
-
-- [x] **Единый outstanding** — считать остаток как `Σ max(0, charge.amount − paid_for_charge)` и опционально вычитать неаллоцированный аванс. Сейчас дашборд суммирует полную сумму charges со `status != paid` и **игнорирует частичные оплаты**.
-  - `backend/app/db/repositories/rent_charge_repo.py` → `get_total_outstanding`
-  - сверить с `ledger_service` / карточкой договора
-
-- [x] **`partially_paid` + просрочка** — если остаток > 0 и `due_date < today`, статус должен отражать просрочку (например `overdue` или отдельный статус). Сейчас любая частичная оплата навсегда `partially_paid`.
-  - `backend/app/domain/rules.py` → `compute_charge_status`
-  - Celery `update_overdue_charges`, reminders, UI
-
-### P1 — платежи и UI
-
-- [x] **PaymentModal**: показывать `partially_paid`; max суммы = **остаток** charge, не полная сумма; после create инвалидировать `contract-ledger` / dashboard.
-  - `frontend/src/pages/payments/PaymentModal.tsx`
-  - `frontend/src/pages/contracts/ContractDetailPage.tsx` (лейбл «Ожидает» для `partially_paid`)
-
-- [x] **Платёж с явным `rent_charge_id`**: проверить `charge.contract_id == dto.contract_id`; избыток сверх остатка → в аванс (как в auto-distribute), не вешать целиком на один charge.
-  - `backend/app/services/payment_service.py`
-
-- [x] **Карточка договора**: отрицательный `outstanding_balance` показывать как аванс (как в `LedgerTable`), не как обычное «ожидает оплаты».
-  - `frontend/src/pages/contracts/ContractDetailPage.tsx`
-
-- [x] **Автораспределение API**: сейчас возвращается только **первый** split-платёж при нескольких строках — ответ/toast вводят в заблуждение.
-  - `payment_service._auto_distribute`
-
-### P2 — создание договора и расписание
-
-- [x] **Prorate** короткого первого/последнего периода в `generate_charge_schedule` (функция `prorate_charge_amount` уже есть для terminate).
-  - `backend/app/domain/rules.py`
-
-- [x] **`due_date` vs `period_start`** — при старте договора mid-month и раннем `payment_day` due может быть раньше начала периода → ложная просрочка сразу после activate.
-
-- [x] **UI: ручная генерация charges** — кнопка на детальной странице / после activate (API `generateCharges` уже есть, UI не вызывает); либо toast/poll после активации, пока Celery не создал строки.
-
-- [x] **Депозит** — вне учёта аренды: поле договора + явная пометка в UI/доках (не charge/payment).
-
-### P3 — края и качество
-
-- [x] Terminate: политика для future charges с уже привязанными платежами (`plan_charges_on_terminate`) — unlink → аванс, charge удалить.
-- [x] Ledger: стабильный sort `(date, type_order, created_at)` для нескольких платежей в один день.
-- [x] Reminder на ledger-строке: не матчить только по `due_date` при нескольких charges в день.
-- [x] ROI: не подставлять молча `rent × 12`, если платежей за год 0 — помечать как прогноз (`income_is_forecast`).
-- [x] Create: draft можно создать при active/overdue на объекте; конфликт только при activate/renew.
-- [x] Тест `test_activate_generates_charges`: патч пути Celery совпадает с `app.celery_app`.
-
----
-
-## Ключевые файлы
-
-| Слой | Путь |
-|------|------|
-| Create / activate | `backend/app/services/contract_service.py` |
-| Расписание charges | `backend/app/domain/rules.py` (`generate_charge_schedule`, `compute_charge_status`, `compute_ledger_lines`) |
-| Batch charges | `backend/app/services/rent_charge_service.py`, `backend/app/tasks/charge_tasks.py` |
-| Платежи | `backend/app/services/payment_service.py` |
-| Ledger API | `backend/app/services/ledger_service.py` |
-| Outstanding дашборда | `backend/app/db/repositories/rent_charge_repo.py` |
-| UI договор | `frontend/src/pages/contracts/ContractDetailPage.tsx`, `LedgerTable.tsx` |
-| UI платёж | `frontend/src/pages/payments/PaymentModal.tsx` |
-| Create UI | `frontend/src/pages/contracts/ContractModal.tsx` |
+Детальные переходы договора, сценарии оплаты и ограничения описаны в
+[use cases](use-cases-contracts-payments.md). Реализацию проверяй по
+`backend/app/services/payment_service.py`,
+`backend/app/services/rent_charge_service.py` и
+`backend/app/services/ledger_service.py`.

@@ -11,7 +11,8 @@
 
 Stale beat и ops gauges обновляются во время `/ready`, но ошибка ops check не
 меняет 200, если DB/Redis доступны. `/metrics` не имеет auth и не проксируется
-явным nginx location; при публикации добавьте network/access policy.
+nginx; опрашивайте его из доверенной сети или внутри API container, не
+публикуйте endpoint напрямую в Internet.
 
 ## Логи
 
@@ -52,8 +53,12 @@ curl -i http://localhost/ready
 curl -s http://localhost:8000/metrics
 docker compose ps
 docker compose exec postgres pg_isready -U "${DB_USER:-postgres}"
-docker compose exec redis redis-cli ping
+docker compose exec redis redis-cli --user landlords_health --no-auth-warning -a '' ping
 ```
+
+Redis ACL отключает пользователя `default`; обычный `redis-cli ping` без
+identity завершится ошибкой аутентификации. Health identity разрешён только для
+`PING`.
 
 Не включайте debug/SQL logging длительно в production: оно повышает объём
 логов и риск записи чувствительных business data.

@@ -9,7 +9,7 @@
 docker compose ps
 docker compose logs --since=15m api postgres redis
 docker compose exec postgres pg_isready -U "${DB_USER:-postgres}"
-docker compose exec redis redis-cli ping
+docker compose exec redis redis-cli --user landlords_health --no-auth-warning -a '' ping
 ```
 
 Проверьте, что приложение внутри Compose использует hostnames `postgres` и
@@ -47,7 +47,7 @@ docker compose exec celery-worker \
 ```
 
 Проверьте Redis, registered task name, UTC schedule и сообщения
-`lock_not_acquired`. Lock имеет TTL 600 секунд; удалять lock вручную опасно,
+`lock_not_acquired`. Bulk-task lock имеет TTL 900 секунд; удалять его вручную опасно,
 пока другой worker действительно работает. Beat healthcheck отсутствует,
 ориентируйтесь на logs и heartbeat metric.
 

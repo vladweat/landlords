@@ -1,93 +1,50 @@
 # Frontend Landlords
 
-React SPA на TypeScript/Vite. Server state хранится в TanStack Query, auth
-state — в Zustand. API client использует `/api/v1`, `withCredentials` и
-HttpOnly-cookie; `localStorage.access_token` читается только для миграции старых
-сессий.
+Landlords frontend is a React 19 and TypeScript single-page application built
+with Vite. It uses TanStack Query for server state, Zustand for authentication
+state, and Tailwind CSS for styling. The production image serves the built SPA
+from nginx; `/api` requests are proxied to FastAPI.
 
-## Запуск и проверки
+## Local development
+
+Use Node.js 20.19+ or 22.12+ and npm. Start the project services from the
+repository root, then run Vite:
 
 ```bash
-# Сначала из корня: docker compose up -d
+docker compose up -d
 cd frontend
 npm ci
 npm run dev
+```
+
+Vite serves the application at `http://localhost:3000` and proxies `/api` to
+nginx at `http://localhost`. The dev Compose override publishes PostgreSQL and
+Redis ports for local development; do not use that override on a public host.
+
+For the full environment setup, see
+[`docs/development/getting-started.md`](../docs/development/getting-started.md).
+
+## Checks
+
+```bash
 npm test
 npm run lint
 npm run build
 ```
 
-Vite слушает `http://localhost:3000`, `/api` проксируется в nginx на port 80.
-`build` выполняет TypeScript check и production Vite build.
+`npm run build` runs TypeScript checking followed by the Vite production build.
+CI runs tests and build; frontend lint is available locally but is not a CI job.
+See [`docs/development/testing.md`](../docs/development/testing.md) for the
+complete verification matrix.
 
-Структура: `app/` — router/providers, `pages/` — композиция, `features/` — API
-и components, `entities/` — доменные типы, `shared/` — client/UI/lib/hooks.
-Деньги в API/types остаются строками.
+## Source layout
 
-Общие инструкции:
-[`docs/development/getting-started.md`](../docs/development/getting-started.md),
-[`docs/development/testing.md`](../docs/development/testing.md). Исторический
-backlog: [`TODO.md`](TODO.md).
+- `src/app/` — router, providers and application shell;
+- `src/pages/` — route-level composition;
+- `src/features/` — user workflows, API adapters and feature components;
+- `src/entities/` — domain types and entity UI;
+- `src/shared/` — HTTP client, reusable UI and utilities.
 
-## Справка по расширению ESLint
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
-```
-
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
-```
+Browser authentication uses an HttpOnly cookie. The API client reads a legacy
+localStorage token only to migrate an existing session, then removes it. Money
+values remain decimal strings across the API and frontend.

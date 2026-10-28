@@ -40,12 +40,15 @@ docker compose build --pull=false nginx
 ## Первый запуск
 
 ```bash
-# без docker-compose.override.yml на VPS (порты БД не открывать):
-docker compose -f docker-compose.yml up -d --build
+# На публичной VPS используй production overlay: он добавляет Caddy и
+# привязывает nginx к localhost:8080. DNS из deploy/Caddyfile должен указывать
+# на сервер, входящие порты 80 и 443 должны быть доступны.
+docker compose -f docker-compose.yml -f docker-compose.production.yml up -d --build
 
-# проверка
-curl -sf http://localhost/ready
-curl -sf http://localhost/api/v1/  # или открыть SPA на http://localhost/
+# проверка локального nginx origin из хоста
+curl -sf http://127.0.0.1:8080/ready
+# проверка публичного маршрута после настройки DNS и получения сертификата
+curl -sf https://landlords.wvzl.site/ready
 ```
 
 Миграции Alembic накатывает entrypoint сервиса `api` (`RUN_MIGRATIONS=1`). Worker и beat ждут healthy API.
@@ -73,13 +76,16 @@ docker compose exec api python -m app.cli seed-demo
 
 ## TLS
 
-`docker-compose.yml` и `nginx/nginx.conf` не терминируют TLS: nginx слушает
-только HTTP port 80. Перед публичным доступом установи внешний ingress (например,
-Caddy, managed load balancer или reverse proxy с certbot), который:
+`nginx/nginx.conf` слушает только HTTP port 80. Для публичного topology в
+репозитории есть `docker-compose.production.yml`: он запускает Caddy с
+`deploy/Caddyfile`, где настроены `landlords.wvzl.site`, HTTPS, redirect и HSTS;
+nginx доступен Caddy через `127.0.0.1:8080`. Для другого домена измени site
+address в Caddyfile. Перед публичным доступом проверь DNS и доступность входящих
+портов 80/443, затем:
 
 - принимает только HTTPS, перенаправляет HTTP на HTTPS и включает HSTS после
   проверки домена/сертификата;
-- передаёт запросы в Compose по закрытой сети, не публикуя nginx origin в Internet;
+- передаёт запросы на локальный nginx origin, не публикуя origin в Internet;
 - задаёт `FRONTEND_URL` ровно публичному HTTPS origin, используемому браузером;
 - исключает capability URL и query tokens из access logs, analytics и tracing.
 
@@ -89,8 +95,11 @@ HTTP-порты для разработки; не запускай его на �
 
 ## Резервные копии
 
-На настроенной VPS `landlords-backup.timer` ежедневно в 02:30 UTC запускает
-`deploy/backup-landlords.sh`. Комплект в `/var/backups/landlords/` содержит
+Репозиторий содержит `deploy/backup-landlords.sh` и systemd units. После
+установки и включения units по процедуре ниже timer запускает backup ежедневно
+в 02:30 UTC с задержкой до 5 минут. Это описание конфигурации в репозитории;
+установка units и последнее выполнение на VPS не проверялись. Комплект в
+`/var/backups/landlords/` содержит
 custom dump PostgreSQL, архив `storage/documents`, SHA-256 manifest и маркер
 завершения. Запись идёт атомарно во временный каталог; хранятся последние 14
 дней завершённых комплектов. Файлы доступны только root (каталог `0700`, файлы
@@ -98,7 +107,7 @@ custom dump PostgreSQL, архив `storage/documents`, SHA-256 manifest и ма
 Для Docker-команд используется production overlay, если он есть; без него
 скрипт работает с базовым `docker-compose.yml` и тем же Compose project name.
 
-Каждое воскресенье в 04:00 UTC `landlords-restore-check.timer` восстанавливает
+После установки и включения второго timer каждое воскресенье в 04:00 UTC он восстанавливает
 последнюю копию в отдельный временный PostgreSQL 15 container без сети и
 опубликованных портов, проверяет таблицы и архив документов, затем удаляет
 только созданные им контейнер и volume. Проверка не останавливает production
@@ -118,8 +127,9 @@ ls -l /var/backups/landlords
 Первоначальная настройка на VPS:
 
 ```bash
+# Выполняйте команды из корня checkout (например, /srv/landlords).
 cat > /etc/landlords-backup.conf <<'EOF'
-PROJECT_DIR=/root/projects/landlords
+PROJECT_DIR=/srv/landlords
 BACKUP_DIR=/var/backups/landlords
 RETENTION_DAYS=14
 MIN_FREE_MB=256
@@ -172,7 +182,7 @@ tar -xzf "$BACKUP_SET/documents.tar.gz" -C storage
 
 ```bash
 SENTRY_DSN=https://...@sentry.io/...
-SUPPORT_EMAIL=hello@landlords.ru
+SUPPORT_EMAIL=ops@example.org # замени адресом поддержки проекта
 # OPS_DISK_MIN_FREE_MB=500
 # OPS_BEAT_STALE_HOURS=26
 # STATUS_INCIDENTS_PATH=/app/storage/status/incidents.json
@@ -185,13 +195,13 @@ SUPPORT_EMAIL=hello@landlords.ru
 cat > storage/status/incidents.json <<'EOF'
 {
   "overall": "degraded",
-  "updated_at": "2026-10-05T12:00:00+00:00",
+  "updated_at": "<UTC timestamp, for example 2026-10-28T12:00:00+00:00>",
   "incidents": [
     {
-      "id": "smtp-2026-10-05",
+      "id": "smtp-delay-<date>",
       "title": "Задержки почты",
       "status": "investigating",
-      "started_at": "2026-10-05T11:00:00+00:00",
+      "started_at": "<UTC timestamp>",
       "message": "Письма с напоминаниями могут приходить с задержкой."
     }
   ]
