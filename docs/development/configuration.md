@@ -42,6 +42,8 @@ Compose передаёт `backend/.env` сервисам через `env_file` �
 | `DB_PASSWORD` | `postgres` | Секрет runtime-роли |
 | `MIGRATION_DB_USER` | unset | Роль Alembic/bootstrap; обязательна для production migrations |
 | `MIGRATION_DB_PASSWORD` | unset | Секрет Alembic/bootstrap; не передаётся контейнерам API/worker |
+| `POSTGRES_EXPORTER_USER` | `landlords_metrics` | Отдельная read-only роль exporter; только `CONNECT` и членство `pg_monitor` |
+| `POSTGRES_EXPORTER_PASSWORD_FILE` | unset | Host-only path к password file exporter; Compose монтирует файл только в bootstrap и postgres exporter |
 | `DB_NAME` | `landlords_db` | database |
 | `DB_POOL_SIZE` | `20` | постоянные connections на process |
 | `DB_MAX_OVERFLOW` | `40` | дополнительные connections |
@@ -101,11 +103,11 @@ Compose не публикует Redis port на host. Для local Python исп
 credentials; изолированный тестовый стек на `127.0.0.1:6380` работает без ACL.
 
 Compose использует Redis 7 ACL file и отдельные host-only password files для
-API, worker, beat, outbox-relay и Flower. Файл ACL хранит только SHA-256
+API, worker, beat, outbox-relay, Flower и Redis exporter. Файл ACL хранит только SHA-256
 password hashes; raw passwords доступны приложению через read-only Docker
 secrets. Переменные `REDIS_ACL_FILE`, `REDIS_API_PASSWORD_FILE`,
-`REDIS_WORKER_PASSWORD_FILE` и `REDIS_FLOWER_PASSWORD_FILE` задают host paths
-в корневом `.env`.
+`REDIS_WORKER_PASSWORD_FILE`, `REDIS_FLOWER_PASSWORD_FILE` и
+`REDIS_EXPORTER_PASSWORD_FILE` задают host paths в корневом `.env`.
 
 Создайте password files с правами `0600`, сгенерируйте независимые случайные
 пароли и поместите их SHA-256 hashes в ACL file. Не копируйте секреты в
@@ -118,8 +120,9 @@ secrets. Переменные `REDIS_ACL_FILE`, `REDIS_API_PASSWORD_FILE`,
 Redis ACL pattern для `PSUBSCRIBE` должен совпадать с переданным channel pattern.
 При изменении `REDIS_KEY_PREFIX` передайте то же значение provision-скрипту через
 `--key-prefix` или переменную окружения;
-`landlords_health`
-имеет пустой пароль, key/channel access закрыт, разрешён только `PING`;
+`landlords_exporter` имеет отдельный пароль и ограниченный набор команд сбора
+метрик; доступ к ключам ограничен `landlords:*`, команды записи не выдаются.
+`landlords_health` имеет пустой пароль, key/channel access закрыт, разрешён только `PING`;
 `default` выключен. Production требует username и читаемый password file. Для локальной
 изолированной конфигурации вне production можно оставить credentials пустыми,
 если локальный Redis запущен без ACL.
@@ -132,10 +135,31 @@ python -m app.scripts.provision_redis_acl --output-dir ../secrets/redis
 cd ..
 ```
 
-Команда создаёт независимые credentials и hash-only ACL file без вывода
-паролей. Она откажется перезаписывать существующие secret files. Для обновления
+Команда создаёт независимые credentials, в том числе для Redis exporter, и
+hash-only ACL file без вывода паролей. Она откажется перезаписывать существующие
+secret files. Для обновления
 правил ACL без ротации паролей используйте `--refresh-acl`; не запускайте это
 во время подключения работающих сервисов без согласованного окна обслуживания.
+
+## Мониторинг
+
+Compose запускает Prometheus, Grafana, Alertmanager, node exporter, PostgreSQL
+exporter и Redis exporter во внутренней сети `app-network`. Prometheus хранит
+данные не дольше 15 дней и ограничивает TSDB размером 4 GB. Grafana публикует
+только `127.0.0.1:3000`; остальные endpoints наружу не публикуются. Grafana
+читает admin password из secret file, datasource Prometheus задаётся при запуске.
+Exporter роли не имеют доступа к строкам приложения; PostgreSQL роль состоит в
+`pg_monitor`, Redis ACL ограничена командами exporter и ключами с префиксом
+`landlords:`.
+
+Root `.env` задаёт host paths `POSTGRES_EXPORTER_PASSWORD_FILE`,
+`REDIS_EXPORTER_PASSWORD_FILE` и `GRAFANA_ADMIN_PASSWORD_FILE`. Пароли хранятся
+только в подкаталогах `secrets/` с правами `0700`, которые недоступны другим
+host users. Compose file-backed secrets сохраняют mode исходного файла; поэтому
+для чтения непривилегированными UID файл имеет mode `0644` внутри закрытого
+каталога. Redis exporter password и его JSON password map генерируются вместе с
+остальными Redis secret files; остальные два файла создаются вручную. Compose
+монтирует их только соответствующим сервисам.
 
 ## Email
 
