@@ -19,13 +19,17 @@ Unit/services/domain tests в основном используют mocks и н�
 services. Task tests проверяют Celery use cases/lock. Integration fixtures:
 
 1. подключаются к изолированному PostgreSQL через `MIGRATION_DB_*`;
-2. удаляют и создают `landlords_test` и подготавливают runtime role с DML grants;
+2. удаляют и создают `landlords_test`, подготавливают runtime role с DML grants
+   и отдельную `landlords_rls_resolver` роль;
 3. применяют Alembic `head` роль миграций;
 4. подменяют FastAPI `get_db_session` на engine рабочую роль;
 5. после suite удаляют test database.
 
 Следствие: integration suite требует migration role с правами create/drop database
-и create role; рабочая роль не должна владеть базой или таблицами.
+и create role. Чтобы подготовить resolver-role с `BYPASSRLS`, migration admin
+должен быть superuser; сама resolver-role не имеет login и получает только
+column-level grants, а runtime role не состоит в ней. Рабочая роль не должна
+владеть базой или таблицами.
 Она также ожидает Redis для тестируемых путей, хотя не каждый test обращается к
 нему. Fixtures регистрируют test user через `/v1/auth/register`, поэтому
 `ALLOW_PUBLIC_REGISTRATION` должен быть `true`: скопированный `.env.example`
