@@ -45,7 +45,6 @@ Tailwind CSS 4.
 - [Денежный поток и правила ledger](docs/money-flow.md)
 - [Договоры и платежи](docs/use-cases-contracts-payments.md)
 - [Роли и доступ](docs/multi-user-roles.md)
-- [Оплата Pro](docs/billing.md)
 
 ## Разработка
 
