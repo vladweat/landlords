@@ -73,6 +73,19 @@ docker compose -f docker-compose.test.yml down
 создаёт базу `landlords_test`. Пароль тестового PostgreSQL можно переопределить
 через `TEST_DB_PASSWORD` и `MIGRATION_DB_PASSWORD`; `DB_PASSWORD` задаёт отдельного пользователя приложения.
 
+## Проверка ingress rate limits
+
+После сборки локальных образов `landlords-nginx`, `landlords-api` и `caddy:2`
+запустите из корня репозитория:
+
+```bash
+deploy/test-rate-limits.sh
+```
+
+Скрипт создаёт временную Docker-сеть и mock API, проверяет лимиты через Caddy и
+nginx, затем удаляет свои контейнеры и сеть. Он не использует обычный Compose
+volume и не обращается к рабочей БД.
+
 ## Frontend
 
 CI использует Node 22:

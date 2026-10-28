@@ -39,16 +39,22 @@ docker compose build --pull=false nginx
 ## Первый запуск
 
 ```bash
-# На публичной VPS используй production overlay: он добавляет Caddy и
-# привязывает nginx к localhost:8080. DNS из deploy/Caddyfile должен указывать
-# на сервер, входящие порты 80 и 443 должны быть доступны.
+# На публичной VPS используй production overlay: Caddy публикует порты 80/443,
+# nginx остаётся только во внутренней Compose-сети. DNS из deploy/Caddyfile
+# должен указывать на сервер.
 docker compose -f docker-compose.yml -f docker-compose.production.yml up -d --build
 
-# проверка локального nginx origin из хоста
-curl -sf http://127.0.0.1:8080/ready
+# проверка nginx изнутри его контейнера
+docker compose -f docker-compose.yml -f docker-compose.production.yml exec nginx curl -sf http://localhost/ready
 # проверка публичного маршрута после настройки DNS и получения сертификата
 curl -sf https://landlords.wvzl.site/ready
 ```
+
+Перед применением ingress-конфигурации smoke test
+`deploy/test-rate-limits.sh` поднимает временную Docker-сеть с mock API, nginx и
+Caddy. Он проверяет разные client IP, поддельный `X-Forwarded-For`, JSON `429`,
+неограниченные health/status пути и отсутствие capability-token paths в nginx
+logs; после завершения удаляет только созданные им контейнеры и сеть.
 
 Перед изменением существующей БД создай и проверь backup. Первый запуск выполняет
 one-shot `db-role-bootstrap`, затем `db-migrate`; API и Celery используют
@@ -90,19 +96,42 @@ docker compose exec api python -m app.cli seed-demo
 `nginx/nginx.conf` слушает только HTTP port 80. Для публичного topology в
 репозитории есть `docker-compose.production.yml`: он запускает Caddy с
 `deploy/Caddyfile`, где настроены `landlords.wvzl.site`, HTTPS, redirect и HSTS;
-nginx доступен Caddy через `127.0.0.1:8080`. Для другого домена измени site
-address в Caddyfile. Перед публичным доступом проверь DNS и доступность входящих
-портов 80/443, затем:
+nginx не публикует host port и доступен Caddy по DNS имени сервиса во внутренней
+сети. Caddy имеет фиксированный адрес `172.18.0.10`. Перед запуском проверь,
+что Docker subnet `172.18.0.0/16` свободен; динамические адреса пула
+резервируются в `172.18.128.0/17`. Для другого домена измени site address в
+Caddyfile. Перед публичным доступом проверь DNS и доступность входящих портов
+80/443, затем:
 
 - принимает только HTTPS, перенаправляет HTTP на HTTPS и включает HSTS после
   проверки домена/сертификата;
-- передаёт запросы на локальный nginx origin, не публикуя origin в Internet;
+- передаёт запросы nginx только через внутреннюю Compose-сеть, не публикуя origin;
+- nginx принимает forwarded client IP только от фиксированного Caddy peer;
+  не добавляй в `set_real_ip_from` всю Docker-подсеть или публичные диапазоны;
+- nginx ограничивает auth, регистрацию, принятие приглашений, публичные claims и
+  создание напоминаний; публичный клиент не может выбрать IP лимитера через
+  собственный `X-Forwarded-For`;
 - задаёт `FRONTEND_URL` ровно публичному HTTPS origin, используемому браузером;
 - исключает capability URL и query tokens из access logs, analytics и tracing.
 
 В production `APP_ENV=production` устанавливает Secure cookie независимо от
 внутренней схемы HTTP между ingress и Compose. Локальный override сохраняет
 HTTP-порты для разработки; не запускай его на публичном сервере.
+
+### Проверка и откат ingress changes
+
+Перед запуском новой конфигурации проверь Compose overlay, Caddyfile и nginx:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.production.yml config --quiet
+docker run --rm -v "$PWD/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2 caddy validate --config /etc/caddy/Caddyfile
+deploy/test-rate-limits.sh
+```
+
+Изменения доверенного proxy IP и nginx rate zones выпускай вместе. Если smoke
+test не проходит, верни предыдущие `deploy/Caddyfile`, `nginx/nginx.conf` и
+Compose overlay одним релизом; не оставляй nginx доверять адресу, которого
+Caddy больше не использует, и не расширяй `set_real_ip_from` для обхода ошибки.
 
 ## Резервные копии
 
