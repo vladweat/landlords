@@ -56,6 +56,15 @@ Bootstrap дополнительно создаёт отдельную `landlord
 PostgreSQL superuser. Новых секретов для resolver-роли нет.
 При нескольких API/worker processes учитывайте pool на каждый process.
 
+## Ingress и Docker network
+
+Production overlay подключает Caddy к `app-network` по адресу `172.18.0.10`;
+nginx доступен только внутри сети, а host ports 80/443 публикует Caddy. Для
+`app-network` зарезервированы subnet `172.18.0.0/16`, gateway `172.18.0.1` и
+динамический IP range `172.18.128.0/17`. Перед первым запуском проверь, что этот
+subnet не используется другим Docker network на сервере. Nginx доверяет
+forwarded client IP только от статического адреса Caddy.
+
 ## Redis и Celery
 
 | Переменная | Default | Назначение |
