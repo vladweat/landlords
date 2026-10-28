@@ -61,8 +61,10 @@ jobs:
     env:
       DB_HOST: localhost
       DB_PORT: "5432"
-      DB_USER: postgres
-      DB_PASSWORD: postgres
+      DB_USER: landlords_runtime
+      DB_PASSWORD: runtime-test-secret
+      MIGRATION_DB_USER: postgres
+      MIGRATION_DB_PASSWORD: postgres
       DB_NAME: landlords_db
       REDIS_HOST: localhost
       REDIS_PORT: "6379"

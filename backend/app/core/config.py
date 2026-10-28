@@ -1,11 +1,10 @@
-from typing import Literal
+import os
 from pathlib import Path
+from typing import Literal
 from urllib.parse import quote
 
-from pydantic import field_validator
-from pydantic import SecretStr
+from pydantic import SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
 
 
 class Settings(BaseSettings):
@@ -107,6 +106,8 @@ class Settings(BaseSettings):
     DB_PORT: int = 5432
     DB_USER: str = "postgres"
     DB_PASSWORD: str = "postgres"
+    MIGRATION_DB_USER: str | None = None
+    MIGRATION_DB_PASSWORD: SecretStr | None = None
     DB_NAME: str = "landlords_db"
     DB_POOL_SIZE: int = 20
     DB_MAX_OVERFLOW: int = 40
@@ -114,12 +115,41 @@ class Settings(BaseSettings):
     DB_ECHO: bool = False  # SQL-логирование (только для разработки)
     
     
-    @property
-    def DATABASE_URL(self) -> str:
+    def _database_url(self, user: str, password: str) -> str:
         return (
-            f"postgresql+psycopg2://{self.DB_USER}:{self.DB_PASSWORD}"
+            f"postgresql+psycopg2://{quote(user, safe='')}:{quote(password, safe='')}"
             f"@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
         )
+
+    @property
+    def DATABASE_URL(self) -> str:
+        """Подключение с минимальными runtime правами."""
+        return self._database_url(self.DB_USER, self.DB_PASSWORD)
+
+    @property
+    def MIGRATION_DATABASE_URL(self) -> str:
+        """Подключение для Alembic и одноразового DB role bootstrap."""
+        user = self.MIGRATION_DB_USER
+        password = (
+            self.MIGRATION_DB_PASSWORD.get_secret_value()
+            if self.MIGRATION_DB_PASSWORD is not None
+            else None
+        )
+        if bool(user) != bool(password):
+            raise RuntimeError(
+                "MIGRATION_DB_USER and MIGRATION_DB_PASSWORD must be set together."
+            )
+        if not user or not password:
+            if self.APP_ENV == "production":
+                raise RuntimeError(
+                    "MIGRATION_DB_USER and MIGRATION_DB_PASSWORD are required for production migrations."
+                )
+            return self.DATABASE_URL
+        if self.APP_ENV == "production" and user == self.DB_USER:
+            raise RuntimeError(
+                "MIGRATION_DB_USER must differ from DB_USER in production."
+            )
+        return self._database_url(user, password)
     
     # ==================== Redis ====================
     
@@ -183,6 +213,9 @@ settings = Settings()
 def _validate_production_settings(config: Settings) -> None:
     """Проверить обязательные настройки production при старте приложения."""
     if config.APP_ENV != "production":
+        return
+    if os.getenv("RUN_MIGRATIONS") == "1":
+        _ = config.MIGRATION_DATABASE_URL
         return
     if not config.SECRET_KEY or config.SECRET_KEY == "change-me-in-production-change-me":
         raise RuntimeError(

@@ -38,15 +38,17 @@ Compose передаёт `backend/.env` сервисам через `env_file` �
 |---|---:|---|
 | `DB_HOST` | `localhost` | hostname |
 | `DB_PORT` | `5432` | integer |
-| `DB_USER` | `postgres` | username |
-| `DB_PASSWORD` | `postgres` | secret |
+| `DB_USER` | `postgres` | Runtime role; в production должна отличаться от `MIGRATION_DB_USER` |
+| `DB_PASSWORD` | `postgres` | Секрет runtime-роли |
+| `MIGRATION_DB_USER` | unset | Роль Alembic/bootstrap; обязательна для production migrations |
+| `MIGRATION_DB_PASSWORD` | unset | Секрет Alembic/bootstrap; не передаётся контейнерам API/worker |
 | `DB_NAME` | `landlords_db` | database |
 | `DB_POOL_SIZE` | `20` | постоянные connections на process |
 | `DB_MAX_OVERFLOW` | `40` | дополнительные connections |
 | `DB_POOL_PRE_PING` | `true` | проверка connection перед выдачей |
 | `DB_ECHO` | `false` | SQL logging; не включать без необходимости |
 
-`DATABASE_URL` вычисляется, отдельная переменная `DATABASE_URL` не читается.
+`DATABASE_URL` вычисляется для runtime-роли; `MIGRATION_DATABASE_URL` — для Alembic/bootstrap. В development при отсутствии migration credentials Alembic использует runtime connection. В production обе переменные migration-роли обязательны и должны отличаться от runtime-роли.
 При нескольких API/worker processes учитывайте pool на каждый process.
 
 ## Redis и Celery
@@ -168,8 +170,8 @@ SMTP_SSL с проверкой сертификата; для `starttls` сер�
 | Переменная | Компонент | Назначение |
 |---|---|---|
 | `INSTALL_MODE` | Docker build | `offline` копирует `.venv`; `online` запускает pip |
-| `RUN_MIGRATIONS` | entrypoint | при `1` выполняет `alembic upgrade head` |
-| `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` | official Postgres image | задаются из `${DB_*}` Compose |
+| `RUN_MIGRATIONS` | entrypoint | при `1` выполняет `alembic upgrade head`; в production требует отдельные `MIGRATION_DB_*` |
+| `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` | official Postgres image | задаются из `${MIGRATION_DB_*}` и `${DB_NAME}` Compose |
 
 ## Безопасный production minimum
 
