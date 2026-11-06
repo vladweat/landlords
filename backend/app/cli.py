@@ -126,7 +126,7 @@ def cmd_seed(args: argparse.Namespace) -> int:
 
 
 def cmd_seed_demo(args: argparse.Namespace) -> int:
-    """Создать showcase-демо: пользователь + объекты, договоры, платежи, расходы."""
+    """Создать showcase-демо только в APP_ENV=demo / DB_NAME=landlords_demo."""
     return run_seed_demo(
         email=args.email,
         password=args.password,
@@ -152,7 +152,9 @@ def main(argv: list[str] | None = None) -> int:
 
     seed_demo = sub.add_parser(
         "seed-demo",
-        help="Showcase-демо для портфолио (объекты, договоры, платежи, расходы)",
+        help=(
+            "Synthetic showcase (only APP_ENV=demo and DB_NAME=landlords_demo)"
+        ),
     )
     seed_demo.add_argument("--email", default=DEFAULT_DEMO_EMAIL)
     seed_demo.add_argument("--password", default=DEFAULT_DEMO_PASSWORD)

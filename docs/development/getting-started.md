@@ -59,13 +59,11 @@ npm build внутри образа.
 
 ## Bootstrap данных
 
-При `ALLOW_PUBLIC_REGISTRATION=false`:
-
-```bash
-docker compose exec api python -m app.cli seed-demo
-```
-
-Команда создаёт showcase account. Список CLI-команд:
+Не запускайте `seed-demo` в обычном development Compose stack: фиксированные
+credentials и синтетические записи разрешены только в изолированной среде
+`APP_ENV=demo`, `DB_NAME=landlords_demo`. Воспроизводимый showcase и reset
+описаны в [runbook деплоя](../deploy.md#локальный-synthetic-showcase). Список
+CLI-команд можно посмотреть безопасно:
 
 Публичную регистрацию локального приложения можно включить настройкой
 `ALLOW_PUBLIC_REGISTRATION=true` в `backend/.env`.

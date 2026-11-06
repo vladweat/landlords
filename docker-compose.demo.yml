@@ -1,0 +1,129 @@
+name: landlords-demo
+
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: demo_owner
+      POSTGRES_PASSWORD: demo-owner-local-only
+      POSTGRES_DB: landlords_demo
+    volumes:
+      - demo_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U demo_owner -d landlords_demo"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      - demo-sandbox
+
+  redis:
+    image: redis:7
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      - demo-sandbox
+
+  db-role-bootstrap:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.demo
+    command: ["python", "-m", "app.scripts.provision_runtime_db_role"]
+    environment:
+      APP_ENV: development
+      DB_HOST: postgres
+      DB_NAME: landlords_demo
+      DB_USER: landlords_runtime
+      DB_PASSWORD: demo-runtime-local-only
+      MIGRATION_DB_USER: demo_owner
+      MIGRATION_DB_PASSWORD: demo-owner-local-only
+      POSTGRES_EXPORTER_PASSWORD_FILE: ""
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - demo-sandbox
+
+  db-migrate:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.demo
+    command: ["true"]
+    environment:
+      APP_ENV: development
+      DB_HOST: postgres
+      DB_NAME: landlords_demo
+      DB_USER: landlords_runtime
+      DB_PASSWORD: demo-runtime-local-only
+      MIGRATION_DB_USER: demo_owner
+      MIGRATION_DB_PASSWORD: demo-owner-local-only
+      RUN_MIGRATIONS: "1"
+    depends_on:
+      db-role-bootstrap:
+        condition: service_completed_successfully
+    restart: "no"
+    networks:
+      - demo-sandbox
+
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.demo
+    environment:
+      APP_ENV: demo
+      APP_NAME: Landlords Synthetic Demo
+      DEBUG: "true"
+      LOG_LEVEL: INFO
+      SECRET_KEY: local-demo-only-not-a-secret
+      ALLOW_PUBLIC_REGISTRATION: "false"
+      FRONTEND_URL: http://127.0.0.1:8001
+      SENTRY_DSN: ""
+      SMTP_HOST: ""
+      RESEND_API_KEY: ""
+      YOOKASSA_SHOP_ID: ""
+      YOOKASSA_SECRET_KEY: ""
+      YOOKASSA_RETURN_URL: ""
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: landlords_demo
+      DB_USER: landlords_runtime
+      DB_PASSWORD: demo-runtime-local-only
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+    volumes:
+      - demo_documents:/app/storage/documents
+      - demo_emails:/app/storage/emails
+      - demo_status:/app/storage/status
+    ports:
+      - "127.0.0.1:8001:8000"
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - demo-sandbox
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/ready')\""]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
+volumes:
+  demo_postgres_data:
+  demo_documents:
+  demo_emails:
+  demo_status:
+
+networks:
+  demo-sandbox:
+    internal: true

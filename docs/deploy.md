@@ -80,16 +80,49 @@ API/worker подключились runtime-ролью. Не удаляй migrat
 число экземпляров: текущие `DB_POOL_SIZE=20` и `DB_MAX_OVERFLOW=40` дают до 60
 соединений на process при `max_connections=100`.
 
-Создать демо-данные:
+## Локальный synthetic showcase
+
+`seed-demo` содержит фиксированные synthetic credentials
+`demo@example.com / ChangeMeDemo1!`. Команда отказывает до подключения к БД,
+если `APP_ENV` не равен `demo` или `DB_NAME` не равен `landlords_demo`. Не
+запускай её в обычной development/production Compose-среде.
+
+Из корня репозитория подними отдельный стек. Он использует Compose project
+`landlords-demo`, собственные PostgreSQL и storage volumes, отдельную internal
+network без внешнего выхода, публикует API только на loopback и не монтирует
+`storage/documents` или `backend/.env`. В нём нет Celery workers, а provider и
+email credentials пусты.
 
 ```bash
-docker compose exec api python -m app.cli seed-demo
-# дефолт: demo@example.com / ChangeMeDemo1!
+docker compose --project-name landlords-demo -f docker-compose.demo.yml up -d --build
+docker compose --project-name landlords-demo -f docker-compose.demo.yml exec api \
+  python -m app.cli seed-demo
 ```
 
-Создаёт пользователя (если нет) и богатые демо-данные. Идемпотентно. Публичный
-`POST /v1/auth/register` (через nginx — `/api/v1/auth/register`) при
-`ALLOW_PUBLIC_REGISTRATION=false` закрыт; CLI от флага не зависит.
+Для доступа открой `http://127.0.0.1:8001/docs`, выполни `POST /v1/auth/login`
+с указанными credentials и просмотри `GET /v1/properties`, `GET /v1/tenants`,
+`GET /v1/contracts` и `GET /v1/contracts/{contract_id}/ledger`. Публичная
+регистрация в demo выключена; CLI создаёт только synthetic demo account внутри
+этой БД. YooKassa checkout и внешняя почта не настроены.
+
+Seed повторяем: повторный запуск не добавляет записи. Он создаёт property
+«Арбат, 15», tenant «Анна Смирнова», активный договор с месячной арендой
+75 000 RUB, rent charges и ручную частичную оплату 37 500 RUB. Открой ledger
+этого договора, чтобы увидеть начисления, payment и остаток. Все данные
+искусственные; demo documents volume изначально пуст.
+
+Остановить стек, сохранив данные:
+
+```bash
+docker compose --project-name landlords-demo -f docker-compose.demo.yml down
+```
+
+Сбросить только demo containers и их volumes (операция удаляет synthetic DB и
+demo storage; перед запуском проверь project name):
+
+```bash
+deploy/reset-demo.sh --confirm
+```
 
 ## TLS
 
@@ -335,4 +368,7 @@ docker compose exec -T api python -c \
 - [ ] SMTP/Resend provider настроен; production SMTP работает через STARTTLS или implicit TLS
 - [ ] `SENTRY_DSN` и `SUPPORT_EMAIL`
 - [ ] `storage/status/incidents.json` на месте
-- [ ] Демо-пароль не оставлять дефолтным на публичном хосте
+- [ ] Не запускать synthetic `seed-demo` в production; production CLI guard должен отклонять вызов
+- [ ] Перед публикацией обновлённой landing page отключить или сменить пароль
+  ранее опубликованного demo-аккаунта, если он существует; его production-состояние
+  нужно проверить отдельно

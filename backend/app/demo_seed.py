@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import sys
 from datetime import date, timedelta
 from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy import text
 
+from app.core.config import DEMO_DATABASE_NAME, settings
 from app.core.exceptions import ConflictError
 from app.db.repositories.account_repo import AccountRepository
 from app.db.repositories.auth_session_repo import AuthSessionRepository
@@ -47,6 +49,7 @@ DEFAULT_DEMO_EMAIL = "demo@example.com"
 DEFAULT_DEMO_PASSWORD = "ChangeMeDemo1!"
 DEFAULT_DEMO_FULL_NAME = "Демо Арендодатель"
 SEED_MARKER = "[seed-demo-2026]"
+DEMO_PARTIAL_PAYMENT_NOTE = "Демо: частичная оплата"
 
 
 def _sync_charge_statuses(charge_repo, payment_repo, account_id: UUID, charges) -> None:
@@ -274,19 +277,22 @@ def seed_showcase_data(
                 note="Оплата вовремя",
             ),
         )
-    if len(past) >= 2:
-        ch = past[-2]
-        payment_service.create_payment(
-            account_id,
-            PaymentCreateDTO(
-                contract_id=c_active.id,
-                rent_charge_id=ch.id,
-                date_paid=ch.due_date + timedelta(days=2),
-                amount=(ch.amount / 2).quantize(Decimal("0.01")),
-                method="cash",
-                note="Частичная оплата",
-            ),
-        )
+    partial_charge = (
+        past[-2]
+        if len(past) >= 2
+        else min(charges_active, key=lambda charge: charge.due_date)
+    )
+    payment_service.create_payment(
+        account_id,
+        PaymentCreateDTO(
+            contract_id=c_active.id,
+            rent_charge_id=partial_charge.id,
+            date_paid=today,
+            amount=(partial_charge.amount / 2).quantize(Decimal("0.01")),
+            method="cash",
+            note=DEMO_PARTIAL_PAYMENT_NOTE,
+        ),
+    )
     _sync_charge_statuses(charge_repo, payment_repo, account_id, past)
 
     for ch in past[-2:]:
@@ -489,6 +495,14 @@ def run_seed_demo(
     full_name: str = DEFAULT_DEMO_FULL_NAME,
 ) -> int:
     """Создать демо-пользователя (если нет) и showcase-данные."""
+    if settings.APP_ENV != "demo" or settings.DB_NAME != DEMO_DATABASE_NAME:
+        print(
+            "error: seed-demo is allowed only with APP_ENV=demo and "
+            "DB_NAME=landlords_demo",
+            file=sys.stderr,
+        )
+        return 1
+
     session = SessionLocal()
     try:
         user, account_id = _ensure_user(

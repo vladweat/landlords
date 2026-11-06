@@ -1,6 +1,10 @@
 from types import SimpleNamespace
+from unittest.mock import Mock
 from uuid import uuid4
 
+import pytest
+
+from app.core.config import Settings, _validate_production_settings
 from app import demo_seed
 
 
@@ -96,3 +100,65 @@ def test_ensure_existing_user_sets_rls_context_before_membership_lookup(monkeypa
 
     assert user is existing_user
     assert resolved_account_id == account_id
+
+
+@pytest.mark.parametrize(
+    ("app_env", "db_name"),
+    [
+        ("development", "landlords_db"),
+        ("staging", "landlords_demo"),
+        ("production", "landlords_demo"),
+        ("demo", "landlords_db"),
+    ],
+)
+def test_seed_demo_rejects_non_demo_target_before_opening_database(
+    monkeypatch, app_env: str, db_name: str
+) -> None:
+    session_factory = Mock()
+    monkeypatch.setattr(
+        demo_seed, "settings", SimpleNamespace(APP_ENV=app_env, DB_NAME=db_name), raising=False
+    )
+    monkeypatch.setattr(demo_seed, "SessionLocal", session_factory)
+
+    result = demo_seed.run_seed_demo()
+
+    assert result == 1
+    session_factory.assert_not_called()
+
+
+def test_seed_demo_accepts_only_explicit_demo_target(monkeypatch) -> None:
+    session = Mock()
+    session_factory = Mock(return_value=session)
+    account_id = uuid4()
+    user = SimpleNamespace(id=uuid4())
+    monkeypatch.setattr(
+        demo_seed,
+        "settings",
+        SimpleNamespace(APP_ENV="demo", DB_NAME="landlords_demo"),
+        raising=False,
+    )
+    monkeypatch.setattr(demo_seed, "SessionLocal", session_factory)
+    monkeypatch.setattr(
+        demo_seed, "_ensure_user", lambda *args, **kwargs: (user, account_id)
+    )
+    monkeypatch.setattr(demo_seed, "seed_showcase_data", lambda *args, **kwargs: True)
+
+    result = demo_seed.run_seed_demo()
+
+    assert result == 0
+    session_factory.assert_called_once_with()
+    session.commit.assert_called_once_with()
+    session.close.assert_called_once_with()
+
+
+def test_demo_settings_reject_a_non_demo_database() -> None:
+    config = Settings(APP_ENV="demo", DB_NAME="landlords_db")
+
+    with pytest.raises(RuntimeError, match="DB_NAME=landlords_demo"):
+        _validate_production_settings(config)
+
+
+def test_demo_settings_accept_the_dedicated_database() -> None:
+    config = Settings(APP_ENV="demo", DB_NAME="landlords_demo")
+
+    _validate_production_settings(config)

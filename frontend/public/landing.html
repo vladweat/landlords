@@ -1554,26 +1554,36 @@
         <div class="container">
           <div class="demo-card">
             <div>
-              <p class="section-kicker">Демо-доступ</p>
-              <h2>Посмотрите, как Landlords устроен изнутри</h2>
+              <p class="section-kicker">Локальная демонстрация</p>
+              <h2>Запустите пример на синтетических данных</h2>
               <p class="demo-card-copy">
-                Откройте демонстрационный аккаунт с объектами, договорами и платежами.
-                Публичная регистрация закрыта, но демо можно посмотреть сразу.
+                Публичный демонстрационный аккаунт недоступен. Для просмотра объектов,
+                начислений, частичной оплаты и реестра по договору запустите локальную
+                изолированную demo-среду.
               </p>
-              <a class="button" href="/login">Перейти ко входу <span class="arrow" aria-hidden="true">↗</span></a>
+              <a
+                class="button"
+                href="https://github.com/vladweat/landlords/blob/main/docs/deploy.md"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Инструкция по запуску <span class="arrow" aria-hidden="true">↗</span>
+              </a>
             </div>
 
             <div class="demo-login-card">
-              <p class="demo-login-title">Данные демо-аккаунта</p>
+              <p class="demo-login-title">Демонстрационный сценарий</p>
               <div class="credential">
-                <span class="credential-label">Email</span>
-                <code>demo@example.com</code>
+                <span class="credential-label">Объект и арендатор</span>
+                <strong>Искусственные данные</strong>
               </div>
               <div class="credential">
-                <span class="credential-label">Пароль</span>
-                <code>ChangeMeDemo1!</code>
+                <span class="credential-label">Платёж</span>
+                <strong>Ручная частичная оплата</strong>
               </div>
-              <p class="contract-preview-foot">Это публичный демонстрационный аккаунт.</p>
+              <p class="contract-preview-foot">
+                Доступ по demo credentials есть только в локальной изолированной среде.
+              </p>
             </div>
           </div>
         </div>

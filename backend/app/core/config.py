@@ -6,6 +6,8 @@ from urllib.parse import quote
 from pydantic import SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+DEMO_DATABASE_NAME = "landlords_demo"
+
 
 class Settings(BaseSettings):
     """
@@ -25,7 +27,7 @@ class Settings(BaseSettings):
     
     APP_NAME: str = "FastAPI DDD Service"
     APP_VERSION: str = "0.1.0"
-    APP_ENV: Literal["development", "staging", "production"] = "development"
+    APP_ENV: Literal["development", "staging", "production", "demo"] = "development"
     DEBUG: bool = True
     # Публичный POST /v1/auth/register. Для портфолио/прода — false; CLI seed не зависит от флага.
     ALLOW_PUBLIC_REGISTRATION: bool = True
@@ -214,6 +216,8 @@ settings = Settings()
 
 def _validate_production_settings(config: Settings) -> None:
     """Проверить обязательные настройки production при старте приложения."""
+    if config.APP_ENV == "demo" and config.DB_NAME != DEMO_DATABASE_NAME:
+        raise RuntimeError("APP_ENV=demo requires DB_NAME=landlords_demo.")
     if config.APP_ENV != "production":
         return
     if os.getenv("RUN_MIGRATIONS") == "1":

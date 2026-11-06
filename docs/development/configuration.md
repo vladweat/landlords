@@ -18,7 +18,7 @@ Compose передаёт `backend/.env` сервисам через `env_file` �
 |---|---:|---|
 | `APP_NAME` | `FastAPI DDD Service` | Название OpenAPI |
 | `APP_VERSION` | `0.1.0` | Версия API/Sentry release |
-| `APP_ENV` | `development` | `development`, `staging` или `production` |
+| `APP_ENV` | `development` | `development`, `staging`, `production` или отдельный `demo` |
 | `DEBUG` | `true` | Включает Swagger, ReDoc и OpenAPI; dev override отдельно запускает uvicorn с reload |
 | `ALLOW_PUBLIC_REGISTRATION` | `true` | Разрешает `POST /v1/auth/register` |
 | `SECRET_KEY` | development placeholder | Подпись JWT; обязателен уникальный secret в production |
@@ -32,6 +32,14 @@ Compose передаёт `backend/.env` сервисам через `env_file` �
 уникальным случайным ключом вручную. Значения из `.env.example` — только
 локальные примеры.
 
+`APP_ENV=demo` зарезервирован для изолированного synthetic showcase и допускается
+только с `DB_NAME=landlords_demo`; при другом имени приложение откажется
+запускаться. CLI `seed-demo` дополнительно требует оба значения и откажется
+открывать DB session в default development, staging и production. Используйте
+только [`docker-compose.demo.yml`](../../docker-compose.demo.yml) и процедуру из
+[runbook деплоя](../deploy.md#локальный-synthetic-showcase). Обычный Compose и
+production volumes не переиспользуются.
+
 ## PostgreSQL
 
 | Переменная | Default | Формат/примечание |
@@ -44,7 +52,7 @@ Compose передаёт `backend/.env` сервисам через `env_file` �
 | `MIGRATION_DB_PASSWORD` | unset | Секрет Alembic/bootstrap; не передаётся контейнерам API/worker |
 | `POSTGRES_EXPORTER_USER` | `landlords_metrics` | Отдельная read-only роль exporter; только `CONNECT` и членство `pg_monitor` |
 | `POSTGRES_EXPORTER_PASSWORD_FILE` | unset | Host-only path к password file exporter; Compose монтирует файл только в bootstrap и postgres exporter |
-| `DB_NAME` | `landlords_db` | database |
+| `DB_NAME` | `landlords_db` | database; для `APP_ENV=demo` обязательно `landlords_demo` |
 | `DB_POOL_SIZE` | `20` | постоянные connections на process |
 | `DB_MAX_OVERFLOW` | `40` | дополнительные connections |
 | `DB_POOL_PRE_PING` | `true` | проверка connection перед выдачей |
@@ -198,6 +206,11 @@ SMTP_SSL с проверкой сертификата; для `starttls` сер�
 | `SENTRY_DSN` | unset | Sentry DSN; чувствительное значение |
 
 Если пара YooKassa credentials неполна, checkout считается выключенным.
+
+Demo Compose не передаёт YooKassa, SMTP, Resend или Sentry credentials, не
+запускает Celery workers и подключает сервисы к Docker network без внешнего
+egress. Поэтому demo показывает ручные synthetic платежи и ledger; checkout и
+отправка внешних писем недоступны.
 
 ## Storage, ops и logging
 
