@@ -33,6 +33,7 @@ TENANT_TABLES = {
     "invoices",
     "payment_claims",
     "payments",
+    "payment_idempotency_records",
     "reminders",
 }
 

@@ -14,6 +14,7 @@ from app.db.models.membership_model import MembershipModel
 from app.db.models.notification_dismissal_model import NotificationDismissalModel
 from app.db.models.outbox_message_model import OutboxMessageModel
 from app.db.models.payment_claim_model import PaymentClaimModel
+from app.db.models.payment_idempotency_model import PaymentIdempotencyRecordModel
 from app.db.models.payment_model import PaymentModel
 from app.db.models.property_expense_model import PropertyExpenseModel
 from app.db.models.property_model import PropertyModel
@@ -35,6 +36,7 @@ __all__ = [
     "RentChargeModel",
     "PaymentModel",
     "PaymentClaimModel",
+    "PaymentIdempotencyRecordModel",
     "PropertyExpenseModel",
     "AuditLogModel",
     "ReminderModel",

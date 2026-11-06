@@ -78,7 +78,7 @@ erDiagram
 | Аренда | `properties`, `tenants`, `contracts`, `contract_templates` | Объекты, арендаторы и договоры; токен портала хранится с двухчасовым сроком действия |
 | Финансы | `rent_charges`, `payments`, `property_expenses`, `invoices`, `payment_claims` | Начисления, платежи, расходы, публичные квитанции и заявки на оплату |
 | Документы | `documents` | Метаданные файлов; содержимое хранится на диске |
-| Операции | `reminders`, `email_dispatch_log`, `notification_dismissals`, `task_outbox` | Дедупликация, пользовательские состояния и долговременные команды фоновых задач |
+| Операции | `reminders`, `email_dispatch_log`, `notification_dismissals`, `task_outbox`, `payment_idempotency_records` | Дедупликация, пользовательские состояния и долговременные команды фоновых задач; snapshot ручных платежей |
 | Аудит | `contract_events`, `audit_logs` (с `account_id`), `feedback` | История событий и обратная связь |
 
 Для `account_memberships` заданы ограничения уникальности `(account_id, user_id)`
@@ -113,6 +113,7 @@ ORM и доменный слой используют `Decimal`; API долже�
 ## Транзакции и конкурентность
 
 - HTTP: `get_db_session` фиксирует или откатывает транзакцию всего запроса; до tenant-запросов устанавливается transaction-local RLS context.
+- Для `POST /v1/payments` reservation ключа, платежи, события договора и JSON snapshot ответа фиксируются в этой же HTTP-транзакции. Уникальность `(account_id, operation_scope, key)` сериализует повторные запросы; при одинаковом запросе возвращается сохранённый ответ, при другом — конфликт. TTL составляет 24 часа, просроченные записи аккаунта очищаются при следующем запросе с ключом.
 - Celery: задача создаёт `SessionLocal`, устанавливает tenant context и явно фиксирует или откатывает транзакцию.
 - Запись outbox для генерации начислений создаётся вместе с изменением из
   запроса; relay выбирает ограниченную пачку записей с временной арендой, но

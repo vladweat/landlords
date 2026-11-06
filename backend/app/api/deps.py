@@ -29,6 +29,7 @@ from app.db.repositories.notification_dismissal_repo import (
 )
 from app.db.repositories.outbox_message_repo import OutboxMessageRepository
 from app.db.repositories.payment_claim_repo import PaymentClaimRepository
+from app.db.repositories.payment_idempotency_repo import PaymentIdempotencyRepository
 from app.db.repositories.payment_repo import PaymentRepository
 from app.db.repositories.property_expense_repo import PropertyExpenseRepository
 from app.db.repositories.property_repo import PropertyRepository
@@ -66,6 +67,7 @@ from app.services.invoice_service import InvoiceService
 from app.services.ledger_service import LedgerService
 from app.services.notification_service import NotificationService
 from app.services.payment_service import PaymentService
+from app.services.payment_idempotency_service import PaymentIdempotencyService
 from app.services.pdf_service import PdfService
 from app.services.plan_limit_service import PlanLimitService
 from app.services.property_expense_service import PropertyExpenseService
@@ -132,6 +134,12 @@ def get_rent_charge_repo(session: Session = Depends(get_db_session, scope="funct
 
 def get_payment_repo(session: Session = Depends(get_db_session, scope="function")) -> PaymentRepository:
     return PaymentRepository(session)
+
+
+def get_payment_idempotency_repo(
+    session: Session = Depends(get_db_session, scope="function"),
+) -> PaymentIdempotencyRepository:
+    return PaymentIdempotencyRepository(session)
 
 def get_property_expense_repo(
     session: Session = Depends(get_db_session, scope="function"),
@@ -373,6 +381,12 @@ def get_payment_service(
     event_repo: ContractEventRepository = Depends(get_contract_event_repo),
 ) -> PaymentService:
     return PaymentService(payment_repo, contract_repo, charge_repo, event_repo)
+
+
+def get_payment_idempotency_service(
+    repository: PaymentIdempotencyRepository = Depends(get_payment_idempotency_repo),
+) -> PaymentIdempotencyService:
+    return PaymentIdempotencyService(repository)
 
 def get_property_expense_service(
     expense_repo: PropertyExpenseRepository = Depends(get_property_expense_repo),
