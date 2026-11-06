@@ -15,7 +15,11 @@ from app.db.models.notification_dismissal_model import NotificationDismissalMode
 from app.db.models.outbox_message_model import OutboxMessageModel
 from app.db.models.payment_claim_model import PaymentClaimModel
 from app.db.models.payment_idempotency_model import PaymentIdempotencyRecordModel
+from app.db.models.payment_allocation_target_model import PaymentAllocationTargetModel
+from app.db.models.payment_allocation_event_model import PaymentAllocationEventModel
 from app.db.models.payment_model import PaymentModel
+from app.db.models.payment_receipt_event_model import PaymentReceiptEventModel
+from app.db.models.payment_receipt_model import PaymentReceiptModel
 from app.db.models.property_expense_model import PropertyExpenseModel
 from app.db.models.property_model import PropertyModel
 from app.db.models.reminder_model import ReminderModel
@@ -35,6 +39,10 @@ __all__ = [
     "ContractModel",
     "RentChargeModel",
     "PaymentModel",
+    "PaymentReceiptModel",
+    "PaymentReceiptEventModel",
+    "PaymentAllocationTargetModel",
+    "PaymentAllocationEventModel",
     "PaymentClaimModel",
     "PaymentIdempotencyRecordModel",
     "PropertyExpenseModel",

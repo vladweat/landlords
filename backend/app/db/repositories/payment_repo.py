@@ -11,7 +11,17 @@ from app.api.pagination import paginate
 from app.domain.pagination import PaginatedResult
 
 from app.db.models.payment_model import PaymentModel
-from app.domain.entities import PaymentEntity
+from app.db.models.payment_allocation_event_model import PaymentAllocationEventModel
+from app.db.models.payment_allocation_target_model import PaymentAllocationTargetModel
+from app.db.models.payment_receipt_event_model import PaymentReceiptEventModel
+from app.db.models.payment_receipt_model import PaymentReceiptModel
+from app.db.models.rent_charge_model import RentChargeModel
+from app.domain.entities import (
+    PaymentAllocationEventEntity,
+    PaymentEntity,
+    PaymentReceiptEntity,
+    PaymentReceiptEventEntity,
+)
 from app.domain.interfaces import IPaymentRepository
 
 
@@ -159,6 +169,55 @@ class PaymentRepository(IPaymentRepository):
         self.session.flush()
         return model.to_entity()
 
+    def create_receipt(self, entity: PaymentReceiptEntity) -> None:
+        """Добавить исходный immutable receipt в текущую транзакцию."""
+        self.session.add(PaymentReceiptModel.from_entity(entity))
+        self.session.flush()
+
+    def create_receipt_event(self, entity: PaymentReceiptEventEntity) -> None:
+        """Добавить корректировку или отмену receipt."""
+        self.session.add(PaymentReceiptEventModel.from_entity(entity))
+        self.session.flush()
+
+    def create_allocation_event(self, entity: PaymentAllocationEventEntity) -> None:
+        """Добавить allocation или signed reversal в текущую транзакцию."""
+        target = (
+            self.session.query(PaymentAllocationTargetModel)
+            .filter_by(
+                id=entity.rent_charge_id,
+                account_id=entity.account_id,
+                contract_id=entity.contract_id,
+            )
+            .first()
+        )
+        if target is None:
+            charge = (
+                self.session.query(RentChargeModel)
+                .filter_by(
+                    id=entity.rent_charge_id,
+                    account_id=entity.account_id,
+                    contract_id=entity.contract_id,
+                )
+                .first()
+            )
+            if charge is None:
+                raise ValueError("Allocation target charge not found")
+            target = PaymentAllocationTargetModel(
+                id=charge.id,
+                account_id=charge.account_id,
+                contract_id=charge.contract_id,
+                due_date=charge.due_date,
+                period_start=charge.period_start,
+                period_end=charge.period_end,
+                original_amount=charge.amount,
+                currency=charge.currency,
+                created_at=charge.created_at,
+            )
+            self.session.add(target)
+            self.session.flush()
+        self.session.add(PaymentAllocationEventModel.from_entity(entity))
+        self.session.flush()
+
     def update(self, entity: PaymentEntity) -> PaymentEntity:
         """Обновить платёж."""
         model = (
@@ -173,6 +232,8 @@ class PaymentRepository(IPaymentRepository):
         model.method = entity.method
         model.note = entity.note
         model.rent_charge_id = entity.rent_charge_id
+        model.receipt_id = entity.receipt_id
+        model.allocation_event_id = entity.allocation_event_id
         self.session.flush()
         return model.to_entity()
 

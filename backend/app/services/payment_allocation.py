@@ -3,7 +3,7 @@
 from decimal import Decimal
 from uuid import UUID, uuid4
 
-from app.domain.entities import PaymentEntity
+from app.domain.entities import PaymentAllocationEventEntity, PaymentEntity
 from app.domain.interfaces import IContractRepository, IPaymentRepository, IRentChargeRepository
 from app.domain.rules import compute_charge_status
 from app.services.contract_status import check_and_update_contract_status
@@ -61,6 +61,20 @@ def allocate_unlinked_payments(
 
             pay_amount = min(advance_left, charge_left)
             charge = charge_by_id[charge_id]
+            allocation_event_id = None
+            if advance.receipt_id is not None:
+                allocation_event_id = uuid4()
+                payment_repo.create_allocation_event(
+                    PaymentAllocationEventEntity(
+                        id=allocation_event_id,
+                        account_id=account_id,
+                        contract_id=contract_id,
+                        receipt_id=advance.receipt_id,
+                        rent_charge_id=charge_id,
+                        event_type="allocation",
+                        amount=pay_amount,
+                    )
+                )
             payment_repo.create(
                 PaymentEntity(
                     id=uuid4(),
@@ -72,6 +86,8 @@ def allocate_unlinked_payments(
                     currency=advance.currency,
                     method=advance.method,
                     note=advance.note,
+                    receipt_id=advance.receipt_id,
+                    allocation_event_id=allocation_event_id,
                 )
             )
             allocated_count += 1

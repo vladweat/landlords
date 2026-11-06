@@ -5,7 +5,12 @@ from decimal import Decimal
 from uuid import UUID, uuid4
 
 from app.core.exceptions import ConflictError, NotFoundError, ValidationError
-from app.domain.entities import ContractEntity, ContractEventEntity, RentChargeEntity
+from app.domain.entities import (
+    ContractEntity,
+    ContractEventEntity,
+    PaymentAllocationEventEntity,
+    RentChargeEntity,
+)
 from app.domain.interfaces import (
     IContractEventRepository,
     IContractRepository,
@@ -426,6 +431,20 @@ class ContractService:
         for charge_id in to_delete:
             # Платежи с future charges → аванс договора
             for payment in self.payment_repo.list_by_charge(charge_id, account_id):
+                if payment.receipt_id is not None and payment.allocation_event_id is not None:
+                    self.payment_repo.create_allocation_event(
+                        PaymentAllocationEventEntity(
+                            id=uuid4(),
+                            account_id=account_id,
+                            contract_id=contract_id,
+                            receipt_id=payment.receipt_id,
+                            rent_charge_id=charge_id,
+                            event_type="reversal",
+                            amount=-payment.amount,
+                            reverses_event_id=payment.allocation_event_id,
+                        )
+                    )
+                    payment.allocation_event_id = None
                 payment.rent_charge_id = None
                 self.payment_repo.update(payment)
             self.charge_repo.delete(charge_id, account_id)

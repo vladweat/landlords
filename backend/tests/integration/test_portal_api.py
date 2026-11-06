@@ -6,9 +6,11 @@ from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import text
 
 from app.db.models.contract_model import ContractModel
 from app.db.models.rent_charge_model import RentChargeModel
+from app.db.tenant_context import set_tenant_context
 from tests.integration.conftest import property_payload
 
 
@@ -187,6 +189,20 @@ class TestPortalApi:
         )
         assert confirm.status_code == 200
         assert confirm.json()["data"]["status"] == "confirmed"
+
+        account_id = _account_id(client, auth_headers)
+        set_tenant_context(db_session, account_id)
+        receipt_sources = db_session.execute(
+            text(
+                "SELECT source FROM payment_receipts "
+                "WHERE account_id = :account_id AND contract_id = :contract_id"
+            ),
+            {
+                "account_id": str(account_id),
+                "contract_id": contract_id,
+            },
+        ).scalars().all()
+        assert receipt_sources == ["tenant_claim"]
 
         ledger = client.get(
             f"/v1/contracts/{contract_id}/ledger",

@@ -137,6 +137,24 @@ def provision_runtime_role(database_name: str | None = None) -> None:
                 ).format(sql.Identifier(runtime))
             )
             cursor.execute(
+                "SELECT tablename FROM pg_tables "
+                "WHERE schemaname = 'public' AND tablename = ANY(%s)",
+                (
+                    [
+                        "payment_receipts",
+                        "payment_receipt_events",
+                        "payment_allocation_targets",
+                        "payment_allocation_events",
+                    ],
+                ),
+            )
+            for (table_name,) in cursor.fetchall():
+                cursor.execute(
+                    sql.SQL("REVOKE UPDATE, DELETE ON TABLE {} FROM {}").format(
+                        sql.Identifier(table_name), sql.Identifier(runtime)
+                    )
+                )
+            cursor.execute(
                 sql.SQL(
                     "GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO {}"
                 ).format(sql.Identifier(runtime))

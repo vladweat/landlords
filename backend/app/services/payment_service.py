@@ -2,9 +2,16 @@
 
 from uuid import UUID, uuid4
 from datetime import date
+from decimal import Decimal
 
 from app.core.exceptions import NotFoundError, ValidationError
-from app.domain.entities import PaymentEntity
+from app.domain.entities import (
+    ContractEventEntity,
+    PaymentAllocationEventEntity,
+    PaymentEntity,
+    PaymentReceiptEntity,
+    PaymentReceiptEventEntity,
+)
 from app.domain.interfaces import (
     IContractEventRepository,
     IContractRepository,
@@ -18,7 +25,6 @@ from app.services.dto.payment_dto import (
     PaymentUpdateDTO,
 )
 from app.domain.rules import compute_charge_status
-from app.domain.entities import ContractEventEntity
 from app.services.contract_event_labels import (
     format_money,
     payment_method_label,
@@ -46,11 +52,12 @@ class PaymentService:
         self,
         account_id: UUID,
         contract_id: UUID,
-        amount,
+        amount: Decimal,
         currency: str,
         method: str,
         note: str | None,
         payment_id: UUID,
+        receipt_id: UUID,
     ) -> None:
         """Записать событие платежа в таймлайн договора."""
         if not self.event_repo:
@@ -70,6 +77,97 @@ class PaymentService:
                     "payment_id": str(payment_id),
                     "amount": str(amount),
                 },
+                payment_receipt_id=receipt_id,
+            )
+        )
+
+    def _create_receipt(
+        self,
+        account_id: UUID,
+        dto: PaymentCreateDTO,
+        currency: str,
+        source: str,
+    ) -> UUID:
+        receipt_id = uuid4()
+        self.payment_repo.create_receipt(
+            PaymentReceiptEntity(
+                id=receipt_id,
+                account_id=account_id,
+                contract_id=dto.contract_id,
+                date_paid=dto.date_paid,
+                original_amount=dto.amount,
+                currency=currency,
+                method=dto.method,
+                source=source,
+                note=dto.note,
+            )
+        )
+        return receipt_id
+
+    def _create_allocation_event(
+        self,
+        *,
+        account_id: UUID,
+        contract_id: UUID,
+        receipt_id: UUID,
+        charge_id: UUID,
+        amount: Decimal,
+    ) -> UUID:
+        event_id = uuid4()
+        self.payment_repo.create_allocation_event(
+            PaymentAllocationEventEntity(
+                id=event_id,
+                account_id=account_id,
+                contract_id=contract_id,
+                receipt_id=receipt_id,
+                rent_charge_id=charge_id,
+                event_type="allocation",
+                amount=amount,
+            )
+        )
+        return event_id
+
+    def _record_receipt_adjustment(
+        self,
+        entity: PaymentEntity,
+        *,
+        event_type: str,
+        amount_delta: Decimal,
+    ) -> None:
+        if entity.receipt_id is None:
+            return
+        self.payment_repo.create_receipt_event(
+            PaymentReceiptEventEntity(
+                id=uuid4(),
+                account_id=entity.account_id,
+                contract_id=entity.contract_id,
+                receipt_id=entity.receipt_id,
+                event_type=event_type,
+                amount_delta=amount_delta,
+                resulting_date_paid=entity.date_paid,
+                resulting_method=entity.method,
+                resulting_note=entity.note,
+            )
+        )
+
+    def _reverse_allocation(
+        self, entity: PaymentEntity, *, amount: Decimal | None = None
+    ) -> None:
+        if entity.receipt_id is None or entity.allocation_event_id is None:
+            return
+        if entity.rent_charge_id is None:
+            raise ValueError("An advance payment cannot reference an allocation event")
+        reversal_amount = entity.amount if amount is None else amount
+        self.payment_repo.create_allocation_event(
+            PaymentAllocationEventEntity(
+                id=uuid4(),
+                account_id=entity.account_id,
+                contract_id=entity.contract_id,
+                receipt_id=entity.receipt_id,
+                rent_charge_id=entity.rent_charge_id,
+                event_type="reversal",
+                amount=-reversal_amount,
+                reverses_event_id=entity.allocation_event_id,
             )
         )
     def list_payments(
@@ -100,7 +198,7 @@ class PaymentService:
         return [PaymentDTO.model_validate(e) for e in entities]
 
     def create_payment(
-        self, account_id: UUID, dto: PaymentCreateDTO
+        self, account_id: UUID, dto: PaymentCreateDTO, *, source: str = "manual"
     ) -> PaymentCreateResultDTO:
         """Создать платёж с автоматическим распределением по charges."""
         contract = self.contract_repo.get_by_id_for_update(dto.contract_id, account_id)
@@ -111,9 +209,9 @@ class PaymentService:
             raise ValidationError("Payment amount must be greater than 0")
 
         if not dto.rent_charge_id:
-            return self._auto_distribute(account_id, dto, contract)
+            return self._auto_distribute(account_id, dto, contract, source)
 
-        return self._create_linked_payment(account_id, dto, contract)
+        return self._create_linked_payment(account_id, dto, contract, source)
 
     def allocate_advance(self, contract_id: UUID, account_id: UUID) -> dict:
         """По запросу распределить аванс по неоплаченным начислениям."""
@@ -128,7 +226,7 @@ class PaymentService:
         return {"allocated_count": allocated_count}
 
     def _create_linked_payment(
-        self, account_id: UUID, dto: PaymentCreateDTO, contract
+        self, account_id: UUID, dto: PaymentCreateDTO, contract, source: str
     ) -> PaymentCreateResultDTO:
         """Платёж с явным rent_charge_id: остаток charge, избыток → аванс."""
         charge = self.charge_repo.get_by_id_for_update(dto.rent_charge_id, account_id)
@@ -143,9 +241,19 @@ class PaymentService:
         if charge_remaining <= 0:
             raise ValidationError("Charge is already fully paid")
 
+        receipt_id = self._create_receipt(
+            account_id, dto, contract.currency, source
+        )
         linked_amount = min(dto.amount, charge_remaining)
         advance_amount = dto.amount - linked_amount
         created_payments: list[PaymentEntity] = []
+        allocation_event_id = self._create_allocation_event(
+            account_id=account_id,
+            contract_id=dto.contract_id,
+            receipt_id=receipt_id,
+            charge_id=charge.id,
+            amount=linked_amount,
+        )
 
         linked = self.payment_repo.create(
             PaymentEntity(
@@ -158,6 +266,8 @@ class PaymentService:
                 currency=contract.currency,
                 method=dto.method,
                 note=dto.note,
+                receipt_id=receipt_id,
+                allocation_event_id=allocation_event_id,
             )
         )
         created_payments.append(linked)
@@ -174,6 +284,7 @@ class PaymentService:
                     currency=contract.currency,
                     method=dto.method,
                     note=f"{dto.note} (аванс)" if dto.note else "Аванс",
+                    receipt_id=receipt_id,
                 )
             )
             created_payments.append(advance)
@@ -186,6 +297,7 @@ class PaymentService:
             dto.method,
             dto.note,
             linked.id,
+            receipt_id,
         )
 
         new_total = self.payment_repo.get_total_paid_for_charge(charge.id, account_id)
@@ -208,7 +320,7 @@ class PaymentService:
         )
 
     def _auto_distribute(
-        self, account_id: UUID, dto: PaymentCreateDTO, contract
+        self, account_id: UUID, dto: PaymentCreateDTO, contract, source: str
     ) -> PaymentCreateResultDTO:
         """Автоматически распределить платёж по неоплаченным charges."""
         charges = self.charge_repo.list_unpaid_for_contract_for_update(
@@ -217,6 +329,9 @@ class PaymentService:
         unpaid = [c for c in charges if c.status != "paid"]
         unpaid.sort(key=lambda c: c.due_date)
 
+        receipt_id = self._create_receipt(
+            account_id, dto, contract.currency, source
+        )
         remaining = dto.amount
         created_payments: list[PaymentEntity] = []
 
@@ -229,6 +344,13 @@ class PaymentService:
                 continue
 
             pay_amount = min(remaining, charge_remaining)
+            allocation_event_id = self._create_allocation_event(
+                account_id=account_id,
+                contract_id=dto.contract_id,
+                receipt_id=receipt_id,
+                charge_id=charge.id,
+                amount=pay_amount,
+            )
             entity = PaymentEntity(
                 id=uuid4(),
                 account_id=account_id,
@@ -239,6 +361,8 @@ class PaymentService:
                 currency=contract.currency,
                 method=dto.method,
                 note=dto.note,
+                receipt_id=receipt_id,
+                allocation_event_id=allocation_event_id,
             )
             created = self.payment_repo.create(entity)
             created_payments.append(created)
@@ -261,6 +385,7 @@ class PaymentService:
                 currency=contract.currency,
                 method=dto.method,
                 note=f"{dto.note} (аванс)" if dto.note else "Аванс",
+                receipt_id=receipt_id,
             )
             created = self.payment_repo.create(entity)
             created_payments.append(created)
@@ -276,6 +401,7 @@ class PaymentService:
             dto.method,
             dto.note,
             created_payments[0].id,
+            receipt_id,
         )
 
         check_and_update_contract_status(
@@ -309,6 +435,8 @@ class PaymentService:
         if not entity:
             raise NotFoundError(f"Payment with id={payment_id} not found")
 
+        original_amount = entity.amount
+        original_metadata = (entity.date_paid, entity.method, entity.note)
         if dto.date_paid is not None:
             entity.date_paid = dto.date_paid
         if dto.amount is not None:
@@ -329,6 +457,25 @@ class PaymentService:
             entity.method = dto.method
         if dto.note is not None:
             entity.note = dto.note
+
+        amount_changed = entity.amount != original_amount
+        metadata_changed = (entity.date_paid, entity.method, entity.note) != original_metadata
+        if entity.receipt_id is not None and (amount_changed or metadata_changed):
+            self._record_receipt_adjustment(
+                entity,
+                event_type="correction",
+                amount_delta=entity.amount - original_amount,
+            )
+        if amount_changed and entity.allocation_event_id is not None:
+            self._reverse_allocation(entity, amount=original_amount)
+            assert entity.receipt_id is not None and entity.rent_charge_id is not None
+            entity.allocation_event_id = self._create_allocation_event(
+                account_id=entity.account_id,
+                contract_id=entity.contract_id,
+                receipt_id=entity.receipt_id,
+                charge_id=entity.rent_charge_id,
+                amount=entity.amount,
+            )
 
         updated = self.payment_repo.update(entity)
 
@@ -369,6 +516,10 @@ class PaymentService:
             raise NotFoundError(f"Payment with id={payment_id} not found")
 
         contract_id = entity.contract_id
+        self._record_receipt_adjustment(
+            entity, event_type="cancellation", amount_delta=-entity.amount
+        )
+        self._reverse_allocation(entity)
         self.payment_repo.delete(payment_id, account_id)
 
         if charge_id:

@@ -33,6 +33,10 @@ TENANT_TABLES = {
     "invoices",
     "payment_claims",
     "payments",
+    "payment_receipts",
+    "payment_receipt_events",
+    "payment_allocation_targets",
+    "payment_allocation_events",
     "payment_idempotency_records",
     "reminders",
 }
@@ -300,3 +304,29 @@ def test_all_account_tables_force_row_level_security(test_engine) -> None:
     actual = {row.relname for row in rows}
     assert actual == TENANT_TABLES
     assert all(row.relrowsecurity and row.relforcerowsecurity for row in rows)
+
+
+def test_payment_trace_history_is_append_only_for_runtime_role(test_engine) -> None:
+    tables = (
+        "payment_receipts",
+        "payment_receipt_events",
+        "payment_allocation_targets",
+        "payment_allocation_events",
+    )
+    # The bootstrap script is repeatable and must preserve append-only grants.
+    provision_runtime_role("landlords_test")
+    with test_engine.connect() as connection:
+        privileges = connection.execute(
+            text(
+                "SELECT table_name, "
+                "has_table_privilege(current_user, 'public.' || table_name, 'SELECT'), "
+                "has_table_privilege(current_user, 'public.' || table_name, 'INSERT'), "
+                "has_table_privilege(current_user, 'public.' || table_name, 'UPDATE'), "
+                "has_table_privilege(current_user, 'public.' || table_name, 'DELETE') "
+                "FROM unnest(:tables) AS table_name"
+            ),
+            {"tables": list(tables)},
+        ).all()
+
+    assert {row[0] for row in privileges} == set(tables)
+    assert all(row[1:] == (True, True, False, False) for row in privileges), privileges

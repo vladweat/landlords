@@ -4,7 +4,18 @@ from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID, uuid4
 
-from sqlalchemy import Date, DateTime, ForeignKey, Numeric, String, Text, func, Index
+from sqlalchemy import (
+    CheckConstraint,
+    Date,
+    DateTime,
+    ForeignKey,
+    ForeignKeyConstraint,
+    Numeric,
+    String,
+    Text,
+    func,
+    Index,
+)
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -17,6 +28,31 @@ class PaymentModel(TimestampMixin, Base):
     
     __table_args__ = (
         Index("ix_payments_contract_date", "contract_id", "date_paid"),
+        CheckConstraint(
+            "receipt_id IS NULL OR rent_charge_id IS NULL OR allocation_event_id IS NOT NULL",
+            name="ck_payments_traceable_linked_allocation",
+        ),
+        CheckConstraint(
+            "receipt_id IS NOT NULL OR allocation_event_id IS NULL",
+            name="ck_payments_allocation_requires_receipt",
+        ),
+        ForeignKeyConstraint(
+            ["account_id", "contract_id", "receipt_id"],
+            ["payment_receipts.account_id", "payment_receipts.contract_id", "payment_receipts.id"],
+            name="fk_payments_receipt",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["account_id", "contract_id", "receipt_id", "allocation_event_id"],
+            [
+                "payment_allocation_events.account_id",
+                "payment_allocation_events.contract_id",
+                "payment_allocation_events.receipt_id",
+                "payment_allocation_events.id",
+            ],
+            name="fk_payments_allocation_event",
+            ondelete="CASCADE",
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
@@ -28,6 +64,10 @@ class PaymentModel(TimestampMixin, Base):
     currency: Mapped[str] = mapped_column(String(3), default="RUB", nullable=False)
     method: Mapped[str] = mapped_column(String(20), default="transfer", nullable=False)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    receipt_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    allocation_event_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), nullable=True
+    )
 
     def to_entity(self) -> PaymentEntity:
         """Преобразовать ORM-модель в доменную сущность."""
@@ -43,6 +83,8 @@ class PaymentModel(TimestampMixin, Base):
             note=self.note,
             created_at=self.created_at,
             updated_at=self.updated_at,
+            receipt_id=self.receipt_id,
+            allocation_event_id=self.allocation_event_id,
         )
 
     @classmethod
@@ -60,4 +102,6 @@ class PaymentModel(TimestampMixin, Base):
             note=entity.note,
             created_at=entity.created_at,
             updated_at=entity.updated_at,
+            receipt_id=entity.receipt_id,
+            allocation_event_id=entity.allocation_event_id,
         )

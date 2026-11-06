@@ -379,6 +379,7 @@ class TenantPortalService:
                 method="transfer",
                 note=note,
             ),
+            source="tenant_claim",
         )
         return self._resolve_claim(claim, user_id, "confirmed")
 

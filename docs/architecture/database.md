@@ -62,6 +62,13 @@ erDiagram
   contracts ||--o{ rent_charges : начисления
   contracts ||--o{ payments : платежи
   rent_charges ||--o{ payments : распределение
+  contracts ||--o{ payment_receipts : поступления
+  contracts ||--o{ payment_allocation_targets : снимки
+  payment_receipts ||--o{ payments : проекция
+  payment_receipts ||--o{ payment_receipt_events : корректировки
+  payment_receipts ||--o{ payment_allocation_events : распределения
+  payment_allocation_targets ||--o{ payment_allocation_events : цель
+  payment_receipts ||--o{ contract_events : timeline
   contracts ||--o{ documents : документы
   properties ||--o{ documents : документы
   properties ||--o{ property_expenses : расходы
@@ -76,10 +83,10 @@ erDiagram
 |---|---|---|
 | Пользователи и аккаунты | `users`, `accounts`, `account_memberships`, `account_invites`, `auth_sessions` | Пользователи, аккаунты, роли, приглашения, одноразовый ID токена сброса пароля, отзываемые JWT-сессии |
 | Аренда | `properties`, `tenants`, `contracts`, `contract_templates` | Объекты, арендаторы и договоры; токен портала хранится с двухчасовым сроком действия |
-| Финансы | `rent_charges`, `payments`, `property_expenses`, `invoices`, `payment_claims` | Начисления, платежи, расходы, публичные квитанции и заявки на оплату |
+| Финансы | `rent_charges`, `payments`, `payment_receipts`, `payment_receipt_events`, `payment_allocation_targets`, `payment_allocation_events`, `property_expenses`, `invoices`, `payment_claims` | Начисления, совместимая проекция платежей, неизменяемые поступления и история корректировок/распределений |
 | Документы | `documents` | Метаданные файлов; содержимое хранится на диске |
 | Операции | `reminders`, `email_dispatch_log`, `notification_dismissals`, `task_outbox`, `payment_idempotency_records` | Дедупликация, пользовательские состояния и долговременные команды фоновых задач; snapshot ручных платежей |
-| Аудит | `contract_events`, `audit_logs` (с `account_id`), `feedback` | История событий и обратная связь |
+| Аудит | `contract_events`, `audit_logs` (с `account_id`), `feedback` | История событий и обратная связь; новые payment events имеют FK на receipt |
 
 Для `account_memberships` заданы ограничения уникальности `(account_id, user_id)`
 и `user_id`, поэтому схема допускает только один аккаунт на пользователя.
@@ -95,6 +102,27 @@ ORM и доменный слой используют `Decimal`; API долже�
 `payments.rent_charge_id` допускает `NULL`: отсутствие ссылки означает аванс;
 сервис распределяет его по FIFO. Депозит — поле договора и не входит в ledger.
 Полные инварианты: [money-flow.md](../money-flow.md).
+
+Новые поступления записываются в неизменяемую `payment_receipts`; её исходная
+сумма, источник (`manual` или `tenant_claim`) и остальные исходные поля не
+редактируются. `payment_receipt_events` хранит знаковые изменения суммы и снимок
+исправленных полей. `payment_allocation_events` хранит положительные события
+распределения и отрицательные компенсации со ссылкой на обращаемое событие.
+`payment_allocation_targets` хранит неизменяемый снимок начисления при первом
+новом распределении, поэтому allocation остаётся разрешимым, если завершение
+договора удалит строку из `rent_charges`. В `payments` новые строки получают `receipt_id`; связанная
+проекция также получает `allocation_event_id`. `contract_events.payment_receipt_id`
+ссылается на стабильное поступление, а старое JSON metadata поле сохраняется.
+
+Миграция не делает backfill финансовых фактов. У прежних строк
+`payments.receipt_id IS NULL` означает `legacy/unknown`: старые split-группы,
+удалённые/изменённые суммы и распределения нельзя доказать по текущей схеме.
+Снимок в `payment_allocation_targets` создаётся транзакционно при первой новой
+allocation, в том числе если само начисление существовало до миграции. Миграция
+проверяет, что DDL не изменил число и сумму платежей, contract events и JSON
+payment refs.
+Downgrade отказывает при наличии новой receipt/allocation history или FK-ссылок;
+при откате приложения additive schema остаётся доступной старому коду.
 
 ## Индексы
 
@@ -128,7 +156,10 @@ ORM и доменный слой используют `Decimal`; API долже�
 - Платёжные операции блокируют строки в следующем порядке: договор, начисления
   по дате оплаты, авансовые платежи по дате и времени создания. Это
   последовательно выполняет изменения платежей и распределение авансов внутри
-  договора.
+  договора. Receipt, projection rows, receipt corrections, allocation/reversal
+  events и payment contract event записываются в одной транзакции. Новые
+  traceability tables применяют tenant RLS; runtime роль может читать и
+  добавлять финансовые факты, но не изменять и не удалять их.
 - Продление SaaS-подписки сохраняет в `accounts` период, время первой попытки,
   ключ идемпотентности, статус и ID платежа провайдера. Перед новым запросом или
   восстановлением состояния список YooKassa сверяется по метаданным периода.

@@ -14,6 +14,7 @@ Landlords помогает вести арендные объекты, дого�
 - [Архитектура](architecture/overview.md)
 - [API](api/overview.md)
 - [Модель данных](architecture/database.md)
+- [ADR: receipts и распределение платежей](architecture/decisions/0001-payment-receipts-and-allocations.md)
 - [Фоновые задачи](architecture/background-jobs.md)
 
 ## Разработка

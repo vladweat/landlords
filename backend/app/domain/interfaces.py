@@ -20,8 +20,11 @@ from app.domain.entities import (
     MembershipEntity,
     NotificationDismissalEntity,
     OutboxMessageEntity,
+    PaymentAllocationEventEntity,
     PaymentClaimEntity,
     PaymentEntity,
+    PaymentReceiptEntity,
+    PaymentReceiptEventEntity,
     PropertyEntity,
     PropertyExpenseEntity,
     ReminderEntity,
@@ -480,6 +483,21 @@ class IPaymentRepository(ABC):
     @abstractmethod
     def create(self, entity: PaymentEntity) -> PaymentEntity:
         """Создать платёж."""
+        ...
+
+    @abstractmethod
+    def create_receipt(self, entity: PaymentReceiptEntity) -> None:
+        """Сохранить неизменяемый исходный факт поступления."""
+        ...
+
+    @abstractmethod
+    def create_receipt_event(self, entity: PaymentReceiptEventEntity) -> None:
+        """Добавить корректировку или отмену receipt."""
+        ...
+
+    @abstractmethod
+    def create_allocation_event(self, entity: PaymentAllocationEventEntity) -> None:
+        """Добавить allocation или компенсирующую reversal-запись."""
         ...
 
     @abstractmethod

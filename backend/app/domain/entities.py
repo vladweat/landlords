@@ -171,6 +171,55 @@ class PaymentEntity:
     note: str | None = None
     created_at: datetime = field(default_factory=_utc_now)
     updated_at: datetime = field(default_factory=_utc_now)
+    receipt_id: UUID | None = None
+    allocation_event_id: UUID | None = None
+
+
+@dataclass
+class PaymentReceiptEntity:
+    """Неизменяемый исходный факт поступления денег."""
+
+    id: UUID
+    account_id: UUID
+    contract_id: UUID
+    date_paid: date
+    original_amount: Decimal
+    currency: str
+    method: str
+    source: str = "manual"
+    note: str | None = None
+    created_at: datetime = field(default_factory=_utc_now)
+
+
+@dataclass
+class PaymentReceiptEventEntity:
+    """Корректировка или отмена части исходного поступления."""
+
+    id: UUID
+    account_id: UUID
+    contract_id: UUID
+    receipt_id: UUID
+    event_type: str
+    amount_delta: Decimal
+    resulting_date_paid: date
+    resulting_method: str
+    resulting_note: str | None = None
+    created_at: datetime = field(default_factory=_utc_now)
+
+
+@dataclass
+class PaymentAllocationEventEntity:
+    """Добавление или компенсация распределения receipt на начисление."""
+
+    id: UUID
+    account_id: UUID
+    contract_id: UUID
+    receipt_id: UUID
+    rent_charge_id: UUID
+    event_type: str
+    amount: Decimal
+    reverses_event_id: UUID | None = None
+    created_at: datetime = field(default_factory=_utc_now)
 
 
 @dataclass
@@ -320,6 +369,7 @@ class ContractEventEntity:
     event_metadata: dict | None = None  # ← переименовано
     created_by: UUID | None = None
     created_at: datetime = field(default_factory=_utc_now)
+    payment_receipt_id: UUID | None = None
 
 
 @dataclass
