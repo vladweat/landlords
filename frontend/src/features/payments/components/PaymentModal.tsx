@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
@@ -9,7 +9,7 @@ import { scrollToTop } from '@/shared/lib/scrollToTop';
 import { getContractLabel } from '@/shared/lib/contractLabel';
 import { showError, showSuccess } from '@/shared/lib/toast';
 import { useEscapeKey } from '@/shared/hooks/useEscapeKey';
-import { paymentsApi } from '@/features/payments/api';
+import { createPaymentIdempotencyManager, paymentsApi } from '@/features/payments/api';
 import { contractsApi } from '@/features/contracts/api';
 import { propertiesApi } from '@/features/properties/api';
 import { tenantsApi } from '@/features/tenants/api';
@@ -63,6 +63,10 @@ export function PaymentModal({ isOpen, onClose, defaultContractId, defaultCharge
   const queryClient = useQueryClient();
   useEscapeKey(onClose);
   const [selectedContract, setSelectedContract] = useState('');
+  const paymentIdempotencyRef = useRef<ReturnType<typeof createPaymentIdempotencyManager> | null>(null);
+  if (paymentIdempotencyRef.current === null) {
+    paymentIdempotencyRef.current = createPaymentIdempotencyManager();
+  }
 
   const { data: contractsData } = useQuery({
     queryKey: ['contracts'],
@@ -159,9 +163,11 @@ export function PaymentModal({ isOpen, onClose, defaultContractId, defaultCharge
   }, [selectedChargeId, unpaidCharges, setValue]);
 
   const createMutation = useMutation({
-    mutationFn: paymentsApi.create,
+    mutationFn: (data: PaymentFormData) =>
+      paymentsApi.create(data, paymentIdempotencyRef.current!.keyFor(data)),
     retry: 0,
     onSuccess: (result) => {
+      paymentIdempotencyRef.current?.complete();
       queryClient.invalidateQueries({ queryKey: ['payments'] });
       queryClient.invalidateQueries({ queryKey: ['charges', selectedContract] });
       queryClient.invalidateQueries({ queryKey: ['contract-charges', selectedContract] });

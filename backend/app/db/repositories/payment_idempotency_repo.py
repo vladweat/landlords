@@ -30,12 +30,6 @@ class PaymentIdempotencyRepository:
     ) -> tuple[UUID | None, dict[str, Any] | None]:
         """Создать незавершённую reservation или вернуть сохранённый ответ."""
         while True:
-            self.delete_expired_for_account(
-                account_id=account_id,
-                operation_scope=operation_scope,
-                now=now,
-            )
-
             record_id = uuid4()
             result = self.session.execute(
                 insert(PaymentIdempotencyRecordModel)

@@ -1297,3 +1297,65 @@ class TestPayments:
                 session.query(PaymentIdempotencyRecordModel.key).all()
             )
             assert (expired_b_key,) not in keys_b
+
+    def test_create_payment_keeps_unrelated_expired_idempotency_records(
+        self, test_engine, committed_client_factory
+    ):
+        session_factory = sessionmaker(bind=test_engine, autocommit=False, autoflush=False)
+        with committed_client_factory() as api_client:
+            headers = _register(api_client, f"expired-key-scope-{uuid4().hex}@example.com")
+            contract_id, account_id = _create_contract(api_client, headers)
+
+            expired_key = f"old-key-{uuid4().hex}"
+            request_key = f"new-key-{uuid4().hex}"
+            with session_factory() as session:
+                set_tenant_context(session, UUID(account_id))
+                expired_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+                session.add_all(
+                    [
+                        PaymentIdempotencyRecordModel(
+                            id=uuid4(),
+                            account_id=UUID(account_id),
+                            operation_scope="payments:create",
+                            key=expired_key,
+                            request_hash="d" * 64,
+                            status="completed",
+                            response_snapshot={"data": {"payments": []}},
+                            expires_at=expired_at,
+                        ),
+                        PaymentIdempotencyRecordModel(
+                            id=uuid4(),
+                            account_id=UUID(account_id),
+                            operation_scope="payments:create",
+                            key=request_key,
+                            request_hash="e" * 64,
+                            status="completed",
+                            response_snapshot={"data": {"payments": []}},
+                            expires_at=expired_at,
+                        ),
+                    ]
+                )
+                session.commit()
+
+            response = api_client.post(
+                "/v1/payments",
+                headers={**headers, "Idempotency-Key": request_key},
+                json=_payment_payload(contract_id),
+            )
+            assert response.status_code == 201
+            assert response.json()["data"]["payments"]
+
+        with session_factory() as session:
+            set_tenant_context(session, UUID(account_id))
+            records = (
+                session.query(PaymentIdempotencyRecordModel)
+                .filter_by(
+                    account_id=UUID(account_id),
+                    operation_scope="payments:create",
+                )
+                .all()
+            )
+            records_by_key = {record.key: record for record in records}
+            assert expired_key in records_by_key
+            assert records_by_key[request_key].status == "completed"
+            assert records_by_key[request_key].response_snapshot == response.json()
