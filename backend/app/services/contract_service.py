@@ -201,9 +201,13 @@ class ContractService:
 
     def delete_contract(self, contract_id: UUID, account_id: UUID) -> None:
         """Удалить контракт."""
-        entity = self.repo.get_by_id(contract_id, account_id)
+        entity = self.repo.get_by_id_for_update(contract_id, account_id)
         if not entity:
             raise NotFoundError(f"Contract with id={contract_id} not found")
+        if self.payment_repo and self.payment_repo.has_financial_history_for_contract(
+            contract_id, account_id
+        ):
+            raise ConflictError("A contract with payment history cannot be deleted")
         self.repo.delete(contract_id, account_id)
 
     def terminate_contract(

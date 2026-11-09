@@ -125,6 +125,24 @@ class PaymentRepository(IPaymentRepository):
         )
         return [m.to_entity() for m in models]
 
+    def has_financial_history_for_contract(
+        self, contract_id: UUID, account_id: UUID
+    ) -> bool:
+        """Check current payment projections and retained receipt history."""
+        if (
+            self.session.query(PaymentReceiptModel.id)
+            .filter_by(contract_id=contract_id, account_id=account_id)
+            .first()
+            is not None
+        ):
+            return True
+        return (
+            self.session.query(PaymentModel.id)
+            .filter_by(contract_id=contract_id, account_id=account_id)
+            .first()
+            is not None
+        )
+
     def get_total_paid_for_charge(
         self, charge_id: UUID, account_id: UUID
     ) -> Decimal:

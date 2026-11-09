@@ -53,6 +53,7 @@ celery_app.conf.update(
         "app.tasks.email_tasks",
         "app.tasks.billing_tasks",
         "app.tasks.ops_tasks",
+        "app.tasks.payment_idempotency_tasks",
     ),
     broker_connection_retry_on_startup=True,
     task_track_started=True,
@@ -74,6 +75,13 @@ celery_app.conf.update(
         "check-ops-health-hourly": {
             "task": "app.tasks.ops_tasks.check_ops_health",
             "schedule": crontab(minute=15),
+        },
+        "cleanup-expired-payment-idempotency-records-hourly": {
+            "task": (
+                "app.tasks.payment_idempotency_tasks."
+                "cleanup_expired_payment_idempotency_records"
+            ),
+            "schedule": crontab(minute=45),
         },
     },
 )

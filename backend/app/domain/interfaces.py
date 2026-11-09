@@ -462,6 +462,13 @@ class IPaymentRepository(ABC):
         ...
 
     @abstractmethod
+    def has_financial_history_for_contract(
+        self, contract_id: UUID, account_id: UUID
+    ) -> bool:
+        """Проверить наличие текущих платежей или неизменяемых поступлений."""
+        ...
+
+    @abstractmethod
     def get_total_paid_for_charge(
         self, charge_id: UUID, account_id: UUID
     ) -> Decimal:

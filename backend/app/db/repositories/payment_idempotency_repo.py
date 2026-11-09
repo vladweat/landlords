@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
 
+from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
@@ -29,12 +30,11 @@ class PaymentIdempotencyRepository:
     ) -> tuple[UUID | None, dict[str, Any] | None]:
         """Создать незавершённую reservation или вернуть сохранённый ответ."""
         while True:
-            self.session.query(PaymentIdempotencyRecordModel).filter(
-                PaymentIdempotencyRecordModel.account_id == account_id,
-                PaymentIdempotencyRecordModel.operation_scope == operation_scope,
-                PaymentIdempotencyRecordModel.expires_at <= now,
-            ).delete(synchronize_session=False)
-            self.session.flush()
+            self.delete_expired_for_account(
+                account_id=account_id,
+                operation_scope=operation_scope,
+                now=now,
+            )
 
             record_id = uuid4()
             result = self.session.execute(
@@ -82,6 +82,46 @@ class PaymentIdempotencyRepository:
             # In-progress rows normally remain uncommitted with their payment
             # transaction. This handles any stale committed row until its TTL.
             raise ConflictError("A request with this Idempotency-Key is in progress")
+
+    def delete_expired_for_account(
+        self,
+        *,
+        account_id: UUID,
+        operation_scope: str,
+        now: datetime,
+        limit: int | None = None,
+    ) -> int:
+        """Delete expired records visible in one tenant, optionally in a batch."""
+        filters = (
+            PaymentIdempotencyRecordModel.account_id == account_id,
+            PaymentIdempotencyRecordModel.operation_scope == operation_scope,
+            PaymentIdempotencyRecordModel.expires_at <= now,
+        )
+        if limit is None:
+            result = self.session.execute(
+                delete(PaymentIdempotencyRecordModel).where(*filters)
+            )
+            self.session.flush()
+            return result.rowcount or 0
+
+        expired_ids = (
+            select(PaymentIdempotencyRecordModel.id)
+            .where(*filters)
+            .order_by(
+                PaymentIdempotencyRecordModel.expires_at,
+                PaymentIdempotencyRecordModel.id,
+            )
+            .limit(limit)
+            .with_for_update(skip_locked=True)
+            .cte("expired_payment_idempotency_records")
+        )
+        result = self.session.execute(
+            delete(PaymentIdempotencyRecordModel).where(
+                PaymentIdempotencyRecordModel.id.in_(select(expired_ids.c.id))
+            )
+        )
+        self.session.flush()
+        return result.rowcount or 0
 
     def complete(
         self,

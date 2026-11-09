@@ -18,6 +18,9 @@ TASK_LABELS = {
     "app.tasks.email_tasks.send_daily_reminder_emails": "send_daily_reminder_emails",
     "app.tasks.billing_tasks.process_subscription_renewals": "process_subscription_renewals",
     "app.tasks.ops_tasks.check_ops_health": "check_ops_health",
+    "app.tasks.payment_idempotency_tasks.cleanup_expired_payment_idempotency_records": (
+        "cleanup_expired_payment_idempotency_records"
+    ),
 }
 TASK_STATUSES = ("started", "success", "failure", "skipped")
 METRICS_RETENTION_SECONDS = 31_536_000

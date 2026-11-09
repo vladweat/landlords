@@ -1,7 +1,7 @@
 """Интеграционные тесты ручных платежей."""
 
 from concurrent.futures import ThreadPoolExecutor
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from threading import Barrier
 from unittest.mock import patch
@@ -18,6 +18,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.core.config import settings
 from app.db.models.contract_event_model import ContractEventModel
+from app.db.models.payment_idempotency_model import PaymentIdempotencyRecordModel
 from app.db.models.payment_model import PaymentModel
 from app.db.models.rent_charge_model import RentChargeModel
 from app.db.repositories.contract_repo import ContractRepository
@@ -1196,3 +1197,103 @@ class TestPayments:
         assert unauthenticated.status_code == 401
         assert unauthenticated.json()["status"] == "error"
         assert replay.json() == created.json()
+
+    def test_contract_delete_with_canceled_payment_history_returns_conflict(
+        self, committed_client_factory
+    ):
+        with committed_client_factory(raise_server_exceptions=False) as api_client:
+            headers = _register(api_client, f"payment-contract-delete-{uuid4().hex}@example.com")
+            contract_id, _ = _create_contract(api_client, headers)
+            created = api_client.post(
+                "/v1/payments",
+                headers=headers,
+                json=_payment_payload(contract_id),
+            )
+            assert created.status_code == 201
+            payment_id = created.json()["data"]["payments"][0]["id"]
+            canceled = api_client.delete(f"/v1/payments/{payment_id}", headers=headers)
+
+            assert canceled.status_code == 204
+            deleted = api_client.delete(f"/v1/contracts/{contract_id}", headers=headers)
+
+        assert deleted.status_code == 409
+        assert deleted.json()["status"] == "error"
+
+    def test_expired_idempotency_snapshots_are_cleaned_for_dormant_accounts(
+        self, test_engine, committed_client_factory, monkeypatch
+    ):
+        session_factory = sessionmaker(bind=test_engine, autocommit=False, autoflush=False)
+        with committed_client_factory() as api_client:
+            headers_a = _register(api_client, f"cleanup-a-{uuid4().hex}@example.com")
+            _, account_a = _create_contract(api_client, headers_a)
+            headers_b = _register(api_client, f"cleanup-b-{uuid4().hex}@example.com")
+            _, account_b = _create_contract(api_client, headers_b)
+
+        now = datetime.now(timezone.utc)
+        expired_a_key = f"expired-a-{uuid4().hex}"
+        active_a_key = f"active-a-{uuid4().hex}"
+        expired_b_key = f"expired-b-{uuid4().hex}"
+        with session_factory() as session:
+            set_tenant_context(session, UUID(account_a))
+            session.add_all(
+                [
+                    PaymentIdempotencyRecordModel(
+                        id=uuid4(),
+                        account_id=UUID(account_a),
+                        operation_scope="payments:create",
+                        key=expired_a_key,
+                        request_hash="a" * 64,
+                        status="completed",
+                        response_snapshot={"data": {"note": "expired snapshot"}},
+                        expires_at=now - timedelta(seconds=1),
+                    ),
+                    PaymentIdempotencyRecordModel(
+                        id=uuid4(),
+                        account_id=UUID(account_a),
+                        operation_scope="payments:create",
+                        key=active_a_key,
+                        request_hash="b" * 64,
+                        status="completed",
+                        response_snapshot={"data": {"note": "active snapshot"}},
+                        expires_at=now + timedelta(hours=1),
+                    ),
+                ]
+            )
+            session.commit()
+
+            set_tenant_context(session, UUID(account_b))
+            session.add(
+                PaymentIdempotencyRecordModel(
+                    id=uuid4(),
+                    account_id=UUID(account_b),
+                    operation_scope="payments:create",
+                    key=expired_b_key,
+                    request_hash="c" * 64,
+                    status="completed",
+                    response_snapshot={"data": {"note": "expired snapshot"}},
+                    expires_at=now - timedelta(seconds=1),
+                )
+            )
+            session.commit()
+
+        from app.tasks import payment_idempotency_tasks
+
+        monkeypatch.setattr(payment_idempotency_tasks, "SessionLocal", session_factory)
+        result = payment_idempotency_tasks.cleanup_expired_payment_idempotency_records.run()
+
+        assert result["status"] == "success"
+        assert result["accounts_scanned"] >= 2
+        assert result["records_deleted"] >= 2
+        with session_factory() as session:
+            set_tenant_context(session, UUID(account_a))
+            keys_a = set(
+                session.query(PaymentIdempotencyRecordModel.key).all()
+            )
+            assert (active_a_key,) in keys_a
+            assert (expired_a_key,) not in keys_a
+
+            set_tenant_context(session, UUID(account_b))
+            keys_b = set(
+                session.query(PaymentIdempotencyRecordModel.key).all()
+            )
+            assert (expired_b_key,) not in keys_b

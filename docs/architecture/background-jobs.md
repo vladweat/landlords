@@ -31,10 +31,18 @@
 | ежедневно 04:00 | `process_subscription_renewals` | Продление подписки или переход Pro на другой план |
 | ежедневно 07:00 | `send_daily_reminder_emails` | Отправка писем владельцам |
 | каждый час в `:15` | `check_ops_health` | Проверка диска, метрик и heartbeat beat |
+| каждый час в `:45` | `cleanup_expired_payment_idempotency_records` | Удаление просроченных snapshots ответов платежей |
 
 Расписание beat хранится в коде; отдельная база планировщика не используется.
 
 ## Задачи и гарантии
+
+### `cleanup_expired_payment_idempotency_records`
+
+Задача получает account ID через ограниченный RLS resolver, устанавливает
+tenant context и удаляет не более 500 истёкших ключей аккаунта за запуск.
+Каждый tenant фиксируется отдельной транзакцией; повторный запуск безопасен.
+Обычный `POST /v1/payments` также удаляет истёкшие ключи текущего аккаунта.
 
 ### `generate_charges_for_contract(account_id, contract_id, outbox_id)`
 
