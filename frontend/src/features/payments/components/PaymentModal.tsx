@@ -8,8 +8,14 @@ import { toast } from 'sonner';
 import { scrollToTop } from '@/shared/lib/scrollToTop';
 import { getContractLabel } from '@/shared/lib/contractLabel';
 import { showError, showSuccess } from '@/shared/lib/toast';
+import { useAuthStore } from '@/features/auth/store';
 import { useEscapeKey } from '@/shared/hooks/useEscapeKey';
-import { createPaymentIdempotencyManager, paymentsApi } from '@/features/payments/api';
+import { paymentsApi } from '@/features/payments/api';
+import {
+  createPaymentIdempotencyManager,
+  PaymentOperationNeedsReconciliationError,
+  type PaymentOperation,
+} from '@/features/payments/idempotency';
 import { contractsApi } from '@/features/contracts/api';
 import { propertiesApi } from '@/features/properties/api';
 import { tenantsApi } from '@/features/tenants/api';
@@ -52,6 +58,12 @@ const paymentSchema = z.object({
 
 type PaymentFormData = z.infer<typeof paymentSchema>;
 
+interface PaymentMutationVariables {
+  accountId: string;
+  data: PaymentFormData;
+  operation: PaymentOperation;
+}
+
 interface PaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -63,10 +75,14 @@ export function PaymentModal({ isOpen, onClose, defaultContractId, defaultCharge
   const queryClient = useQueryClient();
   useEscapeKey(onClose);
   const [selectedContract, setSelectedContract] = useState('');
-  const paymentIdempotencyRef = useRef<ReturnType<typeof createPaymentIdempotencyManager> | null>(null);
-  if (paymentIdempotencyRef.current === null) {
-    paymentIdempotencyRef.current = createPaymentIdempotencyManager();
-  }
+  const accountId = useAuthStore((state) => state.account?.id ?? null);
+  const paymentIdempotencyRef = useRef(createPaymentIdempotencyManager());
+  const [operationNeedsReconciliation, setOperationNeedsReconciliation] = useState<{
+    accountId: string;
+    fingerprint: string;
+    createdAt: number;
+    data: PaymentFormData;
+  } | null>(null);
 
   const { data: contractsData } = useQuery({
     queryKey: ['contracts'],
@@ -163,11 +179,17 @@ export function PaymentModal({ isOpen, onClose, defaultContractId, defaultCharge
   }, [selectedChargeId, unpaidCharges, setValue]);
 
   const createMutation = useMutation({
-    mutationFn: (data: PaymentFormData) =>
-      paymentsApi.create(data, paymentIdempotencyRef.current!.keyFor(data)),
+    mutationFn: ({ data, operation }: PaymentMutationVariables) =>
+      paymentsApi.create(data, operation.key),
     retry: 0,
-    onSuccess: (result) => {
-      paymentIdempotencyRef.current?.complete();
+    onSuccess: (result, variables) => {
+      try {
+        paymentIdempotencyRef.current.complete(variables.accountId, variables.operation);
+      } catch {
+        toast.warning(
+          'Платёж создан, но локальный ключ не очищен. Повторная отправка вернёт исходный ответ.',
+        );
+      }
       queryClient.invalidateQueries({ queryKey: ['payments'] });
       queryClient.invalidateQueries({ queryKey: ['charges', selectedContract] });
       queryClient.invalidateQueries({ queryKey: ['contract-charges', selectedContract] });
@@ -192,20 +214,49 @@ export function PaymentModal({ isOpen, onClose, defaultContractId, defaultCharge
 
   const contractRegister = register('contract_id');
 
-  const onSubmit = (data: PaymentFormData) => {
+  const onSubmit = async (data: PaymentFormData) => {
     if (maxAmount !== undefined && Number(data.amount) > maxAmount) {
       toast.error(`Сумма не должна превышать остаток ${maxAmount.toLocaleString('ru-RU')} ₽`);
       return;
     }
-    createMutation.mutate({
+
+    if (!accountId) {
+      toast.error('Не удалось определить аккаунт. Обновите страницу и повторите попытку.');
+      return;
+    }
+
+    const request: PaymentFormData = {
       contract_id: data.contract_id,
       amount: data.amount,
       date_paid: data.date_paid,
       method: data.method,
       note: data.note || undefined,
       rent_charge_id: data.rent_charge_id || undefined,
-    });
+    };
+
+    try {
+      const operation = await paymentIdempotencyRef.current.prepare(accountId, request);
+      createMutation.mutate({ accountId, data: request, operation });
+    } catch (error) {
+      if (error instanceof PaymentOperationNeedsReconciliationError) {
+        setOperationNeedsReconciliation({
+          accountId,
+          fingerprint: error.fingerprint,
+          createdAt: error.createdAt,
+          data: request,
+        });
+        return;
+      }
+      showError(error, 'Ошибка создания');
+    }
   };
+
+  const reconciliationContract = operationNeedsReconciliation
+    ? contracts.find((contract) => contract.id === operationNeedsReconciliation.data.contract_id)
+    : undefined;
+  const reconciliationContractLabel = reconciliationContract
+    ? getContractLabel(reconciliationContract, properties, tenants)
+    : 'выбранного договора';
 
   return (
     <AnimatePresence>
@@ -299,6 +350,38 @@ export function PaymentModal({ isOpen, onClose, defaultContractId, defaultCharge
                   </select>
                 </div>
                 <Input label="Примечание" placeholder="Необязательно" {...register('note')} />
+                {operationNeedsReconciliation?.accountId === accountId && (
+                  <div
+                    role="alert"
+                    className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"
+                  >
+                    <p>
+                      Не удалось подтвердить результат платежа на{' '}
+                      {Number(operationNeedsReconciliation.data.amount).toLocaleString('ru-RU')} ₽ от{' '}
+                      {operationNeedsReconciliation.data.date_paid} для {reconciliationContractLabel}.
+                      Срок безопасного повтора истёк. Сверьте список платежей перед новой отправкой.
+                    </p>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      className="mt-3 w-full"
+                      onClick={() => {
+                        try {
+                          paymentIdempotencyRef.current.confirmReconciled(
+                            operationNeedsReconciliation.accountId,
+                            operationNeedsReconciliation.fingerprint,
+                          );
+                          setOperationNeedsReconciliation(null);
+                          toast.success('Сверка отмечена. Теперь можно повторно отправить форму.');
+                        } catch (error) {
+                          showError(error, 'Не удалось подтвердить сверку');
+                        }
+                      }}
+                    >
+                      Я сверил платежи: предыдущей операции нет
+                    </Button>
+                  </div>
+                )}
                 <div className="flex gap-3 pt-2">
                   <Button type="button" variant="secondary" onClick={onClose} className="flex-1">
                     Отмена

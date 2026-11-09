@@ -7,15 +7,6 @@ vi.mock('@/shared/api/client', () => ({
 }));
 
 import { paymentsApi } from './api';
-import * as paymentsModule from './api';
-import type { PaymentFormData } from './api';
-
-type PaymentIdempotencyManagerFactory = (
-  createId: () => string,
-) => {
-  keyFor: (data: PaymentFormData) => string;
-  complete: () => void;
-};
 
 describe('payments API', () => {
   beforeEach(() => post.mockReset());
@@ -36,30 +27,5 @@ describe('payments API', () => {
     expect(post).toHaveBeenCalledWith('/payments', payload, {
       headers: { 'Idempotency-Key': '16a69b65-243b-4ee5-a0f6-76a9a349a02a' },
     });
-  });
-
-  it('reuses a key after an unknown result and starts a new key after completion', () => {
-    const createManager = (
-      paymentsModule as unknown as {
-        createPaymentIdempotencyManager?: PaymentIdempotencyManagerFactory;
-      }
-    ).createPaymentIdempotencyManager;
-    expect(typeof createManager).toBe('function');
-    if (!createManager) return;
-
-    const keys = ['request-1', 'request-2', 'request-3'];
-    const manager = createManager(() => keys.shift() ?? 'unexpected-key');
-    const payload = {
-      contract_id: 'contract-1',
-      amount: '1500.00',
-      date_paid: '2026-11-09',
-      method: 'transfer',
-    };
-
-    expect(manager.keyFor(payload)).toBe('request-1');
-    expect(manager.keyFor({ ...payload })).toBe('request-1');
-    expect(manager.keyFor({ ...payload, amount: '1501.00' })).toBe('request-2');
-    manager.complete();
-    expect(manager.keyFor(payload)).toBe('request-3');
   });
 });

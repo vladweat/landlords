@@ -15,23 +15,6 @@ export interface PaymentCreateResult {
   total_amount: string;
 }
 
-export function createPaymentIdempotencyManager(createId = () => crypto.randomUUID()) {
-  let pendingRequest: { fingerprint: string; key: string } | null = null;
-
-  return {
-    keyFor(data: PaymentFormData): string {
-      const fingerprint = JSON.stringify(data);
-      if (pendingRequest?.fingerprint === fingerprint) return pendingRequest.key;
-
-      pendingRequest = { fingerprint, key: createId() };
-      return pendingRequest.key;
-    },
-    complete(): void {
-      pendingRequest = null;
-    },
-  };
-}
-
 export const paymentsApi = {
   getAll: async (): Promise<Payment[]> => {
     const response = await apiClient.get<{ status: string; data: Payment[] }>('/payments');
