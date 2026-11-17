@@ -4,8 +4,6 @@
 
 [![CI @ 8d054ca](https://img.shields.io/github/check-suites/vladweat/landlords/8d054ca46fec3b5f3f71b1ceaa32ee058352d45e?label=CI%20%40%208d054ca)](https://github.com/vladweat/landlords/actions/runs/42007124711)
 
-> Screenshot TODO: Add a real capture from the isolated synthetic demo.
-
 ## What it does
 
 - Manage rental properties, tenants, lease contracts, and documents.
@@ -66,12 +64,6 @@ CI runs backend lint and unit/task tests, PostgreSQL integration tests, frontend
 ```
 
 The PostgreSQL integration suite recreates `landlords_test`; use only the isolated test stack described in [testing.md](docs/development/testing.md).
-
-## Known limitations
-
-- Older payment rows are not backfilled with receipt/allocation history; they remain marked as legacy or unknown.
-- The transactional outbox may publish a task more than once; the charge-generation task handles duplicates by stable task ID.
-- Repository defaults do not configure off-site backup or an external Alertmanager receiver. The current restore check does not exercise the application ledger or tenant isolation.
 
 ## Documentation
 
